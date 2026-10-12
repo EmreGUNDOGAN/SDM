@@ -4,6 +4,7 @@
   <p><strong>Windows için kişisel indirme yöneticisi.</strong></p>
   <p>Dosyaları düzenle. Videoda kaliteyi seç. İndirmeleri tek yerden takip et.</p>
   <p>Windows 10 / 11 · Chrome ve Opera · Sürüm 0.3.0</p>
+  <p><a href="https://github.com/EmreGUNDOGAN/SDM/releases/tag/v0.3.0">Kurulum paketini indir</a> · <a href="SECURITY-REVIEW.md">Doğrulama bilgileri</a></p>
 </div>
 
 ---
