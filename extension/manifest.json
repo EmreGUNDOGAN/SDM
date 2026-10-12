@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "SDM Video Downloader",
+  "version": "0.3.0",
+  "description": "Video \u00fczerinde kalite se\u00e7imi ve SDM ile indirme.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAizFyPXdzwyOpPaXh4WKcJ+E+sf6/EHrXkipJvvYu5kfWyWMjR3b4S7ZrfQhz3D2oZ83DQYSd3M1uPT3oA1U3CX5uYZIeCMuHpc7lV0qwj3pPWX1X9Bed/HMKQ5eExVS/6xQDVygaDJDvJG8282RnU9RUnOjhs+b4tSnAAJtYDtOxt4S30nWpWnpGYTq/AmKmVOjXmL75zRjH2p0yApfZ5s8wqKg9SG7ErM+ya6VlFFNqx3r5MRYvxK5l1OeruJM6f1Wxr8aEYBKsjFnsvwiVjE4ACp7mWlt/ks3Wboxl/blRjlHqWDr96kxaW48+LX2QfhQbtXKR6r4uM9amfsom4QIDAQAB",
+  "permissions": [
+    "nativeMessaging",
+    "downloads"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "icons": {
+    "128": "icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.youtube.com/*",
+        "*://*.vimeo.com/*",
+        "*://*.dailymotion.com/*",
+        "*://*.tiktok.com/*",
+        "*://*.instagram.com/*",
+        "*://*.x.com/*",
+        "*://*.twitter.com/*",
+        "*://*.facebook.com/*",
+        "*://*.twitch.tv/*",
+        "*://*.soundcloud.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
