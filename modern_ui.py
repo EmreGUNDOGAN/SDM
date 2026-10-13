@@ -52,18 +52,23 @@ class ModernUI:
         brand=tb.Frame(sidebar,style='SDM.Side.TFrame');brand.pack(fill='x',pady=(10,25))
         tb.Label(brand,image=self._sidebar_logo,style='SDM.Side.TLabel').pack(side='left',padx=(0,12))
         tb.Label(brand,text='SDM',font=('Segoe UI',23,'bold'),style='SDM.Side.TLabel').pack(side='left')
-        tb.Label(sidebar,text='İNDİRMELER',font=('Segoe UI',9,'bold'),style='SDM.Side.TLabel').pack(anchor='w',pady=(0,12))
+        tb.Button(sidebar,text='  Ayarlar',image=self.icon_images[5],compound='left',bootstyle='secondary-link',command=self.open_settings_dialog).pack(side='bottom',fill='x',pady=8)
+        from ttkbootstrap.widgets.scrolled import ScrolledFrame
+        self.sidebar_scroll=ScrolledFrame(sidebar,height=350,width=184,auto_hide=False,padding=0,style='SDM.Side.TFrame')
+        self.sidebar_scroll.pack(fill='both',expand=True)
+        self.sidebar_scroll._canvas.configure(background=p['panel'])
+        sidebar_content=self.sidebar_scroll
+        tb.Label(sidebar_content,text='İNDİRMELER',font=('Segoe UI',9,'bold'),style='SDM.Side.TLabel').pack(anchor='w',pady=(0,12))
         self.category_buttons={}
         categories=[('Tümü',7),('Devam Edenler',14),('Tamamlananlar',15),('Belgeler',8),('Resimler',9),('Müzik',10),('Video',11),('Arşivler',12),('Programlar',13),('Diğer',7)]
         for index,(name,icon) in enumerate(categories):
             if index == 3:
-                tb.Label(sidebar,text='KATEGORİLER',font=('Segoe UI',9,'bold'),style='SDM.Side.TLabel').pack(anchor='w',pady=(25,12))
+                tb.Label(sidebar_content,text='KATEGORİLER',font=('Segoe UI',9,'bold'),style='SDM.Side.TLabel').pack(anchor='w',pady=(25,12))
             label='Tüm indirmeler' if name=='Tümü' else name
-            button=tb.Button(sidebar,text='  '+label,image=self.icon_images[icon],compound='left',bootstyle='secondary-link',command=lambda c=name:self.select_category(c))
+            button=tb.Button(sidebar_content,text='  '+label,image=self.icon_images[icon],compound='left',bootstyle='secondary-link',command=lambda c=name:self.select_category(c))
             button.pack(fill='x',pady=3,ipady=4);self.category_buttons[name]=button
-        tb.Button(sidebar,text='  Ayarlar',image=self.icon_images[5],compound='left',bootstyle='secondary-link',command=self.open_settings_dialog).pack(side='bottom',fill='x',pady=8)
-        tb.Button(sidebar,text='İndirme araçları',bootstyle='secondary-link',command=self.open_tools).pack(side='bottom',fill='x')
-        tb.Button(sidebar,text='Küçük masaüstü HUD’u',bootstyle='secondary-link',command=self.show_mini_hud).pack(side='bottom',fill='x')
+        tb.Button(sidebar_content,text='İndirme araçları',bootstyle='secondary-link',command=self.open_tools).pack(fill='x',pady=(18,4))
+        tb.Button(sidebar_content,text='Küçük masaüstü HUD’u',bootstyle='secondary-link',command=self.show_mini_hud).pack(fill='x',pady=4)
         main=tb.Frame(body,padding=(26,22));main.pack(side='left',fill='both',expand=True)
         heading=tb.Frame(main);heading.pack(fill='x')
         tb.Label(heading,text='İndirme merkezi',font=('Segoe UI',23,'bold')).pack(side='left')

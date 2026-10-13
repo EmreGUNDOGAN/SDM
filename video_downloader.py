@@ -39,6 +39,10 @@ def tool_options():
 
 
 def format_options(info):
+    def size_of(fmt):
+        size=fmt.get('filesize') or fmt.get('filesize_approx') or 0
+        if not size and info.get('duration') and fmt.get('tbr'):size=info['duration']*fmt['tbr']*1000/8
+        return max(0,int(size))
     heights = sorted({int(f['height']) for f in info.get('formats', [])
                       if f.get('height') and f.get('vcodec') != 'none'
                       and not f.get('has_drm')}, reverse=True)
@@ -47,15 +51,16 @@ def format_options(info):
     qualities = []
     for height in heights:
         formats = [f for f in info.get('formats',[]) if f.get('height') == height and not f.get('has_drm')]
-        audio_sizes = [f.get('filesize') or f.get('filesize_approx') or 0 for f in info.get('formats',[])
+        audio_sizes = [size_of(f) for f in info.get('formats',[])
                        if f.get('vcodec') == 'none' and not f.get('has_drm')]
         candidate = max(formats,key=lambda f:f.get('tbr') or 0,default={})
-        size = candidate.get('filesize') or candidate.get('filesize_approx') or 0
+        size = size_of(candidate)
         if candidate.get('acodec') == 'none' and size:
             size += max(audio_sizes,default=0)
         qualities.append({'height':height,'label':f'{height}p','filesize':size,
                           'extension':candidate.get('ext','mkv'),'estimated':True})
     return {'title': info.get('title', 'Video'),
+            'audio_filesize':int((info.get('duration') or 0)*192000/8),
             'qualities': qualities,
             'audio': any(f.get('acodec') not in (None, 'none') and not f.get('has_drm')
                          for f in info.get('formats', []))}
@@ -162,12 +167,19 @@ class VideoDownloadTask:
         self._streams = {}
         self._expected_total = 0
         self._range_active = False
+        from transfer_details import TransferDetails
+        self.transfer_details=TransferDetails()
+        self.unobserved_method='Video motoru · ön kontrol'
+        self._access_retries=0
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
             return False
         self._paused = False
         self._cancel_flag.clear()
+        self._access_retries=0
+        from transfer_details import TransferDetails
+        self.transfer_details=TransferDetails()
         self.status = "İndiriliyor"
         self._notify_status("İndiriliyor")
         self._thread = threading.Thread(
@@ -325,9 +337,15 @@ class VideoDownloadTask:
                 formats = info.get('requested_formats') or info.get('requested_downloads') or [info]
                 self._expected_total = sum(f.get('filesize') or f.get('filesize_approx') or 0 for f in formats)
                 self.total_bytes = self._expected_total
+                self.unobserved_method=' / '.join(dict.fromkeys(str(f.get('protocol') or 'Video motoru') for f in formats))
                 from file_tools import ensure_space
                 existing=sum(p.stat().st_size for p in staging.rglob('*') if p.is_file())
-                ensure_space(staging/'output',self._expected_total,3,existing)
+                exact_total=sum(f.get('filesize') or 0 for f in formats) if all(f.get('filesize') for f in formats) else 0
+                ensure_space(staging/'output',exact_total,3 if self.is_audio_only else 2,existing)
+                if self.metadata_callback:
+                    preview=Path(ydl.prepare_filename(info))
+                    name=(Path(self.output_name).stem if self.output_name else preview.stem)+('.mp3' if self.is_audio_only else '.mkv' if len(formats)>1 else preview.suffix)
+                    self.metadata_callback(self.download_id,name,str(self.dest_folder/name),self._expected_total,'Müzik' if self.is_audio_only else 'Video')
                 self.meter.reset(self.downloaded_bytes)
                 info = ydl.process_ie_result(info, download=True)
                 if info:
@@ -379,6 +397,11 @@ class VideoDownloadTask:
                 self.status = 'Duraklatıldı' if self._paused else 'İptal Edildi'
                 self._notify_status(self.status)
             else:
+                if ('403' in str(e) or 'Forbidden' in str(e)) and self._access_retries<1:
+                    self._access_retries+=1;self._range_active=False
+                    self.unobserved_method='Erişim bağlantısı bir kez yenileniyor'
+                    logger.warning('Video access was denied; re-extracting the page once before reporting failure.')
+                    self._run();return
                 logger.error(f"yt-dlp execution error: {e}")
                 self.status = "Hata"
                 self.error_message = str(e)

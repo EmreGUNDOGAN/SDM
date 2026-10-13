@@ -57,7 +57,7 @@ class CapturePrompt(tb.Toplevel):
                 did=self.parent.add_download_from_dialog(self.request['url'],filename,str(dest),
                     is_video=self.request['kind']=='video',auto_start=action=='start',
                     video_quality='Yalnızca Ses (MP3)' if self.request.get('audio') else 'En İyi',
-                    selected_height=self.request.get('height'),from_browser=action=='start')
+                    selected_height=self.request.get('height'),from_browser=action=='start',expected_size=self.request.get('filesize',0))
                 if did is None:action='cancel'
             except Exception as error:
                 messagebox.showerror('İndirme eklenemedi',str(error),parent=self);return
@@ -114,10 +114,14 @@ class BatchDialog(tb.Toplevel):
         self.combo=tb.Combobox(controls,textvariable=self.quality,values=['En İyi','1080p','720p','480p'],state='readonly',width=18)
         self.combo.pack(side='right')
         self.status=tk.StringVar(value='');tb.Label(frame,textvariable=self.status,wraplength=620).pack(anchor='w',pady=6)
-        tb.Button(frame,text='Video kalitelerini / listeyi incele',bootstyle='secondary-outline',command=self.inspect).pack(anchor='w')
+        tb.Button(frame,text='Boyutu ve varsa video kalitelerini incele',bootstyle='secondary-outline',command=self.inspect).pack(anchor='w')
+        self.size_preview=tk.StringVar(value='Boyut: bağlantı incelenince gösterilecek')
+        tb.Label(frame,textvariable=self.size_preview).pack(anchor='w',pady=6)
         self.list=tb.Treeview(frame,columns=('title',),show='headings',selectmode='extended',height=5)
         self.list.heading('title',text='Video listesi · İndirmek istediklerini seç');self.list.pack(fill='both',expand=True,pady=10)
-        self.entries={};self.heights={}
+        self.entries={};self.heights={};self.quality_sizes={};self.file_info=None;self.audio_size=0;self.inspection_attempted=set();self.inspecting=False;self.inspection_url=''
+        self.quality.trace_add('write',lambda *args:self.update_size_preview())
+        self.audio.trace_add('write',lambda *args:self.update_size_preview())
         buttons=tb.Frame(frame);buttons.pack(fill='x')
         for label,immediate in [('Şimdi indir',True),('Kuyruğa ekle',False)]:
             tb.Button(buttons,text=label,command=lambda now=immediate:self.submit(now)).pack(side='left',padx=(0,10))
@@ -125,23 +129,58 @@ class BatchDialog(tb.Toplevel):
 
     def inspect(self):
         urls=self.urls.get('1.0','end').strip().splitlines()
-        if len(urls)!=1:return self.status.set('Liste incelemek için tek bir video veya oynatma listesi bağlantısı gir.')
+        if len(urls)!=1:return self.status.set('Boyut veya liste incelemek için tek bir bağlantı gir.')
+        if self.inspecting:return
+        url=urls[0].strip();self.inspecting=True;self.inspection_url=url
+        video_selected=self.video.get() or self.audio.get()
         self.status.set('Bilgiler alınıyor…')
         def work():
             try:
-                from video_downloader import fetch_video_formats,tool_options
+                from video_downloader import fetch_video_formats,tool_options,is_video_site
+                if not video_selected and not is_video_site(url):
+                    from browser_files import prepare_transfer
+                    info=prepare_transfer(url)
+                    self.parent.post_ui(lambda:self.inspected_file(url,info) if self.winfo_exists() else None)
+                    return
                 import yt_dlp
                 with yt_dlp.YoutubeDL({'quiet':True,'extract_flat':'in_playlist','skip_download':True,'playlistend':100,**tool_options()}) as ydl:
                     info=ydl.extract_info(urls[0],download=False)
                 entries=info.get('entries') or []
                 formats=None if entries else fetch_video_formats(urls[0])
-                self.parent.post_ui(lambda:self.inspected(entries,formats) if self.winfo_exists() else None)
+                self.parent.post_ui(lambda:self.inspected_result(url,entries,formats) if self.winfo_exists() else None)
             except Exception:
-                self.parent.post_ui(lambda:self.status.set('Bilgiler alınamadı. Bağlantıyı ve site erişimini kontrol et.') if self.winfo_exists() else None)
+                self.parent.post_ui(lambda:self.inspection_failed(url) if self.winfo_exists() else None)
         threading.Thread(target=work,daemon=True).start()
 
+    def inspected_result(self,url,entries,formats):
+        self.inspecting=False;self.inspection_attempted.add(url)
+        if self.urls.get('1.0','end').strip()!=url:return
+        self.file_info=None;self.inspected(entries,formats)
+
+    def inspected_file(self,url,info):
+        self.inspecting=False;self.inspection_attempted.add(url)
+        if self.urls.get('1.0','end').strip()!=url:return
+        self.file_info=dict(info,source_url=url);self.entries={};self.heights={};self.quality_sizes={}
+        self.status.set(info['filename']);self.update_size_preview()
+
+    def inspection_failed(self,url):
+        self.inspecting=False;self.inspection_attempted.add(url);self.file_info=None
+        if self.urls.get('1.0','end').strip()==url:
+            self.size_preview.set('Boyut: sunucudan alınamadı')
+            self.status.set('Ön inceleme tamamlanamadı. İstersen Şimdi indir’e tekrar basarak deneyebilirsin.')
+
+    def preview_size(self):
+        if self.urls.get('1.0','end').strip()!=self.inspection_url:return 0
+        if self.file_info:return self.file_info.get('filesize',0)
+        return self.audio_size if self.audio.get() else self.quality_sizes.get(self.quality.get(),0)
+
+    def update_size_preview(self):
+        size=self.preview_size()
+        estimate=not self.file_info
+        self.size_preview.set(('Tahmini boyut: ' if estimate else 'Dosya boyutu: ')+format_bytes(size) if size else 'Boyut: sunucu bildirmiyor veya henüz incelenmedi')
+
     def inspected(self,entries,formats):
-        self.video.set(True);self.entries={};self.list.delete(*self.list.get_children())
+        self.video.set(True);self.entries={};self.quality_sizes={};self.audio_size=0;self.list.delete(*self.list.get_children())
         if entries:
             for entry in entries:
                 url=entry.get('webpage_url') or entry.get('url')
@@ -151,15 +190,17 @@ class BatchDialog(tb.Toplevel):
             self.list.selection_set(self.list.get_children())
             self.status.set('En fazla 100 video listelendi. İndirmek istediklerini seç.')
         else:
-            self.heights={}
+            self.heights={};self.quality_sizes={};self.audio_size=formats.get('audio_filesize',0)
             labels=[]
             for quality in formats['qualities']:
                 size=' · ~'+format_bytes(quality['filesize']) if quality['filesize'] else ''
                 label=f'{quality["height"]}p · {quality["extension"]}'+size
                 self.heights[label]=quality['height'];labels.append(label)
+                self.quality_sizes[label]=quality['filesize']
             self.combo.configure(values=labels)
             if labels:self.quality.set(labels[0])
             self.status.set(formats['title'])
+            self.update_size_preview()
 
     def submit(self,immediate):
         from utils import is_valid_url,extract_filename_from_url
@@ -167,12 +208,15 @@ class BatchDialog(tb.Toplevel):
         entries=[self.entries[item] for item in self.list.selection()] if self.entries else [(url.strip(),'') for url in self.urls.get('1.0','end').splitlines() if url.strip()]
         if not entries or any(not is_valid_url(url) for url,_ in entries):
             return messagebox.showerror('Bağlantı gerekli','Geçerli http/https bağlantıları girin.',parent=self)
+        if self.inspecting:return self.status.set('Boyut bilgisi alınıyor; tamamlanınca başlatabilirsin.')
+        if not self.entries and len(entries)==1 and entries[0][0] not in self.inspection_attempted:
+            self.inspect();return
         for url,title in entries:
             video=self.video.get() or is_video_site(url) or self.audio.get()
-            filename=clean_filename(title or ('Video.mp3' if self.audio.get() else 'Video.mkv')) if video else extract_filename_from_url(url)
+            filename=clean_filename(title or ('Video.mp3' if self.audio.get() else 'Video.mkv')) if video else self.file_info['filename'] if self.file_info and self.file_info.get('source_url')==url else extract_filename_from_url(url)
             if video and not Path(filename).suffix:filename+='.mp3' if self.audio.get() else '.mkv'
             dest=get_unique_filepath(self.parent.settings['download_dir'],filename)
             self.parent.add_download_from_dialog(url,filename,str(dest),is_video=video,
                 video_quality='Yalnızca Ses (MP3)' if self.audio.get() else self.quality.get() if not self.heights else 'En İyi',
-                selected_height=self.heights.get(self.quality.get()),auto_start=immediate)
+                selected_height=self.heights.get(self.quality.get()),auto_start=immediate,expected_size=self.preview_size() if len(entries)==1 else 0)
         self.destroy()

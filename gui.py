@@ -287,11 +287,12 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         auto_start: bool = True,
         selected_height: Optional[int] = None,
         from_browser: bool = False,
+        expected_size: int = 0,
     ) -> None:
         if self.check_duplicate(url,is_video,video_quality,selected_height):return None
         if self.settings.get('disk_check',True):
             from file_tools import ensure_space
-            try:ensure_space(dest_path)
+            try:ensure_space(dest_path,expected_size if not is_video else 0,multiplier=2)
             except OSError:
                 messagebox.showwarning('Disk alanı yetersiz','Başka bir kayıt klasörü seçmelisin.',parent=self)
                 folder=filedialog.askdirectory(parent=self)
@@ -315,7 +316,7 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
             url=url,
             filename=filename,
             filepath=dest_path,
-            filesize=0,
+            filesize=max(0,int(expected_size or 0)),
             category=cat,
             num_connections=connections,
             headers=headers or {},

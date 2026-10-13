@@ -3,8 +3,8 @@
   <h1>SDM</h1>
   <p><strong>Windows için kişisel indirme yöneticisi.</strong></p>
   <p>Dosyaları düzenle. Videoda kaliteyi seç. İndirmeleri tek yerden takip et.</p>
-  <p>Windows 10 / 11 · Chrome ve Opera · Sürüm 0.4.0</p>
-  <p><a href="https://github.com/EmreGUNDOGAN/SDM-Updates/releases/tag/v0.4.0">Kurulum paketini indir</a> · <a href="SECURITY-REVIEW.md">Doğrulama bilgileri</a></p>
+  <p>Windows 10 / 11 · Chrome ve Opera · Sürüm 0.4.1</p>
+  <p><a href="https://github.com/EmreGUNDOGAN/SDM-Updates/releases/tag/v0.4.1">Kurulum paketini indir</a> · <a href="SECURITY-REVIEW.md">Doğrulama bilgileri</a></p>
 </div>
 
 ---
@@ -42,7 +42,7 @@ geliştirilen sürümün kaynak kodunu ve kurulum tarifini içerir.
 
 ## Kurulum
 
-1. **SDM-Setup-0.4.0.exe** dosyasını çalıştır.
+1. **SDM-Setup-0.4.1.exe** dosyasını çalıştır.
 2. Kullanacağın **Chrome / Opera eklentisi** seçeneğini işaretle.
 3. Açılan yönergeden tarayıcıda **Geliştirici modu → Paketlenmemiş yükle** adımını tamamla.
 4. Kurulum klasöründeki `extension` klasörünü seç.
@@ -61,7 +61,7 @@ Mağaza dışı eklentinin son yükleme onayı tarayıcıda bir kez verilmelidir
 - **Yakalama:** Ayarlar → Tarayıcı bölümünden site/uzantı tercihlerini düzenle; eklentiden geçici durdur.
 - **Güncelleme:** Ayarlar → Güncelleme bölümünden kontrol et. Token gerekmez; kurulum onayınla başlar.
 - **Tema:** Ayarlar → Genel bölümünden light / dark / system seç.
-- **Yeni sürüm:** [0.4.0 değişiklikleri](RELEASE-NOTES-0.4.0.md).
+- **Yeni sürüm:** [0.4.1 değişiklikleri](RELEASE-NOTES-0.4.1.md).
 
 Hız, kısa aralıklı anlık değerler yerine zaman ağırlıklı ortalamayla gösterilir.
 Kalan süre bir tahmindir; ağ ve sunucu koşulları değiştikçe güncellenir.
@@ -85,7 +85,7 @@ olarak kapalıdır.
 - Kaynak incelemesinde gizli veri toplama veya uzaktan komut alma davranışı bulunmadı.
 - 41 motor/güvenlik regresyon testi ve yerel Windows arayüz kontrolleri geçti.
 - Chromium'da normal dosya yakalama ve başarısız aktarımda tarayıcıya dönüş test edildi.
-- Önceki paketli sürümde gerçek YouTube video/MP3 ve kurulum/kaldırma testleri geçti. 0.4.0 setup GitHub Actions üzerinde üretilecektir.
+- Önceki paketli sürümde gerçek YouTube video/MP3 ve kurulum/kaldırma testleri geçti. 0.4.1 setup GitHub Actions üzerinde üretilecektir.
 
 Bu kontroller bir güvenlik sertifikası değildir. Uygulama ve setup dijital
 olarak imzalanmamıştır. İndirme geçmişi ve adresler yerel `.sdm` klasöründe

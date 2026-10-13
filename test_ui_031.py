@@ -45,6 +45,13 @@ def main():
 
     for theme,background in [('dark','#151d29'),('light','#ffffff')]:
         settings=dict(app.settings,theme=theme);app.apply_settings(settings);app.update()
+        app.geometry('1080x640');app.update()
+        sidebar=app.sidebar_scroll
+        sidebar.yview_moveto(0);app.update()
+        assert sidebar.yview()[1]<1
+        sidebar.yview_moveto(1);app.update()
+        assert sidebar.yview()[1]==1 and sidebar.yview()[0]>0
+        assert sidebar.vbar.winfo_ismapped()
         assert app.style.lookup('SDM.Treeview','background')==background
         assert len(app.icon_images)==18
         assert app.hud_active.get()

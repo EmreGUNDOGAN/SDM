@@ -10,7 +10,7 @@ class DownloadDetailDialog(tb.Toplevel):
         self.parent = parent
         self.download_id = record['id']
         self.title(record['filename'])
-        self.geometry('820x650')
+        self.geometry('860x740')
         self.minsize(660, 420)
         self.transient(parent)
         self._timer = None
@@ -25,7 +25,7 @@ class DownloadDetailDialog(tb.Toplevel):
         for row, (key, label) in enumerate([
             ('url', 'URL'), ('state', 'Durum'), ('total', 'Dosya boyutu'),
             ('received', 'İndirilen'), ('speed', 'Aktarım hızı'), ('eta', 'Kalan süre'),
-            ('resume', 'Sürdürülebilir'), ('path', 'Kayıt yeri')]):
+            ('resume', 'Sürdürülebilir'), ('method','İndirme yöntemi'),('connections','Aktif bağlantı / aktarım'), ('path', 'Kayıt yeri')]):
             tb.Label(info, text=label).grid(row=row, column=0, sticky='w', padx=(0,24), pady=6)
             variable = tk.StringVar()
             self.values[key] = variable
@@ -52,21 +52,24 @@ class DownloadDetailDialog(tb.Toplevel):
         self.detail_label.pack(fill='x',pady=(0,12))
         self.segment_canvas = tk.Canvas(self.details,height=12,bg='#e8edf2',highlightthickness=0)
         self.segment_canvas.pack(fill='x',pady=(0,12))
-        self.table = tb.Treeview(self.details,columns=('index','received','start','state'),show='headings',height=7)
-        for column,label,width in [('index','N.',45),('received','İndirilen',140),('start','Başlangıç',140),('state','Bilgi',220)]:
+        table_frame=tb.Frame(self.details)
+        table_frame.pack(fill='both',expand=True)
+        self.table = tb.Treeview(table_frame,columns=('index','received','start','percent','state'),show='headings',height=7)
+        for column,label,width in [('index','Akış / Parça',140),('received','İndirilen',110),('start','Başlangıç',110),('percent','İlerleme',90),('state','Bilgi',190)]:
             self.table.heading(column,text=label)
             self.table.column(column,width=width,anchor='w')
-        self.table.pack(fill='both',expand=True)
+        self.table.pack(side='left',fill='both',expand=True)
+        scroll=tb.Scrollbar(table_frame,orient='vertical',command=self.table.yview);scroll.pack(side='right',fill='y');self.table.configure(yscrollcommand=scroll.set)
         self.update_values()
 
     def toggle_details(self):
         visible = bool(self.details.winfo_manager())
         if visible:
             self.details.pack_forget()
-            self.geometry('820x425')
+            self.geometry('860x510')
         else:
             self.details.pack(fill='both',expand=True)
-            self.geometry('820x650')
+            self.geometry('860x740')
         self.toggle.configure(text='≫ Detayları Göster' if visible else '≪ Detayları Gizle')
 
     def pause_resume(self):
@@ -91,12 +94,23 @@ class DownloadDetailDialog(tb.Toplevel):
         if state == 'Tamamlandı':
             percent = 100
             total, received = record['filesize'], record['downloaded_bytes']
+        streams=video.transfer_details.snapshot() if video else []
+        if task:
+            direct=task.transfer_snapshot();streams=[dict(direct,label='Dosya',reason='',observed=bool(direct['rows']))]
+        if streams:
+            method=' / '.join(dict.fromkeys(s['method'] for s in streams))
+            measured=all(s.get('active_count') is not None for s in streams)
+            count=str(sum(s['active_count'] for s in streams)) if measured else 'Henüz ölçülmedi'
+            peak=max((s.get('peak',0) for s in streams),default=0)
+            count+=f' · Gözlenen en çok: {peak}' if peak else ''
+        else:method=video.unobserved_method if video else 'Hazırlanıyor · henüz ölçüm yok';count='Henüz ölçülmedi'
         self.title(f'{percent:.0f}% · {record["filename"]}')
         texts = {'url':record['url'],'state':state,'total':format_bytes(total) if total else 'Bilinmiyor',
                  'received':f'{format_bytes(received)}  ({percent:.1f}%)',
                  'speed':format_speed(active.current_speed) if active and state=='İndiriliyor' else '—',
                  'eta':format_eta(active.eta) if active and state=='İndiriliyor' else '—',
                  'resume':'Evet' if task and task.supports_ranges else ('Video motoru' if video else 'Hayır'),
+                 'method':method,'connections':count,
                  'path':record['filepath']}
         for key,value in texts.items():
             self.values[key].set(value)
@@ -106,17 +120,15 @@ class DownloadDetailDialog(tb.Toplevel):
                                     state='disabled' if state in ('Tamamlandı','Birleştiriliyor','Dönüştürülüyor') else 'normal')
         self.segment_canvas.delete('all')
         self.table.delete(*self.table.get_children())
-        if task and task.segments:
-            width = max(1,self.segment_canvas.winfo_width())
-            for segment in task.segments:
-                x = segment.index * width/len(task.segments)
-                ratio = min(1,segment.downloaded_bytes/segment.total_bytes) if segment.total_bytes else 0
-                self.segment_canvas.create_rectangle(x,0,x+width/len(task.segments)*ratio,12,fill='#3478f4',outline='')
-                self.table.insert('', 'end', values=(segment.index+1,format_bytes(segment.downloaded_bytes),
-                                  format_bytes(segment.start_byte),segment.status))
-        elif video:
-            self.detail_label.configure(text='Video: geçerli akışın ilerlemesi · Ses ve görüntü sonunda birleştirilir')
-            self.table.insert('','end',values=('yt-dlp',format_bytes(received),'—',state))
+        rows=[(s,row) for s in streams for row in s['rows']]
+        reasons=' '.join(dict.fromkeys(s.get('reason','') for s in streams if s.get('reason')))
+        self.detail_label.configure(text=reasons or ('Gerçek parça ölçümleri · HLS/DASH için son parçalar' if video else 'Bağlantılara göre başlangıç konumları ve ilerleme'),wraplength=780)
+        width=max(1,self.segment_canvas.winfo_width())
+        for i,(stream,row) in enumerate(rows):
+            ratio=min(1,row['received']/row['total']) if row['total'] else None
+            if ratio is not None:self.segment_canvas.create_rectangle(i*width/len(rows),0,(i+ratio)*width/len(rows),12,fill='#3478f4',outline='')
+            label=f"{stream['label']} #{row['index']}"
+            self.table.insert('','end',values=(label,format_bytes(row['received']),format_bytes(row['start']) if row['start'] is not None else '—',f'{ratio*100:.1f}%' if ratio is not None else 'Bilinmiyor',row['state']))
         if state=='Tamamlandı' and self.auto_close.get():
             self.close()
             return

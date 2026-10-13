@@ -44,6 +44,7 @@ class SegmentInfo:
         self.total_bytes = (end_byte - start_byte + 1) if end_byte >= start_byte else 0
         self.downloaded_bytes = 0
         self.status = "Hazırlanıyor"  # Hazırlanıyor, İndiriliyor, Tamamlandı, Hata, Duraklatıldı
+        self.connection_active=False
 
     @property
     def current_byte(self) -> int:
@@ -65,6 +66,11 @@ class SegmentInfo:
 
 class DownloadTask:
     """Controls and executes a single download operation."""
+
+    def transfer_snapshot(self):
+        with self._lock:
+            rows=[dict(index=s.index+1,start=s.start_byte,received=s.downloaded_bytes,total=s.total_bytes,active=s.connection_active,state=s.status) for s in self.segments]
+        return dict(rows=rows,active_count=sum(row['active'] for row in rows),part_count=len(rows),peak=getattr(self,'_peak_connections',0),method='HTTP Range' if self.supports_ranges else 'Tek HTTP bağlantısı')
 
     def __init__(
         self,
@@ -98,6 +104,7 @@ class DownloadTask:
         self.filesize: int = 0
         self.supports_ranges = False
         self.segments: List[SegmentInfo] = []
+        self.request_chunk_size=0
 
         self._pause_event = threading.Event()
         self._cancel_event = threading.Event()
@@ -413,7 +420,9 @@ class DownloadTask:
 
                 # If ranges are supported, add Range header
                 if self.supports_ranges and segment.end_byte >= segment.current_byte:
-                    headers["Range"] = f"bytes={segment.current_byte}-{segment.end_byte}"
+                    request_end=min(segment.end_byte,segment.current_byte+self.request_chunk_size-1) if self.request_chunk_size else segment.end_byte
+                    headers["Range"] = f"bytes={segment.current_byte}-{request_end}"
+                    expected_after=request_end-segment.start_byte+1
                     expected_status = 206
                 else:
                     expected_status = 200
@@ -424,9 +433,13 @@ class DownloadTask:
                     if resp.status_code != expected_status:
                         raise requests.RequestException(f"HTTP Durum Kodu: {resp.status_code}")
                     if expected_status == 206:
-                        expected_range = f"bytes {segment.current_byte}-{segment.end_byte}/{self.filesize}"
+                        expected_range = f"bytes {segment.current_byte}-{request_end}/{self.filesize}"
                         if resp.headers.get("Content-Range") != expected_range:
                             raise requests.RequestException("Geçersiz Content-Range yanıtı")
+
+                    with self._lock:
+                        segment.connection_active=True
+                        self._peak_connections=max(getattr(self,'_peak_connections',0),sum(s.connection_active for s in self.segments))
 
                     with open(part_file, mode) as f:
                         for chunk in resp.iter_content(chunk_size=CHUNK_SIZE):
@@ -435,6 +448,7 @@ class DownloadTask:
                             if chunk:
                                 if self.filesize > 0 and segment.downloaded_bytes + len(chunk) > segment.total_bytes:
                                     raise requests.RequestException("Sunucu beklenenden fazla veri gönderdi")
+                                if expected_status==206 and segment.downloaded_bytes+len(chunk)>expected_after:raise requests.RequestException('Sunucu istenen aralıktan fazla veri gönderdi')
                                 f.write(chunk)
                                 chunk_len = len(chunk)
                                 with self._lock:
@@ -449,8 +463,10 @@ class DownloadTask:
                     break
 
                 # Segment finished
-                if self.filesize > 0 and segment.downloaded_bytes != segment.total_bytes:
+                if self.filesize > 0 and segment.downloaded_bytes != (expected_after if expected_status==206 else segment.total_bytes):
                     raise requests.RequestException("İndirme parçası eksik")
+                if self.request_chunk_size and segment.downloaded_bytes<segment.total_bytes:
+                    retry_count=0;continue
                 segment.status = "Tamamlandı"
                 break
 
@@ -465,7 +481,7 @@ class DownloadTask:
                 else:
                     self._pause_event.wait(2 ** retry_count)
             finally:
-                pass
+                with self._lock:segment.connection_active=False
 
         session.close()
 
