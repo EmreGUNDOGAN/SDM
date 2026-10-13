@@ -16,6 +16,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from progress_meter import ProgressMeter
+from transfer_control import GLOBAL_LIMITER
 
 from utils import (
     clean_filename,
@@ -77,8 +78,10 @@ class DownloadTask:
         segment_callback: Optional[Callable[[int, List[Dict[str, Any]]], None]] = None,
         status_callback: Optional[Callable[[int, str, str], None]] = None,
         metadata_callback: Optional[Callable[[int, str, str, int, str], None]] = None,
+        resume_legacy_parts: bool = False,
     ):
         self.download_id = download_id
+        self.resume_legacy_parts = resume_legacy_parts
         self.url = url
         self.dest_path = Path(dest_path)
         self.num_connections = max(1, min(32, num_connections))
@@ -133,7 +136,7 @@ class DownloadTask:
         return req_headers
 
     def get_part_file(self, segment_idx: int) -> Path:
-        return self.dest_path.parent / f"{self.dest_path.name}.part.{segment_idx}"
+        return self.dest_path.parent / f"{self.dest_path.name}.sdm-{self.download_id}.part.{segment_idx}"
 
     def inspect_remote_file(self) -> bool:
         """Fetch headers to determine Content-Length, filename, and Accept-Ranges."""
@@ -202,17 +205,18 @@ class DownloadTask:
         self._pause_event.set()
         self.status = "İptal Edildi"
         self._notify_status("İptal Edildi")
-        self._cleanup_parts()
+        if not self._worker or not self._worker.is_alive():
+            self._cleanup_parts()
 
     def _cleanup_parts(self) -> None:
         """Remove temporary part files."""
-        for i in range(max(1, len(self.segments) or self.num_connections)):
+        for i in range(32):
             pf = self.get_part_file(i)
             if pf.exists():
                 try:
                     pf.unlink()
                 except OSError:
-                    pass
+                    logger.warning("Geçici indirme parçası silinemedi: %s", pf)
 
     def _notify_status(self, status: str, error: str = "") -> None:
         if self.status_callback:
@@ -279,6 +283,9 @@ class DownloadTask:
             # 3. Check existing part files for resuming
             for s in self.segments:
                 pf = self.get_part_file(s.index)
+                legacy = self.dest_path.parent / f"{self.dest_path.name}.part.{s.index}"
+                if self.resume_legacy_parts and not pf.exists() and legacy.exists():
+                    legacy.replace(pf)
                 if not self.supports_ranges and pf.exists():
                     pf.unlink()
                 if pf.exists():
@@ -338,6 +345,10 @@ class DownloadTask:
             self.status = "Birleştiriliyor"
             self._notify_status("Birleştiriliyor")
             self._merge_segments()
+            if self._cancel_event.is_set():
+                self.status='İptal Edildi'
+                self._notify_status(self.status)
+                return
 
             # Verify integrity if filesize is known
             if self.filesize > 0 and self.dest_path.exists():
@@ -357,9 +368,13 @@ class DownloadTask:
 
         except Exception as e:
             logger.exception(f"Unexpected error in download task {self.download_id}: {e}")
-            self.status = "Hata"
+            self.status = "İptal Edildi" if self._cancel_event.is_set() else "Hata"
             self.error_message = str(e)
-            self._notify_status("Hata", str(e))
+            self._notify_status(self.status, str(e))
+        finally:
+            if self._cancel_event.is_set():
+                self._cleanup_parts()
+                self.dest_path.with_name(f'{self.dest_path.name}.sdm-{self.download_id}.temp_final').unlink(missing_ok=True)
 
     def _download_segment(self, segment: SegmentInfo) -> None:
         """Download a specific segment chunk."""
@@ -409,10 +424,7 @@ class DownloadTask:
                                 self._notify_progress()
 
                                 # Speed throttling per segment if global limit is set
-                                if self.speed_limit_kbs > 0:
-                                    seg_limit_bytes = (self.speed_limit_kbs * 1024) / max(1, len(self.segments))
-                                    expected_time = chunk_len / seg_limit_bytes
-                                    time.sleep(max(0.001, expected_time))
+                                GLOBAL_LIMITER.consume(chunk_len, lambda: self._pause_event.is_set() or self._cancel_event.is_set())
 
                 if self._pause_event.is_set() or self._cancel_event.is_set():
                     segment.status = "Duraklatıldı"
@@ -433,7 +445,7 @@ class DownloadTask:
                     segment.status = "Hata"
                     self.error_message = f"Parça {segment.index} indirme hatası: {e}"
                 else:
-                    time.sleep(2 ** retry_count)
+                    self._pause_event.wait(2 ** retry_count)
             finally:
                 pass
 
@@ -441,7 +453,7 @@ class DownloadTask:
 
     def _merge_segments(self) -> None:
         """Combine all segment parts into the destination file."""
-        temp_dest = self.dest_path.parent / f"{self.dest_path.name}.temp_final"
+        temp_dest = self.dest_path.parent / f"{self.dest_path.name}.sdm-{self.download_id}.temp_final"
         with open(temp_dest, "wb") as outfile:
             for s in self.segments:
                 pf = self.get_part_file(s.index)
@@ -451,9 +463,14 @@ class DownloadTask:
                             buf = infile.read(CHUNK_SIZE * 4)
                             if not buf:
                                 break
+                            if self._cancel_event.is_set():
+                                raise RuntimeError('İndirme iptal edildi')
                             outfile.write(buf)
 
         # Atomic replace / move on Windows
+        if self._cancel_event.is_set():
+            temp_dest.unlink(missing_ok=True)
+            return
         temp_dest.replace(self.dest_path)
 
 
@@ -461,6 +478,7 @@ class DownloadEngine:
     """Manages concurrent downloads, task queue, and lifecycle."""
 
     def __init__(self, max_concurrent: int = 3, default_connections: int = 8, speed_limit_kbs: int = 0):
+        GLOBAL_LIMITER.configure(speed_limit_kbs)
         self.max_concurrent = max_concurrent
         self.default_connections = default_connections
         self.speed_limit_kbs = speed_limit_kbs
@@ -469,6 +487,7 @@ class DownloadEngine:
         self._active_downloads: Dict[int, DownloadTask] = {}
         self._dispatcher_thread: Optional[threading.Thread] = None
         self._stop_dispatcher = threading.Event()
+        self.external_active_count = lambda: 0
 
     def start_engine(self) -> None:
         self._stop_dispatcher.clear()
@@ -489,7 +508,7 @@ class DownloadEngine:
         """Periodically check for queued downloads and start them up to max_concurrent."""
         while not self._stop_dispatcher.is_set():
             with self._lock:
-                active_count = sum(1 for t in self.tasks.values() if t.status == "İndiriliyor")
+                active_count = self.external_active_count() + sum(1 for t in self.tasks.values() if t.status in ('İndiriliyor','Birleştiriliyor'))
                 if active_count < self.max_concurrent:
                     for task in self.tasks.values():
                         if task.status == "Bekliyor":
@@ -512,6 +531,7 @@ class DownloadEngine:
         segment_callback: Optional[Callable] = None,
         status_callback: Optional[Callable] = None,
         metadata_callback: Optional[Callable] = None,
+        resume_legacy_parts: bool = False,
     ) -> DownloadTask:
         """Register a new download task."""
         conns = num_connections if num_connections is not None else self.default_connections
@@ -526,6 +546,7 @@ class DownloadEngine:
             segment_callback=segment_callback,
             status_callback=status_callback,
             metadata_callback=metadata_callback,
+            resume_legacy_parts=resume_legacy_parts,
         )
         with self._lock:
             self.tasks[download_id] = task
@@ -579,4 +600,4 @@ class DownloadEngine:
 
     def get_active_count(self) -> int:
         with self._lock:
-            return sum(1 for t in self.tasks.values() if t.status == "İndiriliyor")
+            return sum(1 for t in self.tasks.values() if t.status in ('İndiriliyor','Birleştiriliyor'))

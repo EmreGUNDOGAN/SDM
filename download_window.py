@@ -26,7 +26,7 @@ class DownloadDetailDialog(tb.Toplevel):
             ('url', 'URL'), ('state', 'Durum'), ('total', 'Dosya boyutu'),
             ('received', 'İndirilen'), ('speed', 'Aktarım hızı'), ('eta', 'Kalan süre'),
             ('resume', 'Sürdürülebilir'), ('path', 'Kayıt yeri')]):
-            tb.Label(info, text=label, foreground='#5b6570').grid(row=row, column=0, sticky='w', padx=(0,24), pady=6)
+            tb.Label(info, text=label).grid(row=row, column=0, sticky='w', padx=(0,24), pady=6)
             variable = tk.StringVar()
             self.values[key] = variable
             if key in ('url', 'path'):
@@ -40,13 +40,14 @@ class DownloadDetailDialog(tb.Toplevel):
         self.toggle = tb.Button(actions,text='≪ Detayları Gizle',command=self.toggle_details,bootstyle='light')
         self.toggle.pack(side='left')
         tb.Checkbutton(actions,text='Tamamlanınca kapat',variable=self.auto_close).pack(side='left',padx=15)
-        tb.Button(actions,text='İptal',bootstyle='light',command=lambda:parent.cancel_download(self.download_id)).pack(side='right')
+        self.cancel_button = tb.Button(actions,text='İptal et',bootstyle='secondary-outline',command=self.cancel)
+        self.cancel_button.pack(side='right')
         self.pause_button = tb.Button(actions,text='Duraklat',bootstyle='light',command=self.pause_resume)
         self.pause_button.pack(side='right',padx=8)
         self.details = tb.Frame(content)
         self.details.pack(fill='both',expand=True)
         tb.Separator(self.details).pack(fill='x',pady=(0,12))
-        self.detail_label = tb.Label(self.details,text='Bağlantılara göre başlangıç konumları ve ilerleme',anchor='center',foreground='#647080')
+        self.detail_label = tb.Label(self.details,text='Bağlantılara göre başlangıç konumları ve ilerleme',anchor='center')
         self.detail_label.pack(fill='x',pady=(0,12))
         self.segment_canvas = tk.Canvas(self.details,height=12,bg='#e8edf2',highlightthickness=0)
         self.segment_canvas.pack(fill='x',pady=(0,12))
@@ -99,6 +100,7 @@ class DownloadDetailDialog(tb.Toplevel):
         for key,value in texts.items():
             self.values[key].set(value)
         self.progress['value'] = percent
+        self.cancel_button.configure(text='Kapat' if state=='Tamamlandı' else 'İptal et',command=self.close if state=='Tamamlandı' else self.cancel)
         self.pause_button.configure(text='Duraklat' if state in ('İndiriliyor','Bekliyor') else 'Devam Et',
                                     state='disabled' if state in ('Tamamlandı','Birleştiriliyor','Dönüştürülüyor') else 'normal')
         self.segment_canvas.delete('all')
@@ -124,3 +126,7 @@ class DownloadDetailDialog(tb.Toplevel):
             self.after_cancel(self._timer)
         self.parent.detail_windows.pop(self.download_id,None)
         self.destroy()
+
+    def cancel(self):
+        self.parent.cancel_download(self.download_id)
+        self.close()

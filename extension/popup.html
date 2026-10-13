@@ -1,6 +1,8 @@
 <!doctype html><html lang="tr"><meta charset="utf-8"><title>SDM</title>
-<style>body{width:280px;font:14px system-ui;padding:12px;color:#10244d}h2{margin:0 0 8px}</style>
-<h2>SDM</h2><p>Desteklenen bir sitede video oynat. Videonun sağ üstündeki <b>SDM ile indir</b> düğmesine tıklayıp kalite veya MP3 seç.</p>
-<p>Uygulama gerektiğinde otomatik açılır. DRM korumalı içerikler desteklenmez.</p>
-<p>Normal dosya indirmeleri SDM’ye aktarılır. Aktarılamayan bağlantılar tarayıcıda devam eder. Yakalamayı SDM Ayarlar ekranından kapatabilirsin.</p>
+<style>body{width:300px;font:14px system-ui;padding:16px;color:#172331;background:#fff}h2{margin:0 0 8px}button{width:100%;padding:10px;margin:4px 0;border:1px solid #dbe4f0;border-radius:8px;color:#253449;background:#f8fafd;cursor:pointer}#status{color:#62748c;font-size:12px;min-height:32px}</style>
+<h2>SDM</h2><p>Tarayıcı yakalaması</p>
+<button data-minutes="15">15 dakika durdur</button><button data-minutes="60">1 saat durdur</button>
+<button data-minutes="-1">Tekrar açana kadar durdur</button><button data-minutes="0">Yakalamayı yeniden aç</button>
+<button id="exclude">Bu sitede yakalamayı kapat</button><p id="status"></p>
+<script src="popup.js"></script>
 </html>

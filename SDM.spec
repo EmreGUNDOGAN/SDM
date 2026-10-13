@@ -4,6 +4,7 @@ from PyInstaller.utils.hooks import collect_all
 datas = []
 datas += [('assets/logo.png', 'assets')]
 datas += [('assets/sdm.ico', 'assets')]
+datas += [('assets/icons', 'assets/icons')]
 datas += [('tools', 'tools')]
 binaries = []
 hiddenimports = ['plyer.platforms.win.notification']
@@ -12,6 +13,8 @@ datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('ttkbootstrap')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('yt_dlp_ejs')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('tkinterdnd2')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 

@@ -28,7 +28,7 @@
     if (!reply || reply.error) throw new Error(reply?.error || 'SDM eklentisi yanıt vermedi');
     return reply.result;
   }
-  function choice(label, height, audio) {
+  function choice(label, height, audio, filesize=0) {
     const button = document.createElement('button');
     button.textContent = label;
     button.onclick = async (event) => {
@@ -36,27 +36,35 @@
       if (busy) return;
       busy = true; button.disabled = true; status.textContent = 'SDM’ye gönderiliyor…';
       try {
-        await send({type: 'download', url: pageUrl(), height, audio});
-        status.textContent = 'SDM’ye aktarıldı. İlerlemeyi uygulamadan takip edebilirsin.';
+        await send({type: 'download', url: pageUrl(), height, audio,filesize,title:root.getElementById('title').textContent});
+        status.textContent = 'SDM’de indirme seçim penceresi açıldı.';
+        panel.hidden = true;
       } catch(error) { status.textContent = error.message; }
       finally { busy = false; button.disabled = false; }
     };
     choices.append(button);
   }
-  toggle.onclick = async (event) => {
-    if (!event.isTrusted) return;
+  async function openPicker() {
     if (!panel.hidden) { panel.hidden = true; return; }
     panel.hidden = false; choices.replaceChildren();
     status.textContent = 'Videodaki kullanılabilir kaliteler alınıyor…'; toggle.disabled = true;
     try {
       const info = await send({type: 'formats', url: pageUrl()});
       root.getElementById('title').textContent = info.title;
-      for (const quality of info.qualities) choice(quality.label + ' · Video + ses', quality.height, false);
+      for (const quality of info.qualities) {
+        const size = quality.filesize ? ' · ~'+(quality.filesize/1024/1024).toFixed(0)+' MB' : '';
+        choice(quality.label + ' · Video + ses'+size, quality.height, false,quality.filesize);
+      }
       if (info.audio) choice('Yalnızca ses · MP3', null, true);
       status.textContent = choices.childElementCount ? 'İndirmek istediğin kaliteyi seç.' : 'İndirilebilir format bulunamadı.';
     } catch(error) { status.textContent = error.message; }
     finally { toggle.disabled = false; }
-  };
+  }
+  toggle.onclick = event=>{if(event.isTrusted)openPicker();};
+  chrome.runtime.onMessage.addListener(message=>{
+    if(message.type==='sdm-open-picker') {panel.hidden=true;openPicker();}
+    if(message.type==='sdm-error') {panel.hidden=false;status.textContent=message.message;}
+  });
   function position() {
     if (previousUrl !== pageUrl()) { panel.hidden = true; previousUrl = pageUrl(); }
     const videos = [...document.querySelectorAll('video')].filter(video => {

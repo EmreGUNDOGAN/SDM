@@ -3,14 +3,14 @@
   <h1>SDM</h1>
   <p><strong>Windows için kişisel indirme yöneticisi.</strong></p>
   <p>Dosyaları düzenle. Videoda kaliteyi seç. İndirmeleri tek yerden takip et.</p>
-  <p>Windows 10 / 11 · Chrome ve Opera · Sürüm 0.3.0</p>
-  <p><a href="https://github.com/EmreGUNDOGAN/SDM/releases/tag/v0.3.0">Kurulum paketini indir</a> · <a href="SECURITY-REVIEW.md">Doğrulama bilgileri</a></p>
+  <p>Windows 10 / 11 · Chrome ve Opera · Sürüm 0.3.1</p>
+  <p><a href="https://github.com/EmreGUNDOGAN/SDM/releases/tag/v0.3.1">Kurulum paketini indir</a> · <a href="SECURITY-REVIEW.md">Doğrulama bilgileri</a></p>
 </div>
 
 ---
 
 SDM; paralel dosya indirmeyi, tarayıcı entegrasyonunu ve video/MP3 indirmeyi
-beyaz bir masaüstü arayüzünde birleştirir. Bu depo kişisel kullanım için
+açık veya koyu temalı modern bir masaüstü arayüzünde birleştirir. Bu depo kişisel kullanım için
 geliştirilen sürümün kaynak kodunu ve kurulum tarifini içerir.
 
 ## Özellikler
@@ -25,11 +25,21 @@ geliştirilen sürümün kaynak kodunu ve kurulum tarifini içerir.
 | Gerçek kalite listesi | Videoda bulunan çözünürlükler listelenir; ayrı ses/görüntü birleştirilir. |
 | MP3 | Yalnızca ses indirilip MP3'e dönüştürülebilir. |
 | Dosya yakalama | Uygun tarayıcı indirmeleri SDM'ye aktarılır; aktarım reddedilirse tarayıcı devam eder. |
+| Modern görünüm | Açık/koyu/sistem teması, tutarlı ikonlar ve kompakt durum paneli. |
+| İndirmeden önce seçim | Şimdi indir, kuyruğa ekle veya iptal et; uygun dosyada tarayıcıda devam et. |
+| Site tercihleri | Canva varsayılan hariç; site ve dosya türü istisnaları düzenlenebilir. |
+| Geçici durdurma | Eklentiden 15 dakika, 1 saat veya tekrar açılana kadar yakalamayı kapat. |
+| Video hızlandırma | Uygun HTTP akışlarında paralel Range; HLS/DASH için eşzamanlı parçalar. |
+| Kuyruk ve zamanlama | Kuyruğu başlat/duraklat; uygulama açıkken zamanlı başlat ve tamamlanınca kapanma. |
+| Çoklu bağlantı | Bağlantıları yapıştır veya sürükle-bırak; video listesinden seç. |
+| Tamamlanma | Aç / Klasörü göster penceresi, isteğe bağlı bildirim ve SHA-256 kontrolü. |
+| Ayar yedeği | Site, sütun, klasör ve görünüm tercihlerini dışa aktar/geri yükle. |
+| GitHub güncellemesi | Özel depoya salt okunur token, şifreli saklama ve doğrulanan setup. |
 | Sistem tepsisi | Pencere kapatılsa da uygulama arka planda çalışabilir. |
 
 ## Kurulum
 
-1. **SDM-Setup-0.3.0.exe** dosyasını çalıştır.
+1. **SDM-Setup-0.3.1.exe** dosyasını çalıştır.
 2. Kullanacağın **Chrome / Opera eklentisi** seçeneğini işaretle.
 3. Açılan yönergeden tarayıcıda **Geliştirici modu → Paketlenmemiş yükle** adımını tamamla.
 4. Kurulum klasöründeki `extension` klasörünü seç.
@@ -41,11 +51,14 @@ Güncellemeden sonra eklentiyi yeniden yükle ve açık video sayfasını yenile
 
 ## Kullanım
 
-- **Dosya:** Normal Download düğmesine bas veya SDM'de URL Ekle'yi kullan.
+- **Dosya:** Tarayıcıda Download düğmesine bas; açılan SDM penceresinde Şimdi indir veya Kuyruğa ekle seç. SDM içinden Yeni indirme de kullanılabilir.
 - **Video:** Videonun sağ üstündeki SDM düğmesine tıkla, kaliteyi veya MP3'ü seç.
 - **Takip:** Detay penceresini kullan; gizlediğin pencereyi indirmeye çift tıklayarak aç.
 - **Tablo:** Sütunlar menüsünden görmek istediğin alanları seç.
-- **Yakalama:** Otomatik aktarımı Ayarlar'dan açıp kapat.
+- **Yakalama:** Ayarlar → Tarayıcı bölümünden site/uzantı tercihlerini düzenle; eklentiden geçici durdur.
+- **Güncelleme:** Ayarlar → Güncelleme bölümüne yalnızca SDM deposunda Contents: Read yetkili fine-grained token gir. Token Windows hesabına bağlı şifrelenir.
+- **Tema:** Ayarlar → Genel bölümünden light / dark / system seç.
+- **Yeni sürüm:** [0.3.1 değişiklikleri](RELEASE-NOTES-0.3.1.md).
 
 Hız, kısa aralıklı anlık değerler yerine zaman ağırlıklı ortalamayla gösterilir.
 Kalan süre bir tahmindir; ağ ve sunucu koşulları değiştikçe güncellenir.
@@ -57,7 +70,7 @@ Facebook, Twitch ve SoundCloud sayfalarında etkinleştirilmiştir. Her sitede,
 her içerikte indirme garantisi verilmez. DRM, oturum, bölge ve sunucu
 kısıtlamaları uygulanabilir.
 
-Tarayıcı çerezleri ve şifreler okunmaz. Oturum isteyen dosyalar, `blob:`
+Tarayıcı çerezleri ve şifreler okunmaz. Site istisnaları için kaynak sayfanın adresi değerlendirilir; tarayıcı geçmişi kaydedilmez. Oturum isteyen dosyalar, `blob:`
 bağlantıları ve özel ağ adresleri otomatik aktarılmaz; tarayıcı kullanılabilir.
 Gerektiğinde ses ve video MKV kabında birleştirilir. Altyazı indirme varsayılan
 olarak kapalıdır.
@@ -67,7 +80,7 @@ olarak kapalıdır.
 - Tarayıcı köprüsü yalnızca yerel makinede çalışır; eklenti kimliği ve gizli bağlantı anahtarı doğrulanır.
 - Dosya aktarımında URL ve yönlendirmeler özel/yerel ağ adreslerine karşı kontrol edilir.
 - Kaynak incelemesinde gizli veri toplama veya uzaktan komut alma davranışı bulunmadı.
-- 18 regresyon testi ve yerel Windows arayüz kontrolleri geçti.
+- 27 motor/güvenlik regresyon testi ve yerel Windows arayüz kontrolleri geçti.
 - Chromium'da normal dosya yakalama ve başarısız aktarımda tarayıcıya dönüş test edildi.
 - Paketlenmiş uygulamada gerçek YouTube video/MP3 indirmesi ve kurulum/kaldırma testi geçti.
 

@@ -32,5 +32,6 @@ def prepare_transfer(url):
             if response.headers.get('Content-Type','').split(';')[0] in ('text/html','application/xhtml+xml'):
                 raise ValueError('Login or HTML page; keep browser download')
             filename=extract_filename_from_url(url,response.headers.get('Content-Disposition'))
-            return {'kind':'file','url':url,'filename':filename}
+            size = response.headers.get('Content-Range', '').rsplit('/', 1)[-1] if response.status_code == 206 else response.headers.get('Content-Length', '0')
+            return {'kind':'file','url':url,'filename':filename,'filesize':int(size) if size.isdigit() else 0}
     raise ValueError('Too many redirects')

@@ -44,8 +44,19 @@ def format_options(info):
                       and not f.get('has_drm')}, reverse=True)
     if not heights and info.get('height') and not info.get('has_drm'):
         heights = [int(info['height'])]
+    qualities = []
+    for height in heights:
+        formats = [f for f in info.get('formats',[]) if f.get('height') == height and not f.get('has_drm')]
+        audio_sizes = [f.get('filesize') or f.get('filesize_approx') or 0 for f in info.get('formats',[])
+                       if f.get('vcodec') == 'none' and not f.get('has_drm')]
+        candidate = max(formats,key=lambda f:f.get('tbr') or 0,default={})
+        size = candidate.get('filesize') or candidate.get('filesize_approx') or 0
+        if candidate.get('acodec') == 'none' and size:
+            size += max(audio_sizes,default=0)
+        qualities.append({'height':height,'label':f'{height}p','filesize':size,
+                          'extension':candidate.get('ext','mkv'),'estimated':True})
     return {'title': info.get('title', 'Video'),
-            'qualities': [{'height': h, 'label': f'{h}p'} for h in heights],
+            'qualities': qualities,
             'audio': any(f.get('acodec') not in (None, 'none') and not f.get('has_drm')
                          for f in info.get('formats', []))}
 
@@ -118,12 +129,16 @@ class VideoDownloadTask:
         status_callback: Optional[Callable[[int, str, str], None]] = None,
         metadata_callback: Optional[Callable[[int, str, str, int, str], None]] = None,
         selected_height: Optional[int] = None,
+        connections: int = 8,
+        output_name: Optional[str] = None,
     ):
         self.download_id = download_id
         self.url = url
         self.dest_folder = Path(dest_folder)
         self.quality = quality
         self.selected_height = selected_height
+        self.connections = max(1, min(32, connections))
+        self.output_name = output_name
         self.is_audio_only = is_audio_only or ("Ses" in quality)
 
         self.progress_callback = progress_callback
@@ -144,6 +159,9 @@ class VideoDownloadTask:
         self._last_report = 0.0
         self._stream_name = None
         self._paused = False
+        self._streams = {}
+        self._expected_total = 0
+        self._range_active = False
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -186,15 +204,18 @@ class VideoDownloadTask:
             stream_name = d.get('filename')
             if stream_name != self._stream_name:
                 self._stream_name = stream_name
-                self.meter.reset(d.get('downloaded_bytes', 0) or 0)
             now = time.monotonic()
             if now - self._last_report < 0.5:
                 return
             self._last_report = now
-            self.downloaded_bytes = d.get("downloaded_bytes", 0) or 0
-            self.total_bytes = (
-                d.get("total_bytes") or d.get("total_bytes_estimate") or self.total_bytes or 0
-            )
+            previous=self.downloaded_bytes
+            self._streams[stream_name] = (d.get('downloaded_bytes', 0) or 0,
+                                          d.get('total_bytes') or d.get('total_bytes_estimate') or 0)
+            self.downloaded_bytes = sum(v[0] for v in self._streams.values())
+            self.total_bytes = max(self._expected_total, sum(v[1] for v in self._streams.values()))
+            if not self._range_active:
+                from transfer_control import GLOBAL_LIMITER
+                GLOBAL_LIMITER.consume(max(0,self.downloaded_bytes-previous),self._cancel_flag.is_set)
 
             # --- YÜZDE HESAPLAMA EKLENTİSİ ---
             if self.total_bytes > 0:
@@ -212,17 +233,14 @@ class VideoDownloadTask:
 
         status = d.get("status")
         if status == "downloading":
-            self.downloaded_bytes = d.get("downloaded_bytes", 0) or 0
-            self.total_bytes = (
-                d.get("total_bytes") or d.get("total_bytes_estimate") or self.total_bytes or 0
-            )
             self.current_speed, self.eta = self.meter.update(self.downloaded_bytes, self.total_bytes)
 
             # File name notification if available
             filename = d.get("filename")
             if filename and not self.target_filepath:
-                self.target_filepath = filename
                 p = Path(filename)
+                p = self.dest_folder / p.name
+                self.target_filepath = str(p)
                 if self.metadata_callback:
                     cat = "Müzik" if self.is_audio_only else "Video"
                     self.metadata_callback(self.download_id, p.name, str(p), self.total_bytes, cat)
@@ -241,6 +259,10 @@ class VideoDownloadTask:
                     logger.debug(f"Video progress hook callback error: {e}")
 
         elif status == "finished":
+            stream_name = d.get('filename')
+            size = d.get('total_bytes') or d.get('downloaded_bytes') or 0
+            self._streams[stream_name] = (size, size)
+            self.downloaded_bytes = sum(v[0] for v in self._streams.values())
             self.status = "Dönüştürülüyor"
             self._notify_status("Dönüştürülüyor")
 
@@ -256,9 +278,13 @@ class VideoDownloadTask:
             h = int(self.selected_height)
             fmt = f'bestvideo[height={h}]+bestaudio/best[height={h}]'
         self.dest_folder.mkdir(parents=True, exist_ok=True)
-        outtmpl = str(self.dest_folder / "%(title)s [%(id)s].%(ext)s")
+        staging = self.dest_folder / f'.sdm-video-{self.download_id}'
+        staging.mkdir(parents=True, exist_ok=True)
+        outtmpl = str(staging / "%(title)s [%(id)s].%(ext)s")
 
         ydl_opts: Dict[str, Any] = {
+            "sdm_task": self,
+            "concurrent_fragment_downloads": self.connections,
             "format": fmt,
             "outtmpl": outtmpl,
             "progress_hooks": [self._progress_hook],
@@ -290,8 +316,15 @@ class VideoDownloadTask:
             ]
 
         try:
+            from video_http import install_video_http_downloader
+            install_video_http_downloader()
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(self.url, download=True)
+                info = ydl.extract_info(self.url, download=False)
+                formats = info.get('requested_formats') or info.get('requested_downloads') or [info]
+                self._expected_total = sum(f.get('filesize') or f.get('filesize_approx') or 0 for f in formats)
+                self.total_bytes = self._expected_total
+                self.meter.reset(self.downloaded_bytes)
+                info = ydl.process_ie_result(info, download=True)
                 if info:
                     final_path = Path(ydl.prepare_filename(info))
                     for processed in info.get('requested_downloads', []):
@@ -303,6 +336,13 @@ class VideoDownloadTask:
                         final_path = final_path.with_suffix('.mkv')
                     if not final_path.exists():
                         raise RuntimeError('İndirme çıktı dosyası bulunamadı')
+                    if self._cancel_flag.is_set():
+                        raise RuntimeError('İndirme iptal edildi')
+                    from utils import get_unique_filepath
+                    destination = get_unique_filepath(self.dest_folder,
+                        (Path(self.output_name).stem + final_path.suffix) if self.output_name else final_path.name)
+                    final_path.replace(destination)
+                    final_path = destination
                     final_name = final_path.name
                     if self.metadata_callback:
                         cat = "Müzik" if self.is_audio_only else "Video"
@@ -314,6 +354,8 @@ class VideoDownloadTask:
                         )
 
             if not self._cancel_flag.is_set():
+                self.total_bytes = final_path.stat().st_size
+                self.downloaded_bytes = self.total_bytes
                 self.status = "Tamamlandı"
                 if self.progress_callback:
                     self.progress_callback(

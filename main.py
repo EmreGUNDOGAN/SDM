@@ -134,6 +134,11 @@ def main() -> None:
     settings = load_settings()
 
     app = MainWindow()
+    # Explicit integration test mode is restricted to isolated ports/data.
+    app.integration_test = ('--integration-test' in sys.argv
+        and os.environ.get('SDM_INSTANCE_PORT','49281') != '49281'
+        and os.environ.get('SDM_BRIDGE_PORT','49282') != '49282'
+        and bool(os.environ.get('SDM_DATA_DIR')))
 
     bridge = BrowserBridge()
     bridge.start()
@@ -141,20 +146,7 @@ def main() -> None:
     def process_browser_queue():
         while not bridge.pending.empty():
             request = bridge.pending.get_nowait()
-            if request.get('kind')=='file':
-                path=get_unique_filepath(app.settings['download_dir'],request['filename'])
-                app.add_download_from_dialog(url=request['url'],filename=path.name,dest_path=str(path))
-                app.deiconify()
-                continue
-            filename = 'Browser video.mp3' if request['audio'] else 'Browser video.mkv'
-            app.add_download_from_dialog(
-                url=request['url'], filename=filename,
-                dest_path=str(Path(app.settings['download_dir']) / filename),
-                is_video=True,
-                video_quality='Yalnızca Ses (MP3)' if request['audio'] else 'En İyi',
-                selected_height=request['height'] if not request['audio'] else None,
-            )
-            app.deiconify()
+            app.browser_request(request,bridge.decide)
         app.after(200, process_browser_queue)
 
     app.after(200, process_browser_queue)
@@ -165,13 +157,14 @@ def main() -> None:
 
     # Clipboard monitor
     def on_clipboard_url(url: str):
-        if settings.get("clipboard_monitoring", True):
+        if app.settings.get("clipboard_monitoring", True):
             app.after(0, lambda: (app.deiconify(), app.open_add_dialog(initial_url=url)))
 
     clip_monitor = ClipboardMonitor(
         on_url_detected=on_clipboard_url,
         monitored_extensions=settings.get("monitored_extensions", []),
     )
+    app.clipboard_monitor=clip_monitor
     if settings.get("clipboard_monitoring", True):
         clip_monitor.start()
 

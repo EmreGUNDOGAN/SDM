@@ -15,6 +15,7 @@ with patch('video_downloader.fetch_video_formats', side_effect=fake_formats):
     try:
         while True:
             item = bridge.pending.get()
+            bridge.decide(item['ticket'],'start')
             print(json.dumps(item), flush=True)
     except KeyboardInterrupt:
         bridge.stop()

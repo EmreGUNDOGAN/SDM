@@ -68,6 +68,10 @@ class DownloadDatabase:
                     """
                 )
                 conn.commit()
+                columns = {row[1] for row in cursor.execute('PRAGMA table_info(downloads)')}
+                if 'options_json' not in columns:
+                    cursor.execute("ALTER TABLE downloads ADD COLUMN options_json TEXT NOT NULL DEFAULT '{}'")
+                    conn.commit()
             finally:
                 conn.close()
 
@@ -129,6 +133,12 @@ class DownloadDatabase:
                 return dict(row) if row else None
             finally:
                 conn.close()
+
+    def set_options(self, download_id, options):
+        with self._db_lock:
+            with self._get_connection() as conn:
+                conn.execute('UPDATE downloads SET options_json = ? WHERE id = ?',
+                             (json.dumps(options,ensure_ascii=False),download_id))
 
     def get_all_downloads(self, category: Optional[str] = None, search_term: Optional[str] = None) -> List[Dict[str, Any]]:
         """Fetch all downloads with optional filtering by category and search keyword."""
@@ -245,7 +255,7 @@ class DownloadDatabase:
             try:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "UPDATE downloads SET status = 'Duraklatıldı' WHERE status = 'İndiriliyor'"
+                    "UPDATE downloads SET status = 'Duraklatıldı' WHERE status IN ('İndiriliyor','Birleştiriliyor','Dönüştürülüyor','Bekliyor')"
                 )
                 conn.commit()
             finally:

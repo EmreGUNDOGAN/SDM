@@ -37,6 +37,7 @@ from utils import (
     format_eta,
     format_speed,
     get_category_by_extension,
+    get_unique_filepath,
     is_valid_url,
     load_settings,
     save_settings,
@@ -44,6 +45,10 @@ from utils import (
 from video_downloader import VideoDownloadTask, fetch_video_info, is_video_site
 from download_window import DownloadDetailDialog
 from list_display import COLUMNS, row_values
+from modern_ui import ModernUI
+from app_actions import AppActions
+from transfer_control import GLOBAL_LIMITER
+from download_cleanup import delete_download_files
 
 logger = logging.getLogger("SDM.GUI")
 
@@ -62,353 +67,10 @@ def show_desktop_notification(title: str, message: str) -> None:
             logger.debug(f"Notification error: {e}")
 
 
-class AddDownloadDialog(tb.Toplevel):
-    """Dialog for creating a new direct or video download."""
-
-    def __init__(self, parent: "MainWindow", initial_url: str = ""):
-        super().__init__(parent)
-        self.parent = parent
-        self.title("Yeni İndirme Ekle")
-        self.geometry("640x680")
-        self.resizable(False, False)
-        self.transient(parent)
-        self.grab_set()
-
-        self.settings = parent.settings
-        self.dest_folder = self.settings.get("download_dir", str(Path.home() / "Downloads"))
-
-        self.url_var = tk.StringVar(value=initial_url)
-        self.filename_var = tk.StringVar()
-        self.folder_var = tk.StringVar(value=self.dest_folder)
-        self.connections_var = tk.IntVar(value=self.settings.get("default_connections", 8))
-        self.auto_start_var = tk.BooleanVar(value=True)
-        self.is_video_var = tk.BooleanVar(value=False)
-        self.video_quality_var = tk.StringVar(value="En İyi")
-        self.user_agent_var = tk.StringVar()
-        self.referer_var = tk.StringVar()
-        self.cookie_var = tk.StringVar()
-
-        self._build_ui()
-        if initial_url:
-            self._on_url_change()
-
-    def _build_ui(self) -> None:
-        container = tb.Frame(self, padding=20)
-        container.pack(fill=BOTH, expand=True)
-
-        # URL Frame
-        url_frame = tb.Labelframe(container, text=" İndirme Bağlantısı ", padding=10)
-        url_frame.pack(fill=X, pady=(0, 10))
-
-        tb.Label(url_frame, text="URL:").grid(row=0, column=0, sticky=W, padx=(0, 5), pady=5)
-        url_entry = tb.Entry(url_frame, textvariable=self.url_var, width=55)
-        url_entry.grid(row=0, column=1, sticky=EW, padx=5, pady=5)
-        url_entry.bind("<KeyRelease>", lambda e: self._on_url_change())
-
-        tb.Button(
-            url_frame,
-            text="Yapıştır & İncele",
-            bootstyle="secondary-outline",
-            command=self._paste_and_inspect,
-        ).grid(row=0, column=2, padx=5, pady=5)
-
-        # File options
-        opts_frame = tb.Labelframe(container, text=" Dosya & Kayıt Seçenekleri ", padding=10)
-        opts_frame.pack(fill=X, pady=(0, 10))
-
-        tb.Label(opts_frame, text="Dosya Adı:").grid(row=0, column=0, sticky=W, padx=(0, 5), pady=5)
-        tb.Entry(opts_frame, textvariable=self.filename_var, width=45).grid(
-            row=0, column=1, columnspan=2, sticky=EW, padx=5, pady=5
-        )
-
-        tb.Label(opts_frame, text="Kayıt Klasörü:").grid(row=1, column=0, sticky=W, padx=(0, 5), pady=5)
-        tb.Entry(opts_frame, textvariable=self.folder_var, width=40).grid(
-            row=1, column=1, sticky=EW, padx=5, pady=5
-        )
-        tb.Button(
-            opts_frame,
-            text="Gözat...",
-            bootstyle="secondary",
-            command=self._browse_folder,
-        ).grid(row=1, column=2, padx=5, pady=5)
-
-        tb.Label(opts_frame, text="Bağlantı Sayısı:").grid(row=2, column=0, sticky=W, padx=(0, 5), pady=5)
-        conn_spin = tb.Spinbox(
-            opts_frame, from_=1, to=32, textvariable=self.connections_var, width=5
-        )
-        conn_spin.grid(row=2, column=1, sticky=W, padx=5, pady=5)
-
-        # Video Section
-        self.video_frame = tb.Labelframe(container, text=" Video / Ses Ayarları ", padding=10)
-        self.video_frame.pack(fill=X, pady=(0, 10))
-
-        tb.Checkbutton(
-            self.video_frame,
-            text="Video İndirici (yt-dlp) Kullan",
-            variable=self.is_video_var,
-            bootstyle="round-toggle",
-        ).grid(row=0, column=0, sticky=W, padx=5, pady=5)
-
-        tb.Label(self.video_frame, text="Kalite:").grid(row=0, column=1, sticky=W, padx=10, pady=5)
-        qualities = ["En İyi", "4K (2160p)", "1080p", "720p", "480p", "Yalnızca Ses (MP3)"]
-        tb.Combobox(
-            self.video_frame,
-            values=qualities,
-            textvariable=self.video_quality_var,
-            state="readonly",
-            width=18,
-        ).grid(row=0, column=2, sticky=W, padx=5, pady=5)
-
-        # Advanced / Headers Accordion
-        adv_frame = tb.Labelframe(container, text=" Özel Başlıklar (Opsiyonel) ", padding=10)
-        adv_frame.pack(fill=X, pady=(0, 10))
-
-        tb.Label(adv_frame, text="User-Agent:").grid(row=0, column=0, sticky=W, padx=5, pady=2)
-        tb.Entry(adv_frame, textvariable=self.user_agent_var, width=48).grid(
-            row=0, column=1, sticky=EW, padx=5, pady=2
-        )
-
-        tb.Label(adv_frame, text="Referer:").grid(row=1, column=0, sticky=W, padx=5, pady=2)
-        tb.Entry(adv_frame, textvariable=self.referer_var, width=48).grid(
-            row=1, column=1, sticky=EW, padx=5, pady=2
-        )
-
-        # Bottom buttons
-        bottom_frame = tb.Frame(container)
-        bottom_frame.pack(fill=X, pady=(10, 0))
-
-        tb.Checkbutton(
-            bottom_frame,
-            text="Hemen Başlat",
-            variable=self.auto_start_var,
-            bootstyle="success-square-toggle",
-        ).pack(side=LEFT)
-
-        tb.Button(
-            bottom_frame,
-            text="İptal",
-            bootstyle="secondary",
-            command=self.destroy,
-        ).pack(side=RIGHT, padx=(5, 0))
-
-        tb.Button(
-            bottom_frame,
-            text="İndir",
-            bootstyle="primary",
-            command=self._on_submit,
-        ).pack(side=RIGHT, padx=5)
-
-    def _paste_and_inspect(self) -> None:
-        try:
-            clip = self.clipboard_get()
-            if clip:
-                self.url_var.set(clip.strip())
-                self._on_url_change()
-        except Exception:
-            pass
-
-    def _on_url_change(self) -> None:
-        url = self.url_var.get().strip()
-        if not url:
-            return
-
-        if is_video_site(url):
-            self.is_video_var.set(True)
-            # Async fetch video title
-            threading.Thread(target=self._fetch_video_title, args=(url,), daemon=True).start()
-        else:
-            fname = extract_filename_from_url(url)
-            self.filename_var.set(fname)
-
-    def _fetch_video_title(self, url: str) -> None:
-        info = fetch_video_info(url)
-        if info and "title" in info:
-            clean = clean_filename(info["title"])
-            self.after(0, lambda: self.filename_var.set(f"{clean}.mp4"))
-
-    def _browse_folder(self) -> None:
-        chosen = filedialog.askdirectory(initialdir=self.folder_var.get())
-        if chosen:
-            self.folder_var.set(chosen)
-
-    def _on_submit(self) -> None:
-        url = self.url_var.get().strip()
-        if not is_valid_url(url):
-            messagebox.showerror("Geçersiz URL", "Lütfen geçerli bir http veya https bağlantısı girin.")
-            return
-
-        dest_folder = Path(self.folder_var.get())
-        if not dest_folder.exists():
-            try:
-                dest_folder.mkdir(parents=True, exist_ok=True)
-            except Exception as e:
-                messagebox.showerror("Klasör Hatası", f"Klasör oluşturulamadı: {e}")
-                return
-
-        fname = clean_filename(self.filename_var.get().strip() or extract_filename_from_url(url))
-        dest_path = dest_folder / fname
-
-        headers: Dict[str, str] = {}
-        if self.user_agent_var.get().strip():
-            headers["User-Agent"] = self.user_agent_var.get().strip()
-        if self.referer_var.get().strip():
-            headers["Referer"] = self.referer_var.get().strip()
-
-        is_video = self.is_video_var.get()
-        quality = self.video_quality_var.get()
-        connections = self.connections_var.get()
-        auto_start = self.auto_start_var.get()
-
-        self.parent.add_download_from_dialog(
-            url=url,
-            filename=fname,
-            dest_path=str(dest_path),
-            is_video=is_video,
-            video_quality=quality,
-            connections=connections,
-            headers=headers,
-            auto_start=auto_start,
-        )
-        self.destroy()
+class MainWindow(ModernUI, AppActions, tb.Window):
 
 
-class SettingsDialog(tb.Toplevel):
-    """Configuration dialog for SDM."""
-
-    def __init__(self, parent: "MainWindow"):
-        super().__init__(parent)
-        self.parent = parent
-        self.title("Ayarlar - SDM")
-        self.geometry("580x590")
-        self.resizable(False, False)
-        self.transient(parent)
-        self.grab_set()
-
-        self.settings = parent.settings.copy()
-
-        self.folder_var = tk.StringVar(value=self.settings.get("download_dir", ""))
-        self.max_concurrent_var = tk.IntVar(value=self.settings.get("max_simultaneous_downloads", 3))
-        self.conns_var = tk.IntVar(value=self.settings.get("default_connections", 8))
-        self.speed_limit_var = tk.IntVar(value=self.settings.get("speed_limit_kbs", 0))
-        self.clipboard_var = tk.BooleanVar(value=self.settings.get("clipboard_monitoring", True))
-        self.start_minimized_var = tk.BooleanVar(value=self.settings.get("start_minimized", False))
-        self.notifications_var = tk.BooleanVar(value=self.settings.get("notifications_enabled", True))
-        self.capture_var = tk.BooleanVar(value=self.settings.get('browser_capture',True))
-        self.details_var = tk.BooleanVar(value=self.settings.get('auto_open_details',True))
-
-        self._build_ui()
-
-    def _build_ui(self) -> None:
-        container = tb.Frame(self, padding=20)
-        container.pack(fill=BOTH, expand=True)
-
-        # General Group
-        gen_group = tb.Labelframe(container, text=" Genel Ayarlar ", padding=15)
-        gen_group.pack(fill=X, pady=(0, 15))
-
-        tb.Label(gen_group, text="Varsayılan Klasör:").grid(row=0, column=0, sticky=W, pady=5)
-        tb.Entry(gen_group, textvariable=self.folder_var, width=32).grid(
-            row=0, column=1, sticky=EW, padx=5, pady=5
-        )
-        tb.Button(
-            gen_group, text="Gözat...", bootstyle="secondary", command=self._browse
-        ).grid(row=0, column=2, padx=5, pady=5)
-
-        tb.Label(gen_group, text="Eşzamanlı İndirme Limiti:").grid(row=1, column=0, sticky=W, pady=5)
-        tb.Spinbox(gen_group, from_=1, to=10, textvariable=self.max_concurrent_var, width=6).grid(
-            row=1, column=1, sticky=W, padx=5, pady=5
-        )
-
-        tb.Label(gen_group, text="Varsayılan Bağlantı Sayısı:").grid(row=2, column=0, sticky=W, pady=5)
-        tb.Spinbox(gen_group, from_=1, to=32, textvariable=self.conns_var, width=6).grid(
-            row=2, column=1, sticky=W, padx=5, pady=5
-        )
-
-        tb.Label(gen_group, text="Hız Sınırı (KB/s, 0=Sınırsız):").grid(row=3, column=0, sticky=W, pady=5)
-        tb.Spinbox(gen_group, from_=0, to=1000000, increment=100, textvariable=self.speed_limit_var, width=10).grid(
-            row=3, column=1, sticky=W, padx=5, pady=5
-        )
-
-        # Automation & System Group
-        auto_group = tb.Labelframe(container, text=" Entegrasyon & Bildirimler ", padding=15)
-        auto_group.pack(fill=X, pady=(0, 15))
-        tb.Checkbutton(auto_group,text='Tarayıcı indirmelerini SDM ile yakala',variable=self.capture_var).pack(anchor=W,pady=4)
-        tb.Checkbutton(auto_group,text='Yeni indirmede detay penceresini aç',variable=self.details_var).pack(anchor=W,pady=4)
-
-        tb.Checkbutton(
-            auto_group,
-            text="Panoyu (Clipboard) otomatik izle ve bağlantıları yakala",
-            variable=self.clipboard_var,
-            bootstyle="round-toggle",
-        ).pack(anchor=W, pady=4)
-
-        tb.Checkbutton(
-            auto_group,
-            text="Masaüstü bildirimlerini göster",
-            variable=self.notifications_var,
-            bootstyle="round-toggle",
-        ).pack(anchor=W, pady=4)
-
-        tb.Checkbutton(
-            auto_group,
-            text="Uygulama açılışında simge durumuna küçült",
-            variable=self.start_minimized_var,
-            bootstyle="round-toggle",
-        ).pack(anchor=W, pady=4)
-
-        # Buttons
-        btn_frame = tb.Frame(container)
-        btn_frame.pack(fill=X, pady=(10, 0))
-
-        tb.Button(btn_frame, text="İptal", bootstyle="secondary", command=self.destroy).pack(side=RIGHT, padx=5)
-        tb.Button(btn_frame, text="Kaydet", bootstyle="success", command=self._save).pack(side=RIGHT)
-
-    def _browse(self) -> None:
-        p = filedialog.askdirectory(initialdir=self.folder_var.get())
-        if p:
-            self.folder_var.set(p)
-
-    def _save(self) -> None:
-        self.settings["download_dir"] = self.folder_var.get()
-        self.settings["max_simultaneous_downloads"] = self.max_concurrent_var.get()
-        self.settings["default_connections"] = self.conns_var.get()
-        self.settings["speed_limit_kbs"] = self.speed_limit_var.get()
-        self.settings["clipboard_monitoring"] = self.clipboard_var.get()
-        self.settings["start_minimized"] = self.start_minimized_var.get()
-        self.settings["notifications_enabled"] = self.notifications_var.get()
-        self.settings['browser_capture'] = self.capture_var.get()
-        self.settings['auto_open_details'] = self.details_var.get()
-
-        save_settings(self.settings)
-        self.parent.apply_settings(self.settings)
-        self.destroy()
-
-
-class MainWindow(tb.Window):
-
-
-    def _delete_selected_with_file(self):
-        selected_items = self.tree.selection()
-        for item in selected_items:
-            item_values = self.tree.item(item, "values")
-            download_id = item_values[0]  # ID sütunu
-
-            # Veritabanından indirme bilgilerini al
-            download = self.db.get_download(download_id)
-            if download and download.get("file_path"):
-                file_path = Path(download["file_path"])
-                # Fiziksel dosyayı diskten sil
-                try:
-                    if file_path.exists():
-                        file_path.unlink()
-                except Exception as e:
-                    logger.error(f"Dosya diskten silinirken hata oluştu: {e}")
-
-            self.db.delete_download(download_id)
-            self.tree.delete(item)
-
-
-    """Main application window for SDM."""
+    """SDM desktop window using the approved modern UI."""
 
     CATEGORIES = ["Tümü", "Belgeler", "Resimler", "Müzik", "Video", "Arşivler", "Programlar", "Diğer",'Devam Edenler','Tamamlananlar']
 
@@ -422,8 +84,8 @@ class MainWindow(tb.Window):
         self.style.map('SDM.Treeview',foreground=[('selected','#111111')],background=[('selected','#e6f1fc')])
         self.detail_windows = {}
         self.title("SDM")
-        self.geometry("1220x700")
-        self.minsize(800, 500)
+        self.geometry(f'{min(1440,self.winfo_screenwidth()-70)}x{min(840,self.winfo_screenheight()-100)}')
+        self.minsize(1080, 640)
 
         self.settings = load_settings()
         self.db = DownloadDatabase()
@@ -446,6 +108,7 @@ class MainWindow(tb.Window):
             self.iconphoto(True, self._icon_photo)
             icon_path = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'assets' / 'sdm.ico'
             if icon_path.exists():
+                self.iconbitmap(str(icon_path))
                 self.iconbitmap(default=str(icon_path))
         except Exception as e:
             logger.debug(f"Could not set Tk icon: {e}")
@@ -453,169 +116,12 @@ class MainWindow(tb.Window):
         self._build_ui()
         self._setup_shortcuts()
         self._load_downloads_from_db()
+        self.initialize_actions()
+        self.initialize_drop()
         self._start_status_updater()
 
         # Handle close event (minimize to tray vs exit)
         self.protocol("WM_DELETE_WINDOW", self.on_close_window)
-
-    def _build_ui(self) -> None:
-        # 1. Top Toolbar
-        toolbar = tb.Frame(self, padding=10)
-        toolbar.pack(side=TOP, fill=X)
-
-        tb.Button(
-            toolbar,
-            text="＋\nURL Ekle",
-            bootstyle="light",
-            command=self.open_add_dialog,
-        ).pack(side=LEFT, padx=3)
-
-        tb.Button(
-            toolbar,
-            text="▶\nDevam Et",
-            bootstyle="light",
-            command=self.resume_selected,
-        ).pack(side=LEFT, padx=3)
-
-        tb.Button(
-            toolbar,
-            text="Ⅱ\nDuraklat",
-            bootstyle="light",
-            command=self.pause_selected,
-        ).pack(side=LEFT, padx=3)
-
-        tb.Button(
-            toolbar,
-            text="■\nİptal Et",
-            bootstyle="light",
-            command=self.cancel_selected,
-        ).pack(side=LEFT, padx=3)
-
-        tb.Button(
-            toolbar,
-            text="×\nKaldır",
-            bootstyle="light",
-            command=self.delete_selected,
-        ).pack(side=LEFT, padx=3)
-
-        tb.Separator(toolbar, orient=VERTICAL).pack(side=LEFT, fill=Y, padx=8)
-
-        tb.Button(
-            toolbar,
-            text="⚙\nAyarlar",
-            bootstyle="light",
-            command=self.open_settings_dialog,
-        ).pack(side=LEFT, padx=3)
-
-        # Search bar on toolbar right side
-        tb.Button(toolbar,text='▤\nSütunlar',bootstyle='light',command=self.show_column_menu).pack(side=LEFT,padx=3)
-        self.search_var = tk.StringVar()
-        self.search_var.trace_add("write", lambda *args: self._on_search_change())
-        search_entry = tb.Entry(
-            toolbar, textvariable=self.search_var, width=22, bootstyle="secondary"
-        )
-        search_entry.pack(side=RIGHT, padx=5)
-        tb.Label(toolbar, text="Ara:").pack(side=RIGHT,padx=5)
-
-        # 2. Main Body (Sidebar + Content Treeview)
-        body = tb.Frame(self)
-        body.pack(side=TOP, fill=BOTH, expand=True)
-
-        # Sidebar for Categories
-        sidebar = tb.Labelframe(body, text=" Kategoriler ", padding=10, width=170)
-        sidebar.pack(side=LEFT, fill=Y, padx=(10, 5), pady=10)
-        sidebar.pack_propagate(False)
-
-        self.category_buttons: Dict[str, tb.Button] = {}
-        cat_icons = {
-            "Tümü": "📁",
-            "Belgeler": "📄",
-            "Resimler": "🖼",
-            "Müzik": "🎵",
-            "Video": "🎬",
-            "Arşivler": "📦",
-            "Programlar": "⚡",
-            "Diğer": "📎",
-        }
-
-        for cat in self.CATEGORIES:
-            icon = cat_icons.get(cat, "•")
-            btn = tb.Button(
-                sidebar,
-                text=f"{icon} {cat}",
-                bootstyle="link",
-                compound=LEFT,
-                command=lambda c=cat: self.select_category(c),
-            )
-            btn.pack(fill=X, pady=2)
-            self.category_buttons[cat] = btn
-
-        # Only highlight the default category button visually;
-        # the actual select_category (which calls refresh_downloads
-        # and needs self.tree) is deferred to the end of _build_ui.
-        self.category_buttons["Tümü"].configure(bootstyle="light")
-
-        # Download List Frame
-        tree_frame = tb.Frame(body, padding=(5, 10, 10, 10))
-        tree_frame.pack(side=LEFT, fill=BOTH, expand=True)
-
-        columns=tuple(c[0] for c in COLUMNS)
-        self.tree=tb.Treeview(tree_frame,columns=columns,show='headings',selectmode='extended',style='SDM.Treeview')
-        for name,label,width in COLUMNS:
-            self.tree.heading(name,text=label,command=self.show_column_menu)
-            self.tree.column(name,width=width,anchor=W if name=='filename' else CENTER)
-        self.apply_visible_columns()
-
-        tree_scroll_y = tb.Scrollbar(tree_frame, orient=VERTICAL, command=self.tree.yview)
-        tree_scroll_x = tb.Scrollbar(tree_frame, orient=HORIZONTAL, command=self.tree.xview)
-        self.tree.configure(yscrollcommand=tree_scroll_y.set, xscrollcommand=tree_scroll_x.set)
-
-        self.tree.grid(row=0, column=0, sticky=NSEW)
-        tree_scroll_y.grid(row=0, column=1, sticky=NS)
-        tree_scroll_x.grid(row=1, column=0, sticky=EW)
-
-        tree_frame.rowconfigure(0, weight=1)
-        tree_frame.columnconfigure(0, weight=1)
-
-        # Bind events
-        self.tree.bind("<Double-1>", self._on_tree_double_click)
-        self.tree.bind("<Button-3>", self._on_tree_right_click)
-
-        # Context Menu
-        self.context_menu = tk.Menu(self, tearoff=0)
-        self.context_menu.add_command(label="▶ Devam Et", command=self.resume_selected)
-        self.context_menu.add_command(label="⏸ Duraklat", command=self.pause_selected)
-        self.context_menu.add_command(label="⏹ İptal Et", command=self.cancel_selected)
-        self.context_menu.add_separator()
-        self.context_menu.add_command(label="📂 Dosyayı Aç", command=self.open_file)
-        self.context_menu.add_command(label="📁 Klasörü Aç", command=self.open_folder)
-        self.context_menu.add_separator()
-        self.context_menu.add_command(label="🗑 Listeden Kaldır", command=lambda: self.delete_selected(delete_file=False))
-        self.context_menu.add_command(label="❌ Dosya ile Birlikte Sil", command=lambda: self.delete_selected(delete_file=True))
-        self.context_menu.add_separator()
-        self.context_menu.add_command(label="ℹ Detayları Göster", command=self.show_selected_details)
-
-        # 3. Status Bar
-        self.statusbar = tb.Frame(self, padding=7)
-        self.statusbar.pack(side=BOTTOM, fill=X)
-
-        self.lbl_status_summary = tb.Label(
-            self.statusbar,
-            text="Aktif İndirmeler: 0 | Toplam Hız: 0 KB/s",
-            font="-size 9",
-        )
-        self.lbl_status_summary.pack(side=LEFT, padx=10)
-
-        self.lbl_status_info = tb.Label(
-            self.statusbar,
-            text="SDM Hazır",
-            font="-size 9",
-            bootstyle="secondary-inverse",
-        )
-        self.lbl_status_info.pack(side=RIGHT, padx=10)
-
-        # Now that self.tree and all widgets exist, apply the default category
-        self.select_category("Tümü")
 
     def _setup_shortcuts(self) -> None:
         self.bind("<Control-n>", lambda e: self.open_add_dialog())
@@ -659,13 +165,16 @@ class MainWindow(tb.Window):
             did=int(self.tree.item(item,'values')[0])
             record=self.db.get_download(did)
             if record:self.tree.item(item,values=row_values(self,record))
+        self.update_hud()
         self.after(1000,self._start_status_updater)
 
     def open_add_dialog(self, initial_url: str = "") -> None:
-        AddDownloadDialog(self, initial_url=initial_url)
+        from app_dialogs import BatchDialog
+        BatchDialog(self, initial_url)
 
     def open_settings_dialog(self) -> None:
-        SettingsDialog(self)
+        from modern_settings import SettingsDialog as ModernSettingsDialog
+        ModernSettingsDialog(self)
 
     def apply_visible_columns(self):
         valid={c[0] for c in COLUMNS}
@@ -698,34 +207,46 @@ class MainWindow(tb.Window):
         if record:
             window=DownloadDetailDialog(self,record)
             self.detail_windows[did]=window
-            window.lift()
+            from app_dialogs import foreground
+            foreground(window)
 
     def pause_download(self,did):
+        record=self.db.get_download(did)
+        if not record or record['status'] in ('Tamamlandı','İptal Edildi'):return
         if did in self.video_tasks:self.video_tasks[did].pause()
         else:self.engine.pause_task(did)
 
     def resume_download(self,did):
-        if did in self.video_tasks:
-            self.video_tasks[did].start()
-        elif self.engine.get_task(did):
-            self.engine.resume_task(did)
-        else:
-            record=self.db.get_download(did)
-            if not record:return
+        record=self.db.get_download(did)
+        if not record or record['status']=='Tamamlandı':return False
+        task=self.video_tasks.get(did) or self.engine.get_task(did)
+        worker=(getattr(task,'_worker',None) or getattr(task,'_thread',None)) if task else None
+        if worker and worker.is_alive():return False
+        options=json.loads(record.get('options_json') or '{}')
+        if not task:
             if record['download_type']=='video':
                 task=VideoDownloadTask(did,record['url'],Path(record['filepath']).parent,
-                    quality='Yalnızca Ses (MP3)' if record['filepath'].endswith('.mp3') else 'En İyi',
+                    quality=options.get('quality','Yalnızca Ses (MP3)' if record['filepath'].endswith('.mp3') else 'En İyi'),
+                    selected_height=options.get('height'),connections=record['num_connections'],
+                    output_name=options.get('output_name'),
                     progress_callback=self._on_download_progress,status_callback=self._on_download_status_change,
                     metadata_callback=self._on_metadata_updated)
                 self.video_tasks[did]=task
-                task.start()
             else:
-                self.engine.add_task(did,record['url'],record['filepath'],num_connections=record['num_connections'],
-                    headers=json.loads(record['headers'] or '{}'),progress_callback=self._on_download_progress,
+                task=self.engine.add_task(did,record['url'],record['filepath'],num_connections=record['num_connections'],
+                    resume_legacy_parts=record['downloaded_bytes']>0,headers=json.loads(record['headers'] or '{}'),
+                    auto_start=False,progress_callback=self._on_download_progress,
                     status_callback=self._on_download_status_change,metadata_callback=self._on_metadata_updated)
+        task.queue_requested=False
+        task.status='Bekliyor'
+        self.db.update_download_status(did,'Bekliyor')
+        self._session_baselines.setdefault(did,record['downloaded_bytes'])
         self.refresh_downloads()
+        return True
 
     def cancel_download(self,did):
+        record=self.db.get_download(did)
+        if not record or record['status']=='Tamamlandı':return
         if did in self.video_tasks:self.video_tasks[did].cancel()
         else:self.engine.cancel_task(did)
 
@@ -734,6 +255,15 @@ class MainWindow(tb.Window):
         self.engine.max_concurrent = new_settings.get("max_simultaneous_downloads", 3)
         self.engine.default_connections = new_settings.get("default_connections", 8)
         self.engine.speed_limit_kbs = new_settings.get("speed_limit_kbs", 0)
+        GLOBAL_LIMITER.configure(self.engine.speed_limit_kbs)
+        if hasattr(self,'clipboard_monitor'):
+            self.clipboard_monitor.set_extensions(new_settings.get('monitored_extensions',[]))
+            if new_settings.get('clipboard_monitoring',True):self.clipboard_monitor.start()
+            else:self.clipboard_monitor.stop()
+        for child in self.winfo_children():
+            if not isinstance(child, tk.Toplevel):child.destroy()
+        self._build_ui()
+        self.initialize_drop()
 
     def add_download_from_dialog(
         self,
@@ -742,13 +272,25 @@ class MainWindow(tb.Window):
         dest_path: str,
         is_video: bool = False,
         video_quality: str = "En İyi",
-        connections: int = 8,
+        connections: Optional[int] = None,
         headers: Optional[Dict[str, str]] = None,
         auto_start: bool = True,
         selected_height: Optional[int] = None,
+        from_browser: bool = False,
     ) -> None:
         cat = get_category_by_extension(filename)
-        status = "Bekliyor" if auto_start else "Duraklatıldı"
+        connections=connections or self.settings.get('default_connections',8)
+        status = "Bekliyor" if auto_start else "Kuyrukta"
+        destination=Path(dest_path)
+        reserved={Path(record['filepath']) for record in self.db.get_all_downloads()}
+        candidate=get_unique_filepath(destination.parent,destination.name)
+        index=1
+        while candidate in reserved:
+            candidate=destination.with_name(f'{destination.stem} ({index}){destination.suffix}')
+            candidate=get_unique_filepath(candidate.parent,candidate.name)
+            index+=1
+        dest_path=str(candidate)
+        filename=candidate.name
 
         did = self.db.add_download(
             url=url,
@@ -762,6 +304,9 @@ class MainWindow(tb.Window):
             status=status,
         )
 
+        self.db.set_options(did, {'quality':video_quality,'height':selected_height,'output_name':candidate.name if from_browser else None})
+        self._session_baselines[did]=0
+        self._session_received[did]=0
         if is_video:
             vtask = VideoDownloadTask(
                 download_id=did,
@@ -769,13 +314,14 @@ class MainWindow(tb.Window):
                 dest_folder=Path(dest_path).parent,
                 quality=video_quality,
                 selected_height=selected_height,
+                connections=connections,
+                output_name=candidate.name if from_browser else None,
                 progress_callback=self._on_download_progress,
                 status_callback=self._on_download_status_change,
                 metadata_callback=self._on_metadata_updated,
             )
             self.video_tasks[did] = vtask
-            if auto_start:
-                vtask.start()
+            vtask.status=status
         else:
             self.engine.add_task(
                 download_id=did,
@@ -789,17 +335,27 @@ class MainWindow(tb.Window):
                 metadata_callback=self._on_metadata_updated,
             )
 
+        if not auto_start:
+            task=self.video_tasks.get(did) or self.engine.get_task(did)
+            if task:task.status='Kuyrukta'
         self.refresh_downloads()
-        if auto_start and self.settings.get('auto_open_details',True):
+        if auto_start and (from_browser or self.settings.get('auto_open_details',True)):
             self.show_download_details(did)
+        return did
 
     def _on_download_progress(
         self, did: int, downloaded: int, total: int, speed: float, eta: float, status: str
     ) -> None:
         # Update database periodically
         self.db.update_download_progress(did, downloaded, total)
+        baseline=self._session_baselines.setdefault(did,downloaded)
+        self._session_received[did]=max(self._session_received.get(did,0),downloaded-baseline,0)
 
     def _on_download_status_change(self, did: int, status: str, error: str) -> None:
+        # Engine callbacks can run while its lock is held; do not reacquire it here.
+        task=self.video_tasks.get(did) or self.engine.tasks.get(did)
+        if status=='Duraklatıldı' and task and getattr(task,'queue_requested',False):
+            status='Kuyrukta';task.status=status
         completed = status == "Tamamlandı"
         self.db.update_download_status(did, status, error, completed=completed)
 
@@ -809,6 +365,8 @@ class MainWindow(tb.Window):
             show_desktop_notification("İndirme Tamamlandı", f"{fname} başarıyla indirildi.")
 
         self.after(0, self.refresh_downloads)
+        if completed:self.after(0,lambda:self.completed_popup(did))
+        elif status=='Hata':self.after(0,lambda:self.show_download_error(did,error))
 
     def _on_metadata_updated(
         self, did: int, filename: str, filepath: str, filesize: int, category: str
@@ -847,25 +405,29 @@ class MainWindow(tb.Window):
         if not messagebox.askyesno("Onayla", msg):
             return
 
+        pending = []
         for did in ids:
-            rec = self.db.get_download(did)
-            if did in self.video_tasks:
-                self.video_tasks[did].cancel()
-                self.video_tasks.pop(did, None)
-            else:
-                self.engine.remove_task(did)
-
-            if delete_file and rec and rec.get("filepath"):
-                fp = Path(rec["filepath"])
-                if fp.exists():
-                    try:
-                        fp.unlink()
-                    except Exception as e:
-                        logger.error(f"Failed to delete file {fp}: {e}")
-
-            self.db.delete_download(did)
-
-        self.refresh_downloads()
+            task = self.video_tasks.get(did) or self.engine.get_task(did)
+            if task:
+                task.cancel()
+            pending.append((did, self.db.get_download(did), task))
+        def remove():
+            errors = []
+            for did, rec, task in pending:
+                try:
+                    if delete_file and rec:
+                        delete_download_files(rec, task)
+                    self.engine.remove_task(did)
+                    self.video_tasks.pop(did, None)
+                    self.db.delete_download(did)
+                except Exception as error:
+                    errors.append(f'#{did}: {error}')
+            def finished():
+                self.refresh_downloads()
+                if errors:
+                    messagebox.showerror('Silme tamamlanamadı', '\n'.join(errors), parent=self)
+            self.after(0, finished)
+        threading.Thread(target=remove, daemon=True).start()
 
     def open_file(self) -> None:
         ids = self._get_selected_ids()

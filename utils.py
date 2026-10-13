@@ -28,6 +28,13 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "theme": "cosmo",
     "browser_capture": True,
     "auto_open_details": True,
+    "completion_popup": True,
+    "excluded_sites": ['canva.com'],
+    "capture_extensions": [],
+    "capture_paused_until": 0,
+    "update_check_on_start": False,
+    "scheduled_start": '',
+    "shutdown_after_queue": False,
     "visible_columns": ['filename', 'size', 'downloaded', 'progress', 'speed', 'eta', 'status'],
     "monitored_extensions": [
         "zip", "rar", "7z", "tar", "gz", "exe", "msi", "iso",

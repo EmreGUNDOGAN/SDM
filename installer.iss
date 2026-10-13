@@ -5,13 +5,13 @@ AppId={{DA66AE91-880E-4ED8-977D-9AC2298A341B}
 AppId={{7D41A428-758B-4932-A29D-03767B5E5587}
 #endif
 AppName=SDM
-AppVersion=0.3.0
+AppVersion=0.3.1
 DefaultDirName={localappdata}\Programs\SDM
 DefaultGroupName=SDM
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 OutputDir=dist
-OutputBaseFilename=SDM-Setup-0.3.0
+OutputBaseFilename=SDM-Setup-0.3.1
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -32,7 +32,7 @@ Source: "dist\SDM\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs crea
 Source: "UPSTREAM-NOTICES.md"; DestDir: "{app}\notices"; Flags: ignoreversion
 Source: "README*.md"; DestDir: "{app}\notices"; Flags: ignoreversion
 Source: "dist\SDMHost\*"; DestDir: "{app}\browser-host"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "extension\*"; DestDir: "{app}\extension"; Flags: ignoreversion recursesubdirs createallsubdirs; Tasks: operaextension chromeextension
+Source: "extension\*"; DestDir: "{app}\extension"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "extension-setup.html"; DestDir: "{app}"; Flags: ignoreversion
 
 [Registry]

@@ -76,3 +76,15 @@ concurrency and resumed-byte speed calculations. Native white UI validation
 covered black table text, downloaded bytes, detail controls and saved columns.
 An isolated real Chromium download test verified normal file capture and
 browser fallback when the app's preflight was rejected.
+
+
+## 0.3.1 validation
+
+27 motor/security tests passed, including distinct temporary files, legacy deletion,
+Canva/subdomain capture exclusions, pause timers, file types, credential-free backups,
+Windows DPAPI token protection, update hash validation, redirect credential isolation,
+and real concurrent yt-dlp HTTP range downloads with exact output bytes.
+Native UI tests verified both themes, icons, HUD, cancel/close, capture decisions,
+queue start/pause, completion UI, five settings sections and native drag/drop registration.
+Chromium tests exercised normal capture/fallback and video/MP3 selections.
+The final test installer was installed under a separate application ID. Actual native messaging, YouTube MKV and MP3 downloads completed; uninstall passed and prior native-host registry values were restored. Existing SDM was not replaced. pip-audit reported zero known vulnerabilities including tkinterdnd2 0.6.4.

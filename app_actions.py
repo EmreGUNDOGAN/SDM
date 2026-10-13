@@ -1,0 +1,247 @@
+import hashlib
+import json
+import os
+from pathlib import Path
+import threading
+import time
+from datetime import datetime
+import tkinter as tk
+from tkinter import messagebox, filedialog
+import webbrowser
+import ttkbootstrap as tb
+from utils import load_settings,save_settings,get_unique_filepath
+from app_dialogs import CapturePrompt,CompletionDialog,foreground
+
+
+class AppActions:
+    def initialize_drop(self):
+        from tkinterdnd2 import TkinterDnD,DND_TEXT,DND_FILES
+        TkinterDnD.require(self)
+        self.tree.drop_target_register(DND_TEXT,DND_FILES)
+        self.tree.dnd_bind('<<Drop>>',self.on_drop)
+
+    def on_drop(self,event):
+        from utils import is_valid_url
+        values=self.tk.splitlist(event.data)
+        urls=[]
+        for value in values:
+            if is_valid_url(value):urls.append(value)
+            elif Path(value).suffix.lower() in ('.url','.txt') and Path(value).is_file() and Path(value).stat().st_size<1024*1024:
+                for line in Path(value).read_text(encoding='utf-8-sig',errors='replace').splitlines():
+                    line=line.removeprefix('URL=').strip()
+                    if is_valid_url(line):urls.append(line)
+        if urls:self.open_add_dialog('\n'.join(urls))
+        else:messagebox.showinfo('Sürükle-bırak','Bir indirme bağlantısı veya bağlantılar içeren .url / .txt dosyası bırakın.')
+        return event.action
+
+    def initialize_actions(self):
+        self._queue_running=False;self._queue_ids=set();self._session_received={};self._session_baselines={}
+        self._completed_notified=set();self._update_busy=False;self._shutdown_window=None
+        self.engine.external_active_count=lambda:sum(v.status in ('İndiriliyor','Dönüştürülüyor') for v in self.video_tasks.values())
+        self.after(1000,self.queue_tick)
+        if self.settings.get('update_check_on_start'):self.after(2500,lambda:self.check_updates(True))
+
+    def browser_request(self,request,decision):
+        self.deiconify()
+        prompt=CapturePrompt(self,request,decision)
+        if getattr(self,'integration_test',False):self.after(150,lambda:prompt.choose('start'))
+        return prompt
+
+    def toggle_capture(self):
+        self.settings['browser_capture']=not self.settings.get('browser_capture',True)
+        if self.settings['browser_capture']:self.settings['capture_paused_until']=0
+        save_settings(self.settings);self.update_hud()
+
+    def show_queue_menu(self):
+        menu=tk.Menu(self,tearoff=0)
+        for label,action in [('Kuyruğu başlat',self.start_queue),('Kuyruğu duraklat',self.pause_queue),('Seçilileri kuyruğa ekle',self.queue_selected),('Zamanlama ve kapanma ayarları',self.open_settings_dialog)]:menu.add_command(label=label,command=action)
+        menu.tk_popup(self.winfo_pointerx(),self.winfo_pointery())
+
+    def queue_selected(self):
+        for did in self._get_selected_ids():
+            record=self.db.get_download(did)
+            if not record or record['status']=='Tamamlandı':continue
+            self.pause_download(did)
+            task=self.video_tasks.get(did) or self.engine.get_task(did)
+            if task:task.queue_requested=True;task.status='Kuyrukta'
+            self.db.update_download_status(did,'Kuyrukta')
+        self.refresh_downloads()
+
+    def start_queue(self):
+        self._queue_running=True
+        self._queue_ids.update(r['id'] for r in self.db.get_all_downloads() if r['status']=='Kuyrukta')
+        self.queue_tick_once()
+
+    def pause_queue(self):
+        self._queue_running=False
+        for did in self._queue_ids:
+            record=self.db.get_download(did)
+            if record and record['status'] not in ('Tamamlandı','İptal Edildi'):
+                self.pause_download(did)
+                task=self.video_tasks.get(did) or self.engine.get_task(did)
+                if task:task.queue_requested=True;task.status='Kuyrukta'
+                self.db.update_download_status(did,'Kuyrukta')
+        self.refresh_downloads()
+
+    def queue_tick_once(self):
+        records=self.db.get_all_downloads()
+        active=self.engine.get_active_count()+sum(v.status in ('İndiriliyor','Dönüştürülüyor') for v in self.video_tasks.values())
+        pending=sum(t.status=='Bekliyor' for t in self.engine.tasks.values())
+        slots=max(0,self.settings.get('max_simultaneous_downloads',3)-active-pending)
+        for did,task in list(self.video_tasks.items()):
+            if task.status=='Bekliyor' and slots:
+                task.start();slots-=1
+        if self._queue_running:
+            for record in sorted(records,key=lambda r:r['id']):
+                if slots<=0:break
+                if record['status']!='Kuyrukta':continue
+                self._queue_ids.add(record['id'])
+                if self.resume_download(record['id']):slots-=1
+            pending_records=[r for r in records if r['id'] in self._queue_ids]
+            if self._queue_ids and pending_records and all(r['status']=='Tamamlandı' for r in pending_records):
+                self._queue_running=False;self._queue_ids.clear()
+                if self.settings.get('shutdown_after_queue'):self.shutdown_countdown()
+
+    def queue_tick(self):
+        latest=load_settings()
+        for key in ('browser_capture','capture_paused_until','excluded_sites','capture_extensions'):
+            self.settings[key]=latest[key]
+        scheduled=self.settings.get('scheduled_start','')
+        if scheduled:
+            try:
+                if datetime.now()>=datetime.strptime(scheduled,'%Y-%m-%d %H:%M'):
+                    self.settings['scheduled_start']='';save_settings(self.settings);self.start_queue()
+            except ValueError:self.lbl_status_info.configure(text='Zamanlama biçimi geçersiz')
+        self.queue_tick_once();self.after(1000,self.queue_tick)
+
+    def restart_selected(self):
+        ids=self._get_selected_ids()
+        if ids and messagebox.askyesno('Sıfırdan indir','Seçilen indirmeler yeni kayıt olarak sıfırdan başlatılsın mı?'):
+            for did in ids:
+                record=self.db.get_download(did)
+                if not record:continue
+                self.cancel_download(did)
+                options=json.loads(record.get('options_json') or '{}')
+                dest=get_unique_filepath(Path(record['filepath']).parent,record['filename'])
+                self.add_download_from_dialog(record['url'],dest.name,str(dest),is_video=record['download_type']=='video',
+                    video_quality=options.get('quality','En İyi'),selected_height=options.get('height'),connections=record['num_connections'])
+
+    def verify_selected(self):
+        ids=self._get_selected_ids()
+        if not ids:return
+        record=self.db.get_download(ids[0])
+        if not record or record['status']!='Tamamlandı':return messagebox.showinfo('SHA-256','Önce indirme tamamlanmalı.')
+        self.lbl_status_info.configure(text='SHA-256 hesaplanıyor…')
+        def work():
+            try:
+                digest=hashlib.sha256()
+                with open(record['filepath'],'rb') as stream:
+                    while chunk:=stream.read(1024*1024):digest.update(chunk)
+                self.after(0,lambda:self.show_hash(record['filename'],digest.hexdigest()))
+            except OSError:self.after(0,lambda:messagebox.showerror('SHA-256','Dosya okunamadı.'))
+        threading.Thread(target=work,daemon=True).start()
+
+    def show_hash(self,name,value):
+        from tkinter.simpledialog import askstring
+        expected=askstring('SHA-256',f'{name}\n\nHesaplanan değer:\n{value}\n\nKarşılaştırmak için beklenen SHA-256 değerini gir:',parent=self)
+        if expected:
+            match=expected.strip().lower()==value
+            messagebox.showinfo('SHA-256','Dosya özeti eşleşiyor.' if match else 'Dosya özeti EŞLEŞMİYOR.',parent=self)
+        self.lbl_status_info.configure(text='SHA-256 kontrolü tamamlandı')
+
+    def completed_popup(self,did):
+        if did in self._completed_notified:return
+        self._completed_notified.add(did)
+        record=self.db.get_download(did)
+        if record and self.settings.get('completion_popup',True):CompletionDialog(self,record)
+
+    def show_download_error(self,did,error):
+        from error_messages import explain_error
+        title,description,action=explain_error(error)
+        window=tb.Toplevel(self);window.title('SDM · '+title);window.geometry('550x280')
+        frame=tb.Frame(window,padding=22);frame.pack(fill='both',expand=True)
+        tb.Label(frame,text=title,font=('Segoe UI',15,'bold'),wraplength=500).pack(anchor='w')
+        tb.Label(frame,text=description,wraplength=500).pack(anchor='w',pady=18)
+        def resolve():
+            record=self.db.get_download(did)
+            if not record:return window.destroy()
+            if action=='Kaynak sayfayı aç':webbrowser.open(record['url'])
+            elif action=='Klasörü göster':os.startfile(str(Path(record['filepath']).parent))
+            elif action=='Sıfırdan indir':
+                dest=get_unique_filepath(Path(record['filepath']).parent,record['filename'])
+                self.add_download_from_dialog(record['url'],dest.name,str(dest))
+            else:self.resume_download(did)
+            window.destroy()
+        tb.Button(frame,text=action,command=resolve).pack(side='left')
+        tb.Button(frame,text='Kapat',bootstyle='secondary-outline',command=window.destroy).pack(side='right')
+
+    def shutdown_countdown(self):
+        if self._shutdown_window:return
+        window=tb.Toplevel(self);self._shutdown_window=window;window.title('SDM · Kuyruk tamamlandı');window.geometry('480x200')
+        label=tb.Label(window,padding=20);label.pack(fill='x')
+        cancelled=[False]
+        def cancel():cancelled[0]=True;self._shutdown_window=None;window.destroy()
+        window.protocol('WM_DELETE_WINDOW',cancel)
+        tb.Button(window,text='Bilgisayarı kapatmayı iptal et',command=cancel).pack(pady=15)
+        def tick(remaining):
+            if cancelled[0]:return
+            label.configure(text=f'Tüm kuyruk tamamlandı. Bilgisayar {remaining} saniye sonra kapanacak.')
+            if remaining<=0:
+                import subprocess
+                subprocess.Popen(['shutdown','/s','/t','0'],creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0));return
+            window.after(1000,lambda:tick(remaining-1))
+        foreground(window);tick(60)
+
+    def check_updates(self,quiet=False):
+        if self._update_busy:return
+        self._update_busy=True;self.lbl_status_info.configure(text='GitHub sürümü kontrol ediliyor…')
+        def work():
+            try:
+                from updater import GitHubUpdater
+                updater=GitHubUpdater();update=updater.check()
+                self.after(0,lambda:self.update_checked(updater,update,quiet))
+            except Exception as error:
+                message=str(error)
+                self.after(0,lambda:self.update_failed(message,quiet))
+        threading.Thread(target=work,daemon=True).start()
+
+    def update_failed(self,message,quiet=False):
+        self._update_busy=False;self.lbl_status_info.configure(text='Güncelleme kontrolü tamamlanamadı')
+        if not quiet:messagebox.showerror('GitHub güncellemesi',message,parent=self)
+
+    def update_checked(self,updater,update,quiet):
+        self._update_busy=False
+        if not update:
+            self.lbl_status_info.configure(text='SDM güncel')
+            if not quiet:messagebox.showinfo('GitHub güncellemesi','Son kararlı sürümü kullanıyorsun.',parent=self)
+            return
+        if not messagebox.askyesno('SDM güncellemesi',f'{update["version"]} sürümü bulundu. Setup indirilsin mi?',parent=self):return
+        self._update_busy=True
+        def work():
+            try:
+                path=updater.download(update,lambda got,total:self.after(0,lambda:self.lbl_status_info.configure(text=f'Güncelleme indiriliyor: %{got/total*100:.0f}')))
+                self.after(0,lambda:self.install_update(path))
+            except Exception as error:
+                message=str(error);self.after(0,lambda:self.update_failed(message))
+        threading.Thread(target=work,daemon=True).start()
+
+    def install_update(self,path):
+        self._update_busy=False
+        if not messagebox.askyesno('Güncelleme hazır','Setup doğrulandı. İndirmeler duraklatılıp SDM kapatılacak. Kurulum başlatılsın mı?',parent=self):return
+        self.engine.stop_engine()
+        tasks=list(self.engine.tasks.values())+list(self.video_tasks.values())
+        for task in tasks:
+            if task.status in ('İndiriliyor','Bekliyor'):task.pause()
+        def work():
+            for task in tasks:
+                worker=getattr(task,'_worker',None) or getattr(task,'_thread',None)
+                if worker and worker.is_alive():
+                    worker.join(45)
+                    if worker.is_alive():
+                        self.after(0,lambda:self.update_failed('İndirme henüz durmadı. Güncellemeyi biraz sonra tekrar deneyin.'));return
+            self.after(0,lambda:self.launch_update(path))
+        threading.Thread(target=work,daemon=True).start()
+
+    def launch_update(self,path):
+        from updater import launch_installer
+        launch_installer(path);self.destroy()
