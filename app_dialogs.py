@@ -36,6 +36,9 @@ class CapturePrompt(tb.Toplevel):
         quality=('MP3' if request.get('audio') else f'{request.get("height")}p · Video + ses') if video else 'Dosya'
         size=format_bytes(request.get('filesize',0)) if request.get('filesize') else 'Boyut henüz bilinmiyor'
         tb.Label(frame,text=f'{quality}   ·   {size}'+(' (tahmini)' if video else '')).pack(anchor='w',pady=15)
+        from video_section import SectionFields
+        self.section_fields=SectionFields(frame) if video else None
+        if video:self.geometry('680x540')
         actions=tb.Frame(frame);actions.pack(fill='x',side='bottom')
         self.buttons={}
         for label,choice,style in [('Şimdi indir','start','primary'),('Kuyruğa ekle','queue','secondary-outline'),('İptal et','cancel','secondary-outline')]:
@@ -57,7 +60,7 @@ class CapturePrompt(tb.Toplevel):
                 did=self.parent.add_download_from_dialog(self.request['url'],filename,str(dest),
                     is_video=self.request['kind']=='video',auto_start=action=='start',
                     video_quality='Yalnızca Ses (MP3)' if self.request.get('audio') else 'En İyi',
-                    selected_height=self.request.get('height'),from_browser=action=='start',expected_size=self.request.get('filesize',0))
+                    selected_height=self.request.get('height'),from_browser=action=='start',expected_size=self.request.get('filesize',0),section=self.section_fields.collect() if self.section_fields else None)
                 if did is None:action='cancel'
             except Exception as error:
                 messagebox.showerror('İndirme eklenemedi',str(error),parent=self);return
@@ -101,7 +104,7 @@ class CompletionDialog(tb.Toplevel):
 
 class BatchDialog(tb.Toplevel):
     def __init__(self,parent,initial=''):
-        super().__init__(parent);self.parent=parent;self.title('SDM · Yeni indirme');self.geometry('680x550')
+        super().__init__(parent);self.parent=parent;self.title('SDM · Yeni indirme');self.geometry('720x730')
         frame=tb.Frame(self,padding=22);frame.pack(fill='both',expand=True)
         tb.Label(frame,text='Bağlantı ekle',font=('Segoe UI',20,'bold')).pack(anchor='w')
         tb.Label(frame,text='Bir veya birden fazla bağlantıyı ayrı satırlara yapıştır.').pack(anchor='w',pady=10)
@@ -117,6 +120,8 @@ class BatchDialog(tb.Toplevel):
         tb.Button(frame,text='Boyutu ve varsa video kalitelerini incele',bootstyle='secondary-outline',command=self.inspect).pack(anchor='w')
         self.size_preview=tk.StringVar(value='Boyut: bağlantı incelenince gösterilecek')
         tb.Label(frame,textvariable=self.size_preview).pack(anchor='w',pady=6)
+        from video_section import SectionFields
+        self.section_fields=SectionFields(frame)
         self.list=tb.Treeview(frame,columns=('title',),show='headings',selectmode='extended',height=5)
         self.list.heading('title',text='Video listesi · İndirmek istediklerini seç');self.list.pack(fill='both',expand=True,pady=10)
         self.entries={};self.heights={};self.quality_sizes={};self.file_info=None;self.audio_size=0;self.inspection_attempted=set();self.inspecting=False;self.inspection_url=''
@@ -209,6 +214,10 @@ class BatchDialog(tb.Toplevel):
         if not entries or any(not is_valid_url(url) for url,_ in entries):
             return messagebox.showerror('Bağlantı gerekli','Geçerli http/https bağlantıları girin.',parent=self)
         if self.inspecting:return self.status.set('Boyut bilgisi alınıyor; tamamlanınca başlatabilirsin.')
+        try:section=self.section_fields.collect()
+        except ValueError as error:return messagebox.showerror('Zaman aralığı geçersiz',str(error),parent=self)
+        if section and not all(self.video.get() or self.audio.get() or is_video_site(url) for url,_ in entries):
+            return messagebox.showerror('Video gerekli','Bölüm indirme yalnızca video / ses kaynaklarında kullanılabilir.',parent=self)
         if not self.entries and len(entries)==1 and entries[0][0] not in self.inspection_attempted:
             self.inspect();return
         for url,title in entries:
@@ -218,5 +227,5 @@ class BatchDialog(tb.Toplevel):
             dest=get_unique_filepath(self.parent.settings['download_dir'],filename)
             self.parent.add_download_from_dialog(url,filename,str(dest),is_video=video,
                 video_quality='Yalnızca Ses (MP3)' if self.audio.get() else self.quality.get() if not self.heights else 'En İyi',
-                selected_height=self.heights.get(self.quality.get()),auto_start=immediate,expected_size=self.preview_size() if len(entries)==1 else 0)
+                selected_height=self.heights.get(self.quality.get()),auto_start=immediate,expected_size=0 if section else self.preview_size() if len(entries)==1 else 0,section=section)
         self.destroy()

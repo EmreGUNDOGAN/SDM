@@ -5,13 +5,13 @@ AppId={{DA66AE91-880E-4ED8-977D-9AC2298A341B}
 AppId={{7D41A428-758B-4932-A29D-03767B5E5587}
 #endif
 AppName=SDM
-AppVersion=0.4.1
+AppVersion=0.4.2
 DefaultDirName={localappdata}\Programs\SDM
 DefaultGroupName=SDM
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 OutputDir=dist
-OutputBaseFilename=SDM-Setup-0.4.1
+OutputBaseFilename=SDM-Setup-0.4.2
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -50,8 +50,18 @@ Filename: "{win}\explorer.exe"; Parameters: """{app}\extension"""; Flags: nowait
 Filename: "{code:GetOperaPath}"; Parameters: "opera://extensions"; Flags: nowait skipifsilent; Tasks: operaextension; Check: OperaAvailable
 Filename: "{code:GetChromePath}"; Parameters: "chrome://extensions"; Flags: nowait skipifsilent; Tasks: chromeextension; Check: ChromeAvailable
 Filename: "{app}\SDM.exe"; Description: "SDM'yi aç"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\SDM.exe"; Flags: nowait; Check: SilentReopen
 
 [Code]
+function SilentReopen: Boolean;
+begin
+  #ifdef SDM_TEST_BUILD
+  Result := False;
+  #else
+  Result := WizardSilent and (ExpandConstant('{param:SDMNOOPEN|0}') <> '1');
+  #endif
+end;
+
 function GetOperaPath(Param: String): String;
 begin
   Result := ExpandConstant('{localappdata}\Programs\Opera\launcher.exe');

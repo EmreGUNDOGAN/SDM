@@ -38,19 +38,26 @@ jobs:
         shell: pwsh
         env:
           SDM_DATA_DIR: '${{ github.workspace }}/build/unit-data'
-        run: .venv/Scripts/python.exe -m unittest test_advanced_features test_responsiveness test_features test_download_safety test_progress_meter test_browser_files test_browser_bridge test_transfer_details test_video_access
+        run: .venv/Scripts/python.exe -m unittest test_advanced_features test_responsiveness test_features test_download_safety test_progress_meter test_browser_files test_browser_bridge test_transfer_details test_video_access test_theme_section
       - name: UI and real transfer checks
         shell: pwsh
         run: |
           $env:SDM_DATA_DIR = "$env:GITHUB_WORKSPACE/build/ui-data"
           .venv/Scripts/python.exe test_ui_031.py
           if ($LASTEXITCODE -ne 0) { throw 'UI checks failed' }
+          $env:SDM_DATA_DIR = "$env:GITHUB_WORKSPACE/build/theme-ui-data"
+          .venv/Scripts/python.exe test_ui_themes.py
+          if ($LASTEXITCODE -ne 0) { throw 'Six theme checks failed' }
           $env:SDM_DATA_DIR = "$env:GITHUB_WORKSPACE/build/transfer-data"
           .venv/Scripts/python.exe test_gui_transfer.py
           if ($LASTEXITCODE -ne 0) { throw 'Transfer checks failed' }
           $env:SDM_DATA_DIR = "$env:GITHUB_WORKSPACE/build/remove-data"
           .venv/Scripts/python.exe test_cancel_remove_ui.py
           if ($LASTEXITCODE -ne 0) { throw 'Remove responsiveness checks failed' }
+          .venv/Scripts/python.exe test_section_live.py
+          if ($LASTEXITCODE -ne 0) { throw 'Section media checks failed' }
+          .venv/Scripts/python.exe test_update_handoff_live.py
+          if ($LASTEXITCODE -ne 0) { throw 'Update handoff checks failed' }
       - name: Build installer on GitHub runner
         shell: pwsh
         run: |
@@ -87,5 +94,5 @@ jobs:
         run: |
           gh release view "v$env:SDM_VERSION" --repo $env:GITHUB_REPOSITORY 2>$null
           if ($LASTEXITCODE -eq 0) { throw 'This release version already exists. Increment VERSION before publishing.' }
-          gh release create "v$env:SDM_VERSION" "dist/SDM-Setup-$env:SDM_VERSION.exe" "dist/SDM-Setup-$env:SDM_VERSION.sha256" "dist/SDM-Extension-$env:SDM_VERSION.zip" dist/latest.json --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "SDM $env:SDM_VERSION — Daha net aktarım takibi" --notes-file "RELEASE-NOTES-$env:SDM_VERSION.md"
+          gh release create "v$env:SDM_VERSION" "dist/SDM-Setup-$env:SDM_VERSION.exe" "dist/SDM-Setup-$env:SDM_VERSION.sha256" "dist/SDM-Extension-$env:SDM_VERSION.zip" dist/latest.json --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "SDM $env:SDM_VERSION — Atlas, Orbit ve Nova" --notes-file "RELEASE-NOTES-$env:SDM_VERSION.md"
           if ($LASTEXITCODE -ne 0) { throw 'Release publishing failed' }

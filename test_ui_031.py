@@ -43,15 +43,18 @@ def main():
     assert started['id'] in app.detail_windows
     print('Browser prompt: no automatic start; cancel / queue / start + forced details: OK')
 
-    for theme,background in [('dark','#151d29'),('light','#ffffff')]:
+    from theme_catalog import THEMES,palette
+    for theme in THEMES:
+        background=palette(theme)['bg']
         settings=dict(app.settings,theme=theme);app.apply_settings(settings);app.update()
         app.geometry('1080x640');app.update()
-        sidebar=app.sidebar_scroll
-        sidebar.yview_moveto(0);app.update()
-        assert sidebar.yview()[1]<1
-        sidebar.yview_moveto(1);app.update()
-        assert sidebar.yview()[1]==1 and sidebar.yview()[0]>0
-        assert sidebar.vbar.winfo_ismapped()
+        if theme.startswith('atlas'):
+            sidebar=app.sidebar_scroll
+            sidebar.yview_moveto(0);app.update()
+            assert sidebar.yview()[1]<1
+            sidebar.yview_moveto(1);app.update()
+            assert sidebar.yview()[1]==1 and sidebar.yview()[0]>0
+            assert sidebar.vbar.winfo_ismapped()
         assert app.style.lookup('SDM.Treeview','background')==background
         assert len(app.icon_images)==18
         assert app.hud_active.get()
@@ -68,8 +71,8 @@ def main():
     from modern_settings import SettingsDialog
     settings_dialog=SettingsDialog(app);app.update()
     assert len(settings_dialog.tabs)==6
-    settings_dialog.vars['theme'].set('dark');values=settings_dialog.collect()
-    assert values['excluded_sites']==['canva.com'] and values['theme']=='dark'
+    settings_dialog.theme_choice.set('Nova — Koyu Tema');values=settings_dialog.collect()
+    assert values['excluded_sites']==['canva.com'] and values['theme']=='nova_dark'
     settings_dialog.destroy()
     completion=CompletionDialog(app,dict(started,filesize=1000000));app.update()
     assert completion.winfo_exists();completion.destroy()

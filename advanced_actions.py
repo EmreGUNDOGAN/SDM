@@ -155,12 +155,13 @@ class AdvancedActions:
             if int(self.tree.item(item,'values')[0])==did:self.tree.selection_set(item);self.tree.see(item);break
         self.show_download_details(did)
 
-    def check_duplicate(self,url,is_video,quality,height):
+    def check_duplicate(self,url,is_video,quality,height,section=None):
         if not self.settings.get('duplicate_warning',True):return False
         for record in self.db.get_all_downloads():
             if record['url']!=url or (record['download_type']=='video')!=is_video:continue
             options=json.loads(record.get('options_json') or '{}')
             if is_video and (options.get('height')!=height or options.get('quality')!=quality):continue
+            if is_video and options.get('section')!=section:continue
             choice=messagebox.askyesnocancel('Bu bağlantı zaten listede',f'{record["filename"]}\nDurum: {record["status"]}\n\nEvet: mevcut indirmeyi göster\nHayır: yeni bir indirme oluştur\nİptal: ekleme',parent=self)
             if choice is True:self.select_existing(record['id']);return True
             if choice is None:return True

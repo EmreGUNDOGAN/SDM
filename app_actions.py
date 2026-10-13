@@ -40,6 +40,11 @@ class AppActions:
         self.engine.external_active_count=lambda:sum(v.status in ('İndiriliyor','Dönüştürülüyor') for v in list(self.video_tasks.values()))
         self.after(1000,self.queue_tick)
         if self.settings.get('update_check_on_start'):self.after(2500,lambda:self.check_updates(True))
+        from update_handoff import read_result
+        result=read_result()
+        if result:
+            self.lbl_status_info.configure(text='Güncelleme tamamlandı' if result.get('ok') else 'Güncelleme tamamlanamadı')
+            if not result.get('ok'):self.after(1200,lambda:messagebox.showerror('Güncelleme',result.get('message','Kurulum tamamlanamadı'),parent=self))
 
     def browser_request(self,request,decision):
         self.deiconify()
@@ -212,6 +217,9 @@ class AppActions:
         threading.Thread(target=work,daemon=True).start()
 
     def update_failed(self,message,quiet=False):
+        if getattr(self,'_update_panel',None) and self._update_panel.winfo_exists():self._update_panel.destroy()
+        if getattr(self,'_install_waiting',False):
+            self._install_waiting=False;self.engine.start_engine()
         self._update_busy=False;self.lbl_status_info.configure(text='Güncelleme kontrolü tamamlanamadı')
         if not quiet:messagebox.showerror('GitHub güncellemesi',message,parent=self)
 
@@ -221,11 +229,11 @@ class AppActions:
             self.lbl_status_info.configure(text='SDM güncel')
             if not quiet:messagebox.showinfo('GitHub güncellemesi','Son kararlı sürümü kullanıyorsun.',parent=self)
             return
-        if not messagebox.askyesno('SDM güncellemesi',f'{update["version"]} sürümü bulundu. Setup indirilsin mi?',parent=self):return
+        if not messagebox.askyesno('SDM güncellemesi',f'{update["version"]} sürümü bulundu. Güncelleme indirilecek, indirmeler duraklatılacak ve SDM yeniden açılacak. Güncellensin mi?',parent=self):return
         self._update_busy=True
         def work():
             try:
-                path=updater.download(update,lambda got,total:self.post_ui(lambda:self.lbl_status_info.configure(text=f'Güncelleme indiriliyor: %{got/total*100:.0f}')))
+                path=updater.download(update,lambda got,total:self.post_ui(lambda:self.show_update_progress(got,total),key='update-progress'))
                 self.post_ui(lambda:self.install_update(path))
             except Exception as error:
                 message=str(error);self.post_ui(lambda:self.update_failed(message))
@@ -233,7 +241,7 @@ class AppActions:
 
     def install_update(self,path):
         self._update_busy=False
-        if not messagebox.askyesno('Güncelleme hazır','Setup doğrulandı. İndirmeler duraklatılıp SDM kapatılacak. Kurulum başlatılsın mı?',parent=self):return
+        self._update_busy=True;self._install_waiting=True
         self.engine.stop_engine()
         tasks=list(self.engine.tasks.values())+list(self.video_tasks.values())
         for task in tasks:
@@ -248,6 +256,23 @@ class AppActions:
             self.post_ui(lambda:self.launch_update(path))
         threading.Thread(target=work,daemon=True).start()
 
+    def show_update_progress(self,got,total):
+        percent=min(100,got/total*100) if total else 0
+        self.lbl_status_info.configure(text=f'Güncelleme indiriliyor: %{percent:.0f}')
+        if not getattr(self,'_update_panel',None) or not self._update_panel.winfo_exists():
+            from theme_widgets import Panel
+            import ttkbootstrap as tb
+            import tkinter as tk
+            self._update_panel=Panel(self,self.palette);self._update_panel.configure(width=390,height=110)
+            self._update_panel.place(relx=1,rely=1,x=-20,y=-50,anchor='se')
+            self._update_text=tk.StringVar()
+            tk.Label(self._update_panel.content,textvariable=self._update_text,bg=self.palette['panel'],fg=self.palette['text'],font=('Segoe UI',11,'bold')).pack(anchor='w')
+            self._update_bar=tb.Progressbar(self._update_panel.content,maximum=100);self._update_bar.pack(fill='x',pady=10)
+            tk.Label(self._update_panel.content,text='Tamamlanınca SDM yeniden açılacak',bg=self.palette['panel'],fg=self.palette['muted']).pack(anchor='w')
+        self._update_text.set(f'Güncelleme indiriliyor • %{percent:.0f}');self._update_bar.configure(value=percent)
+
     def launch_update(self,path):
         from updater import launch_installer
-        launch_installer(path);self.destroy()
+        try:launch_installer(path)
+        except Exception as error:return self.update_failed(str(error))
+        self.destroy()

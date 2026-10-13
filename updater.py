@@ -158,4 +158,5 @@ class GitHubUpdater:
 
 
 def launch_installer(path):
-    subprocess.Popen([str(path), '/NORESTART', '/SILENT'], close_fds=True)
+    from update_handoff import launch_handoff
+    return launch_handoff(path)

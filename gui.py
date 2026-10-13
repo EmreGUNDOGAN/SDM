@@ -135,11 +135,10 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
 
     def select_category(self, cat: str) -> None:
         self.current_category = cat
-        for name, btn in self.category_buttons.items():
-            if name == cat:
-                btn.configure(bootstyle="light")
-            else:
-                btn.configure(bootstyle="link")
+        for name,btn in self.category_buttons.items():
+            btn.selected=name==cat;btn.draw()
+        for name,btn in self.status_buttons.items():
+            btn.selected=name==getattr(self,'current_status_filter','Tümü');btn.draw()
         self.refresh_downloads()
 
     def _on_search_change(self) -> None:
@@ -156,10 +155,23 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         records=self.db.get_all_downloads(category=None if special else self.current_category,search_term=self.search_term)
         if self.current_category=='Devam Edenler':records=[r for r in records if r['status'] not in ('Tamamlandı','İptal Edildi')]
         if self.current_category=='Tamamlananlar':records=[r for r in records if r['status']=='Tamamlandı']
+        state=getattr(self,'current_status_filter','Tümü')
+        if state=='Devam Edenler':records=[r for r in records if r['status'] not in ('Tamamlandı','İptal Edildi')]
+        elif state=='Tamamlananlar':records=[r for r in records if r['status']=='Tamamlandı']
         self.tree.delete(*self.tree.get_children())
         for record in records:
             item=self.tree.insert('', END, values=row_values(self,record))
             if record['id'] in selected:self.tree.selection_add(item)
+        self.filter_summary.set(f'{self.current_category} · {len(records)} sonuç'+(f' · {self.search_term}' if self.search_term else ''))
+        self.page_title.set('Tüm indirmeler' if self.current_category=='Tümü' else self.current_category)
+        if not records:
+            self.empty_label.configure(text='Aramanızla eşleşen indirme bulunamadı' if self.search_term else 'Bu kategoride henüz indirme yok')
+            self.empty_label.place(relx=.5,rely=.35,anchor='center')
+            if self.search_term:self.empty_clear.place(relx=.5,rely=.35,y=40,anchor='center')
+            else:self.empty_clear.place_forget()
+        else:self.empty_label.place_forget();self.empty_clear.place_forget()
+        self.update_action_states()
+
 
     def _start_status_updater(self):
         videos=[t for t in self.video_tasks.values() if t.status=='İndiriliyor']
@@ -236,6 +248,7 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
                     quality=options.get('quality','Yalnızca Ses (MP3)' if record['filepath'].endswith('.mp3') else 'En İyi'),
                     selected_height=options.get('height'),connections=record['num_connections'],
                     output_name=options.get('output_name'),
+                    section=options.get('section'),
                     progress_callback=self._on_download_progress,status_callback=self._on_download_status_change,
                     metadata_callback=self._on_metadata_updated)
                 self.video_tasks[did]=task
@@ -288,8 +301,9 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         selected_height: Optional[int] = None,
         from_browser: bool = False,
         expected_size: int = 0,
+        section=None,
     ) -> None:
-        if self.check_duplicate(url,is_video,video_quality,selected_height):return None
+        if self.check_duplicate(url,is_video,video_quality,selected_height,section):return None
         if self.settings.get('disk_check',True):
             from file_tools import ensure_space
             try:ensure_space(dest_path,expected_size if not is_video else 0,multiplier=2)
@@ -324,7 +338,7 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
             status=status,
         )
 
-        self.db.set_options(did, {'quality':video_quality,'height':selected_height,'output_name':candidate.name if from_browser else None})
+        self.db.set_options(did, {'quality':video_quality,'height':selected_height,'output_name':candidate.name if from_browser else None,'section':section})
         self.db.set_queue(did,self.settings['queues'][0]['name'])
         self._session_baselines[did]=0
         self._session_received[did]=0
@@ -335,6 +349,7 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
                 dest_folder=Path(dest_path).parent,
                 quality=video_quality,
                 selected_height=selected_height,
+                section=section,
                 connections=connections,
                 output_name=candidate.name if from_browser else None,
                 progress_callback=self._on_download_progress,

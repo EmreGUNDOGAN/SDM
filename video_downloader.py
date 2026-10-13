@@ -136,6 +136,7 @@ class VideoDownloadTask:
         selected_height: Optional[int] = None,
         connections: int = 8,
         output_name: Optional[str] = None,
+        section=None,
     ):
         self.download_id = download_id
         self.url = url
@@ -144,6 +145,8 @@ class VideoDownloadTask:
         self.selected_height = selected_height
         self.connections = max(1, min(32, connections))
         self.output_name = output_name
+        from video_section import validate_section
+        self.section=validate_section(section)
         self.is_audio_only = is_audio_only or ("Ses" in quality)
 
         self.progress_callback = progress_callback
@@ -336,18 +339,27 @@ class VideoDownloadTask:
                 info = ydl.extract_info(self.url, download=False)
                 formats = info.get('requested_formats') or info.get('requested_downloads') or [info]
                 self._expected_total = sum(f.get('filesize') or f.get('filesize_approx') or 0 for f in formats)
+                if self.section:
+                    from video_section import validate_section
+                    validate_section(self.section,info.get('duration'))
+                    self._expected_total=0
+                    self.downloaded_bytes=0
                 self.total_bytes = self._expected_total
                 self.unobserved_method=' / '.join(dict.fromkeys(str(f.get('protocol') or 'Video motoru') for f in formats))
                 from file_tools import ensure_space
                 existing=sum(p.stat().st_size for p in staging.rglob('*') if p.is_file())
                 exact_total=sum(f.get('filesize') or 0 for f in formats) if all(f.get('filesize') for f in formats) else 0
+                if self.section:exact_total=0
                 ensure_space(staging/'output',exact_total,3 if self.is_audio_only else 2,existing)
                 if self.metadata_callback:
                     preview=Path(ydl.prepare_filename(info))
                     name=(Path(self.output_name).stem if self.output_name else preview.stem)+('.mp3' if self.is_audio_only else '.mkv' if len(formats)>1 else preview.suffix)
                     self.metadata_callback(self.download_id,name,str(self.dest_folder/name),self._expected_total,'Müzik' if self.is_audio_only else 'Video')
                 self.meter.reset(self.downloaded_bytes)
-                info = ydl.process_ie_result(info, download=True)
+                if self.section:
+                    from video_section import download_section
+                    info=download_section(self,info,staging)
+                else:info = ydl.process_ie_result(info, download=True)
                 if info:
                     final_path = Path(ydl.prepare_filename(info))
                     for processed in info.get('requested_downloads', []):

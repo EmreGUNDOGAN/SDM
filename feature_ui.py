@@ -59,10 +59,15 @@ class MiniHUD(tb.Toplevel):
 
 class ToolsDialog(tb.Toplevel):
     def __init__(self,parent):
-        super().__init__(parent);self.parent=parent;self.title('SDM · İndirme araçları');self.geometry('680x570');self.cancel=threading.Event();self.busy=False
+        super().__init__(parent);self.parent=parent;self.title('SDM · İndirme araçları');self.geometry('860x720');self.minsize(800,650);self.cancel=threading.Event();self.busy=False
         frame=tb.Frame(self,padding=20);frame.pack(fill='both',expand=True)
         self.mode=tk.StringVar(value='Biçim dönüştürme')
-        tb.Combobox(frame,textvariable=self.mode,values=['Biçim dönüştürme','Video / ses kesme','Bağlantı kontrolü','Klasörü düzenleme','Altyazı indirme'],state='readonly').pack(fill='x')
+        from theme_widgets import Button
+        navigation=tk.Frame(frame,bg=parent.palette['bg']);navigation.pack(fill='x',pady=(0,16))
+        self.mode_buttons={}
+        for name,short in [('Biçim dönüştürme','Dönüştürme'),('Video / ses kesme','Kesme'),('Bağlantı kontrolü','Bağlantılar'),('Klasörü düzenleme','Klasörler'),('Altyazı indirme','Altyazı')]:
+            button=Button(navigation,short,lambda value=name:self.mode.set(value),palette=parent.palette,quiet=True)
+            button.pack(side='left',padx=3);self.mode_buttons[name]=button
         self.input=tk.StringVar();self.output=tk.StringVar();self.start=tk.StringVar(value='00:00');self.end=tk.StringVar(value='00:30');self.format=tk.StringVar(value='mp4')
         for label,var in [('Dosya / klasör / video bağlantısı',self.input),('Çıktı klasörü',self.output)]:
             tb.Label(frame,text=label).pack(anchor='w',pady=(12,4));tb.Entry(frame,textvariable=var).pack(fill='x')
@@ -70,8 +75,10 @@ class ToolsDialog(tb.Toplevel):
         for label,command in [('Dosya seç',self.browse_file),('Klasör seç',self.browse_folder),('Çıktı klasörü seç',self.browse_output)]:tb.Button(browse,text=label,command=command,bootstyle='secondary-outline').pack(side='left',padx=(0,7))
         row=tb.Frame(frame);row.pack(fill='x');tb.Entry(row,textvariable=self.start,width=12).pack(side='left');tb.Label(row,text=' → ').pack(side='left');tb.Entry(row,textvariable=self.end,width=12).pack(side='left')
         tb.Combobox(row,textvariable=self.format,values=['mp4','mkv','mp3','m4a','wav','srt','vtt'],state='readonly',width=8).pack(side='right')
-        tb.Label(frame,text='Kesme: başlangıç → bitiş. Medya çıktıları yeniden kodlanır; kaynak korunur.\nBağlantı kontrolü: aşağıya her satıra bir adres yapıştır.',wraplength=620).pack(anchor='w',pady=10)
+        self.help_label=tb.Label(frame,text='',wraplength=740);self.help_label.pack(anchor='w',pady=10)
         self.list=tk.Text(frame,height=7,bg=parent.palette['panel'],fg=parent.palette['text'],insertbackground=parent.palette['text']);self.list.pack(fill='both',expand=True)
+        self.mode.trace_add('write',lambda *args:self.update_mode())
+        self.update_mode()
         self.progress=tb.Progressbar(frame,maximum=100);self.progress.pack(fill='x',pady=8)
         self.status=tk.StringVar(value='');tb.Label(frame,textvariable=self.status,wraplength=610).pack(anchor='w')
         controls=tb.Frame(frame);controls.pack(fill='x',pady=8)
@@ -80,6 +87,16 @@ class ToolsDialog(tb.Toplevel):
         self.protocol('WM_DELETE_WINDOW',self.close)
         from tkinterdnd2 import DND_FILES
         self.drop_target_register(DND_FILES);self.dnd_bind('<<Drop>>',lambda e:self.input.set(self.tk.splitlist(e.data)[0]))
+    def update_mode(self):
+        for name,button in self.mode_buttons.items():button.selected=name==self.mode.get();button.draw()
+        if self.mode.get()=='Bağlantı kontrolü':self.list.pack(fill='both',expand=True)
+        else:self.list.pack_forget()
+        self.help_label.configure(text={
+            'Video / ses kesme':'İndirilmiş bir medya dosyası seçin. Başlangıç → bitiş aralığı yeni dosyaya kaydedilir; kaynak korunur.',
+            'Biçim dönüştürme':'Bir video / ses dosyası seçin ve çıktı biçimini belirleyin. Yeni dosya oluşturulur; kaynak korunur.',
+            'Bağlantı kontrolü':'Aşağıya her satıra bir http/https bağlantısı yapıştırın. Dosyalar indirilmeden erişim kontrol edilir.',
+            'Klasörü düzenleme':'Bir klasör seçin. Taşınacak dosyalar önce önizlemede gösterilir; onayınızdan sonra taşınır.',
+            'Altyazı indirme':'Üst alana video sayfasının bağlantısını girin. İnceleme sonrası altyazı dili ve biçimini seçebilirsiniz.'}[self.mode.get()])
     def close(self):
         if self.busy:self.cancel.set()
         self.destroy()
