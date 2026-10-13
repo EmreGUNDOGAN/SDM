@@ -35,6 +35,13 @@ async function request(path, body) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
+  if (sender.id === chrome.runtime.id && sender.url?.startsWith(chrome.runtime.getURL('')) && message.type === 'extension-refresh') {
+    verifyExtensionFiles().then(result => {
+      respond({result});
+      if (result.reload) setTimeout(() => chrome.runtime.reload(), 700);
+    }).catch(error => respond({error:error.message}));
+    return true;
+  }
   if (sender.id === chrome.runtime.id && sender.url?.startsWith(chrome.runtime.getURL('')) && ['control','settings'].includes(message.type)) {
     request(message.type === 'control' ? '/capture-control' : '/settings', message.body || {})
       .then(result=>respond({result})).catch(error=>respond({error:error.message}));
@@ -50,6 +57,32 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     : {url: message.url, height: message.height, audio: message.audio === true, title:message.title, filesize:message.filesize};
   request('/' + message.type, body).then(result => respond({result})).catch(error => respond({error: error.message}));
   return true;
+});
+
+async function verifyExtensionFiles() {
+  const status=await chrome.runtime.sendNativeMessage(HOST,{action:'extension-status'});
+  if(status.error)throw Error(status.error);
+  if(!status.files || !status.files['manifest.json'])throw Error('Eklenti dosyaları doğrulanamadı.');
+  for(const [name,expected] of Object.entries(status.files)) {
+    if(name.includes('..') || !/^[a-zA-Z0-9_.\/-]+$/.test(name))throw Error('Geçersiz eklenti dosyası.');
+    const response=await fetch(chrome.runtime.getURL(name),{cache:'no-store'});
+    if(!response.ok)throw Error('Eklenti başka klasörden yüklenmiş. İlk kurulumda SDM’nin extension klasörünü seçmelisin.');
+    const digest=await crypto.subtle.digest('SHA-256',await response.arrayBuffer());
+    const actual=Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join('');
+    if(actual!==expected)throw Error('Eklenti dosyaları henüz güncel değil veya farklı klasörden yüklenmiş. Uygulamayı güncelle.');
+  }
+  await chrome.storage.local.set({sdmReloadNotice:`SDM eklentisi ${status.version} dosyaları doğrulanarak yenilendi.`});
+  return {reload:true,version:status.version};
+}
+
+chrome.runtime.onStartup.addListener(async()=> {
+  try {
+    const status=await chrome.runtime.sendNativeMessage(HOST,{action:'extension-status'});
+    if(status.version && status.version!==chrome.runtime.getManifest().version) {
+      const verified=await verifyExtensionFiles();
+      if(verified.reload)chrome.runtime.reload();
+    }
+  } catch { /* The popup provides actionable feedback when SDM is unavailable. */ }
 });
 
 // Pause first, transfer only after the app preflights and accepts the URL.

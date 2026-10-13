@@ -16,13 +16,16 @@ class BridgeTests(unittest.TestCase):
         cls.folder = tempfile.TemporaryDirectory()
         cls.path_patch = patch('browser_bridge.ensure_config_dir', return_value=Path(cls.folder.name))
         cls.path_patch.start()
+        cls.port_patch=patch('browser_bridge.PORT',0);cls.port_patch.start()
         cls.bridge = browser_bridge.BrowserBridge()
+        browser_bridge.PORT=cls.bridge.server.server_port
         cls.bridge.start()
 
     @classmethod
     def tearDownClass(cls):
         cls.bridge.stop()
         cls.path_patch.stop()
+        cls.port_patch.stop()
         cls.folder.cleanup()
 
     def request(self, path='/download', headers=None, body=None):

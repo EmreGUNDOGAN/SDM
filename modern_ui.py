@@ -62,6 +62,8 @@ class ModernUI:
             button=tb.Button(sidebar,text='  '+label,image=self.icon_images[icon],compound='left',bootstyle='secondary-link',command=lambda c=name:self.select_category(c))
             button.pack(fill='x',pady=3,ipady=4);self.category_buttons[name]=button
         tb.Button(sidebar,text='  Ayarlar',image=self.icon_images[5],compound='left',bootstyle='secondary-link',command=self.open_settings_dialog).pack(side='bottom',fill='x',pady=8)
+        tb.Button(sidebar,text='İndirme araçları',bootstyle='secondary-link',command=self.open_tools).pack(side='bottom',fill='x')
+        tb.Button(sidebar,text='Küçük masaüstü HUD’u',bootstyle='secondary-link',command=self.show_mini_hud).pack(side='bottom',fill='x')
         main=tb.Frame(body,padding=(26,22));main.pack(side='left',fill='both',expand=True)
         heading=tb.Frame(main);heading.pack(fill='x')
         tb.Label(heading,text='İndirme merkezi',font=('Segoe UI',23,'bold')).pack(side='left')
@@ -73,6 +75,8 @@ class ModernUI:
         for icon,action in [(1,self.resume_selected),(2,self.pause_selected),(3,self.cancel_selected),(4,self.delete_selected)]:
             tb.Button(toolbar,image=self.icon_images[icon],bootstyle='secondary-outline',command=action).pack(side='left',padx=3,ipady=4)
         tb.Button(toolbar,text='Kuyruk',bootstyle='secondary-outline',command=self.show_queue_menu).pack(side='left',padx=10,ipady=5)
+        self.relax_button=tb.Button(toolbar,text='Rahatlat: açık' if self.settings.get('relax_mode') else 'İnterneti rahatlat',bootstyle='secondary-outline',command=self.toggle_relax)
+        self.relax_button.pack(side='left',ipady=5)
         tb.Button(toolbar,text=' Sütunlar',image=self.icon_images[6],compound='left',bootstyle='secondary-outline',command=self.show_column_menu).pack(side='right',padx=(10,0),ipady=4)
         self.search_var=tk.StringVar(value=getattr(self,'search_term',''))
         self.search_var.trace_add('write',lambda *args:self._on_search_change())
@@ -98,6 +102,10 @@ class ModernUI:
         self.tree.bind('<Double-1>',self._on_tree_double_click);self.tree.bind('<Button-3>',self._on_tree_right_click)
         self.tree.bind('<Configure>',lambda e:self.after_idle(self.paint_progress))
         self.context_menu=tk.Menu(self,tearoff=0)
+        priority=tk.Menu(self.context_menu,tearoff=0)
+        for label,value in [('Yüksek',1),('Normal',0),('Düşük',-1)]:priority.add_command(label=label,command=lambda v=value:self.change_priority(v))
+        self.context_menu.add_cascade(label='İndirme önceliği',menu=priority)
+        self.context_menu.add_command(label='Hız grafiği',command=self.show_speed_graph)
         for label,command in [('Devam et',self.resume_selected),('Sıfırdan indir',self.restart_selected),('Kuyruğa ekle',self.queue_selected),('Duraklat',self.pause_selected),('İptal et',self.cancel_selected),('Dosyayı aç',self.open_file),('Klasörü göster',self.open_folder),('SHA-256 kontrolü',self.verify_selected),('Listeden kaldır',self.delete_selected),('Dosyayla birlikte sil',lambda:self.delete_selected(True)),('İndirme ayrıntıları',self.show_selected_details)]:
             self.context_menu.add_command(label=label,command=command)
         self.statusbar=tb.Frame(main,padding=(0,12,0,0));self.statusbar.pack(fill='x')

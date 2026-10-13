@@ -6,6 +6,14 @@ import secrets
 import struct
 import subprocess
 import sys
+import hashlib
+
+def extension_status():
+    folder=Path(sys.executable).parent.parent/'extension'
+    if not folder.is_dir():return {'error':'SDM kurulum klasöründeki eklenti bulunamadı.'}
+    files={path.relative_to(folder).as_posix():hashlib.sha256(path.read_bytes()).hexdigest() for path in folder.rglob('*') if path.is_file() and not path.is_symlink()}
+    version=json.loads((folder/'manifest.json').read_text(encoding='utf-8'))['version']
+    return {'version':version,'files':files}
 
 
 def main():
@@ -19,7 +27,9 @@ def main():
         return
     raw = sys.stdin.buffer.read(length)
     request = json.loads(raw)
-    if request != {'action': 'connect'}:
+    if request == {'action':'extension-status'}:
+        response=extension_status()
+    elif request != {'action': 'connect'}:
         response = {'error': 'Unsupported action'}
     else:
         data_dir = Path(os.environ.get('SDM_DATA_DIR', str(Path.home() / '.sdm')))

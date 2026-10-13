@@ -13,6 +13,7 @@ def main():
     app=MainWindow();app.engine.stop_engine()
     app.settings['download_dir']=str(ensure_config_dir()/'downloads')
     app.settings['auto_open_details']=False;app.settings['notifications_enabled']=False
+    app.settings['duplicate_warning']=False
     save_settings(app.settings)
     Path(app.settings['download_dir']).mkdir(exist_ok=True)
     did=app.add_download_from_dialog('https://example.com/file.zip','file.zip',str(Path(app.settings['download_dir'])/'file.zip'),auto_start=False)
@@ -59,7 +60,7 @@ def main():
 
     from modern_settings import SettingsDialog
     settings_dialog=SettingsDialog(app);app.update()
-    assert len(settings_dialog.tabs)==5
+    assert len(settings_dialog.tabs)==6
     settings_dialog.vars['theme'].set('dark');values=settings_dialog.collect()
     assert values['excluded_sites']==['canva.com'] and values['theme']=='dark'
     settings_dialog.destroy()

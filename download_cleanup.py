@@ -11,7 +11,8 @@ def delete_download_files(record, task=None, timeout=45):
             worker.join(timeout)
             if worker.is_alive():
                 raise RuntimeError('İndirme henüz durmadı. Biraz sonra silmeyi tekrar deneyin.')
-    target = Path(record['filepath'])
+    actual_path=getattr(task,'dest_path',None) or getattr(task,'target_filepath',None) if task else None
+    target = Path(actual_path or record['filepath'])
     did = int(record['id'])
     paths = [target, target.with_name(target.name + '.temp_final'),
              target.with_name(f'{target.name}.sdm-{did}.temp_final')]

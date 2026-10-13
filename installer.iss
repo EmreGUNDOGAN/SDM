@@ -5,13 +5,13 @@ AppId={{DA66AE91-880E-4ED8-977D-9AC2298A341B}
 AppId={{7D41A428-758B-4932-A29D-03767B5E5587}
 #endif
 AppName=SDM
-AppVersion=0.3.1
+AppVersion=0.4.0
 DefaultDirName={localappdata}\Programs\SDM
 DefaultGroupName=SDM
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 OutputDir=dist
-OutputBaseFilename=SDM-Setup-0.3.1
+OutputBaseFilename=SDM-Setup-0.4.0
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

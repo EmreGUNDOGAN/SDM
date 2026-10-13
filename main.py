@@ -158,7 +158,7 @@ def main() -> None:
     # Clipboard monitor
     def on_clipboard_url(url: str):
         if app.settings.get("clipboard_monitoring", True):
-            app.after(0, lambda: (app.deiconify(), app.open_add_dialog(initial_url=url)))
+            app.post_ui(lambda: (app.deiconify(), app.open_add_dialog(initial_url=url)))
 
     clip_monitor = ClipboardMonitor(
         on_url_detected=on_clipboard_url,

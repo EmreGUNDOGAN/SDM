@@ -3,7 +3,7 @@ from utils import format_bytes, format_speed, format_eta
 COLUMNS = [('id','ID',45),('filename','Dosya Adı',260),('size','Boyut',95),
            ('downloaded','İndirilen',100),('remaining','Kalan Boyut',100),
            ('progress','İlerleme',85),('speed','Hız',100),('eta','Kalan Süre',120),
-           ('status','Durum',115),('category','Kategori',90),('date_added','Eklenme Tarihi',140)]
+           ('status','Durum',115),('category','Kategori',90),('date_added','Eklenme Tarihi',140),('queue','Kuyruk',140),('priority','Öncelik',90)]
 
 
 def row_values(window, record):
@@ -22,4 +22,4 @@ def row_values(window, record):
     eta=format_eta(active.eta) if active and status=='İndiriliyor' else '—'
     return (record['id'],record['filename'],format_bytes(total) if total else 'Bilinmiyor',
             format_bytes(received),format_bytes(max(0,total-received)) if total else '—',
-            f'{pct:.1f}%',speed,eta,status,record['category'],record['date_added'])
+            f'{pct:.1f}%',speed,eta,status,record['category'],record['date_added'],record.get('queue_name','Ana kuyruk'),{1:'Yüksek',0:'Normal',-1:'Düşük'}.get(record.get('priority',0),'Normal'))

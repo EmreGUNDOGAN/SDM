@@ -54,10 +54,11 @@ class CapturePrompt(tb.Toplevel):
             try:
                 filename=clean_filename(self.name.get())
                 dest=get_unique_filepath(self.folder.get(),filename)
-                self.parent.add_download_from_dialog(self.request['url'],filename,str(dest),
+                did=self.parent.add_download_from_dialog(self.request['url'],filename,str(dest),
                     is_video=self.request['kind']=='video',auto_start=action=='start',
                     video_quality='Yalnızca Ses (MP3)' if self.request.get('audio') else 'En İyi',
                     selected_height=self.request.get('height'),from_browser=action=='start')
+                if did is None:action='cancel'
             except Exception as error:
                 messagebox.showerror('İndirme eklenemedi',str(error),parent=self);return
         self.decision(self.request['ticket'],action)
@@ -66,7 +67,7 @@ class CapturePrompt(tb.Toplevel):
 
 class CompletionDialog(tb.Toplevel):
     def __init__(self,parent,record):
-        super().__init__(parent);self.title('SDM · İndirme tamamlandı');self.geometry('510x265')
+        super().__init__(parent);self.parent=parent;self.record=record;self.title('SDM · İndirme tamamlandı');self.geometry('610x335')
         content=tb.Frame(self,padding=24);content.pack(fill='both',expand=True)
         tb.Label(content,text='Dosyan hazır',font=('Segoe UI',20,'bold')).pack(anchor='w')
         tb.Label(content,text=record['filename'],wraplength=455,font=('Segoe UI',12,'bold')).pack(anchor='w',pady=(18,6))
@@ -75,7 +76,23 @@ class CompletionDialog(tb.Toplevel):
         for label,target in [('Aç',record['filepath']),('Klasörü göster',str(Path(record['filepath']).parent))]:
             tb.Button(buttons,text=label,command=lambda p=target:self.open(p)).pack(side='left',padx=(0,10))
         tb.Button(buttons,text='Kapat',bootstyle='secondary-outline',command=self.destroy).pack(side='right')
+        self.scan_button=tb.Button(buttons,text='Virüs tarat',bootstyle='secondary-outline',command=self.scan)
+        self.scan_button.pack(side='left')
+        self.scan_status=tk.StringVar(value='Tarama yalnızca Virüs tarat’a basınca başlar.')
+        tb.Label(content,textvariable=self.scan_status,wraplength=550).pack(anchor='w')
         foreground(self)
+
+    def scan(self):
+        self.scan_button.configure(state='disabled');self.scan_status.set('Kaspersky ile taranıyor…')
+        def work():
+            try:
+                from antivirus import scan_file
+                result,report=scan_file(self.record['filepath'])
+            except Exception as error:result=str(error)
+            self.parent.post_ui(lambda:self.scan_done(result) if self.winfo_exists() else None)
+        threading.Thread(target=work,daemon=True).start()
+
+    def scan_done(self,result):self.scan_status.set(result);self.scan_button.configure(state='normal')
 
     def open(self,path):
         if Path(path).exists():os.startfile(path)
@@ -118,9 +135,9 @@ class BatchDialog(tb.Toplevel):
                     info=ydl.extract_info(urls[0],download=False)
                 entries=info.get('entries') or []
                 formats=None if entries else fetch_video_formats(urls[0])
-                self.after(0,lambda:self.inspected(entries,formats))
+                self.parent.post_ui(lambda:self.inspected(entries,formats) if self.winfo_exists() else None)
             except Exception:
-                self.after(0,lambda:self.status.set('Bilgiler alınamadı. Bağlantıyı ve site erişimini kontrol et.'))
+                self.parent.post_ui(lambda:self.status.set('Bilgiler alınamadı. Bağlantıyı ve site erişimini kontrol et.') if self.winfo_exists() else None)
         threading.Thread(target=work,daemon=True).start()
 
     def inspected(self,entries,formats):

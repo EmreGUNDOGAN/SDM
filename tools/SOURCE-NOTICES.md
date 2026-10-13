@@ -16,3 +16,6 @@ https://github.com/denoland/deno/tree/v2.9.7
 
 Both downloads were checked against publisher-provided SHA256 values.
 No runtime auto-download of media tools or JS solver components is enabled.
+
+7-Zip command-line tools are copied from the Windows runner installation.
+7ZIP-LICENSE.txt includes LGPL and unRAR restrictions. Source: https://www.7-zip.org/

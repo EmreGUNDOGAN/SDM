@@ -11,12 +11,12 @@ from preferences import export_settings,import_settings,validate_settings
 
 class SettingsDialog(tb.Toplevel):
     def __init__(self,parent):
-        super().__init__(parent);self.parent=parent;self.title('SDM · Ayarlar');self.geometry('740x610')
+        super().__init__(parent);self.parent=parent;self.title('SDM · Ayarlar');self.geometry('800x760')
         self.settings=dict(parent.settings);self.vars={}
         frame=tb.Frame(self,padding=20);frame.pack(fill='both',expand=True)
         notebook=tb.Notebook(frame);notebook.pack(fill='both',expand=True)
         self.tabs={}
-        for name in ['Genel','Tarayıcı','Kuyruk','Güncelleme','Yedekleme']:
+        for name in ['Genel','Tarayıcı','Kuyruk','Araçlar','Güncelleme','Yedekleme']:
             tab=tb.Frame(notebook,padding=20);notebook.add(tab,text=name);self.tabs[name]=tab
         general=self.tabs['Genel']
         self.field(general,'download_dir','Kayıt klasörü')
@@ -33,18 +33,24 @@ class SettingsDialog(tb.Toplevel):
         tb.Entry(browser,textvariable=self.extensions).pack(fill='x')
         tb.Label(browser,text='Canva ve hariç tutulan sitelerde indirme tarayıcıda kalır.\nSağ tık ile bir siteyi bu listeye ekleyebilirsin.',wraplength=620).pack(anchor='w',pady=15)
         queue=self.tabs['Kuyruk']
-        self.field(queue,'scheduled_start','Kuyruğu başlatma zamanı · YYYY-MM-DD HH:MM')
+        from queue_ui import QueueEditor
+        self.queue_editor=QueueEditor(queue,self.settings['queues']);self.queue_editor.pack(fill='both',expand=True)
         self.check(queue,'shutdown_after_queue','Kuyruk tamamlanınca bilgisayarı kapat (60 sn iptal süresi)')
-        tb.Label(queue,text='Boş zaman alanı: Kuyruk yalnızca “Kuyruğu başlat” ile çalışır.\nZamanlama için SDM açık olmalıdır. Video ve normal dosyalar\naynı eşzamanlı indirme limitini paylaşır.',wraplength=600).pack(anchor='w',pady=20)
+        tools=self.tabs['Araçlar']
+        self.field(tools,'relax_limit_kbs','İnterneti rahatlat hızı (KB/sn)')
+        self.check(tools,'mini_hud','Açılışta küçük masaüstü HUD’unu göster')
+        self.check(tools,'duplicate_warning','Aynı bağlantı tekrar eklenince uyar')
+        self.check(tools,'disk_check','Eklemeden önce boş disk alanını kontrol et')
+        self.check(tools,'auto_extract','Tamamlanan ZIP/RAR arşivlerini otomatik çıkar')
+        self.field(tools,'extract_dir','Arşiv çıktı klasörü (boş = dosyanın yanı)')
+        tb.Button(tools,text='Arşiv klasörü seç',command=lambda:self.pick_extract()).pack(anchor='w',pady=10)
+        tb.Label(tools,text='Virüs taraması tamamlandı penceresindeki “Virüs tarat” ile başlar.\nKaspersky bilgisayarda kurulu olmalıdır. Otomatik tarama yapılmaz.',wraplength=620).pack(anchor='w',pady=15)
         update=self.tabs['Güncelleme']
         tb.Label(update,text=f'SDM {VERSION}',font=('Segoe UI',20,'bold')).pack(anchor='w')
         self.check(update,'update_check_on_start','Açılışta GitHub güncellemelerini kontrol et')
-        tb.Label(update,text='Özel depo: EmreGUNDOGAN/SDM\nFine-grained token: yalnızca bu depo, Contents: Read.\nToken Windows hesabına bağlı şifrelenir; yedeğe eklenmez.',wraplength=620).pack(anchor='w',pady=15)
-        self.token=tk.StringVar();tb.Entry(update,textvariable=self.token,show='•').pack(fill='x')
-        tb.Label(update,text='Boş bırakırsan kayıtlı token korunur.').pack(anchor='w',pady=5)
-        actions=tb.Frame(update);actions.pack(fill='x',pady=10)
-        tb.Button(actions,text='Token kaydet',command=self.store_token).pack(side='left')
-        tb.Button(actions,text='Token sil',bootstyle='secondary-outline',command=self.remove_token).pack(side='left',padx=10)
+        tb.Label(update,text='Güncelleme kaynağı: EmreGUNDOGAN/SDM-Updates\nToken gerekmez. Setup SHA-256 ile doğrulanır; kurulum onayınla başlar.\nKaynak kodlar ayrı, özel SDM deposunda kalır.',wraplength=620).pack(anchor='w',pady=15)
+        tb.Button(update,text='Önceden kaydedilmiş tokenı sil',bootstyle='secondary-outline',command=self.remove_token).pack(anchor='w')
+        tb.Label(update,text='Eklenti dosyaları uygulama güncellemesiyle yenilenir. Eklentide\n“Eklentiyi yenile” ile yeni dosyalar doğrulanıp yüklenir.',wraplength=620).pack(anchor='w',pady=15)
         tb.Button(update,text='Güncellemeleri kontrol et',command=lambda:parent.check_updates(False)).pack(anchor='w',pady=15)
         backup=self.tabs['Yedekleme']
         tb.Label(backup,text='Site istisnaları, klasör, sütunlar ve görünüm tercihlerini taşı.\nErişim bilgileri ve indirme geçmişi yedeğe alınmaz.',wraplength=600).pack(anchor='w',pady=15)
@@ -69,14 +75,17 @@ class SettingsDialog(tb.Toplevel):
         path=filedialog.askdirectory(parent=self,initialdir=self.vars['download_dir'].get())
         if path:self.vars['download_dir'].set(path)
 
+    def pick_extract(self):
+        path=filedialog.askdirectory(parent=self)
+        if path:self.vars['extract_dir'].set(path)
+
     def collect(self):
         values=dict(self.settings)
         for key,var in self.vars.items():
             values[key]=int(var.get()) if type(DEFAULT_SETTINGS.get(key)) is int else var.get()
         values['excluded_sites']=sorted(set(normalize_domain(v) for v in self.sites.get('1.0','end').splitlines() if v.strip()))
         values['capture_extensions']=[v.strip().lower().lstrip('.') for v in self.extensions.get().split(',') if v.strip()]
-        if values['scheduled_start']:
-            datetime.strptime(values['scheduled_start'],'%Y-%m-%d %H:%M')
+        values['queues']=self.queue_editor.collect()
         validate_settings(values)
         return values
 
@@ -84,6 +93,10 @@ class SettingsDialog(tb.Toplevel):
         try:
             values=self.collect()
             if not save_settings(values):raise ValueError('Ayar dosyası kaydedilemedi.')
+            for record in self.parent.db.get_all_downloads():
+                if record['queue_name'] in self.queue_editor.renames:self.parent.db.set_queue(record['id'],self.queue_editor.renames[record['queue_name']])
+            self.parent._running_queues={self.queue_editor.renames.get(name,name) for name in self.parent._running_queues}
+            self.parent._scheduled_queues={self.queue_editor.renames.get(name,name) for name in self.parent._scheduled_queues}
             self.parent.apply_settings(values);self.destroy()
         except Exception as error:messagebox.showerror('Ayarlar kaydedilemedi',str(error),parent=self)
 
@@ -96,7 +109,7 @@ class SettingsDialog(tb.Toplevel):
 
     def remove_token(self):
         from updater import save_token
-        save_token('');self.token.set('')
+        save_token('');messagebox.showinfo('Güncelleme','Önceki token silindi. Yeni güncelleme kaynağı token kullanmaz.',parent=self)
 
     def export(self):
         path=filedialog.asksaveasfilename(parent=self,defaultextension='.json',initialfile='SDM-ayarlar.json')

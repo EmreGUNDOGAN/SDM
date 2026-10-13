@@ -3,8 +3,8 @@
   <h1>SDM</h1>
   <p><strong>Windows için kişisel indirme yöneticisi.</strong></p>
   <p>Dosyaları düzenle. Videoda kaliteyi seç. İndirmeleri tek yerden takip et.</p>
-  <p>Windows 10 / 11 · Chrome ve Opera · Sürüm 0.3.1</p>
-  <p><a href="https://github.com/EmreGUNDOGAN/SDM/releases/tag/v0.3.1">Kurulum paketini indir</a> · <a href="SECURITY-REVIEW.md">Doğrulama bilgileri</a></p>
+  <p>Windows 10 / 11 · Chrome ve Opera · Sürüm 0.4.0</p>
+  <p><a href="https://github.com/EmreGUNDOGAN/SDM-Updates/releases/tag/v0.4.0">Kurulum paketini indir</a> · <a href="SECURITY-REVIEW.md">Doğrulama bilgileri</a></p>
 </div>
 
 ---
@@ -34,12 +34,15 @@ geliştirilen sürümün kaynak kodunu ve kurulum tarifini içerir.
 | Çoklu bağlantı | Bağlantıları yapıştır veya sürükle-bırak; video listesinden seç. |
 | Tamamlanma | Aç / Klasörü göster penceresi, isteğe bağlı bildirim ve SHA-256 kontrolü. |
 | Ayar yedeği | Site, sütun, klasör ve görünüm tercihlerini dışa aktar/geri yükle. |
-| GitHub güncellemesi | Özel depoya salt okunur token, şifreli saklama ve doğrulanan setup. |
+| GitHub güncellemesi | Public SDM-Updates deposundan tokensız güncelleme; setup SHA-256 ile doğrulanır. |
+| Yeni araçlar | Adlandırılmış kuyruklar, tekrarlayan takvim, öncelik, rahatlat modu ve masaüstü HUD’u. |
+| Dosya işlemleri | Otomatik ZIP/RAR çıkarma; altyazı seçimi; kesme/dönüştürme; klasör önizlemesi ve bağlantı kontrolü. |
+| Kaspersky | Tamamlandı penceresinde Virüs tarat; tarama yalnızca düğmeyle başlar. |
 | Sistem tepsisi | Pencere kapatılsa da uygulama arka planda çalışabilir. |
 
 ## Kurulum
 
-1. **SDM-Setup-0.3.1.exe** dosyasını çalıştır.
+1. **SDM-Setup-0.4.0.exe** dosyasını çalıştır.
 2. Kullanacağın **Chrome / Opera eklentisi** seçeneğini işaretle.
 3. Açılan yönergeden tarayıcıda **Geliştirici modu → Paketlenmemiş yükle** adımını tamamla.
 4. Kurulum klasöründeki `extension` klasörünü seç.
@@ -47,7 +50,7 @@ geliştirilen sürümün kaynak kodunu ve kurulum tarifini içerir.
 Varsayılan klasör: `%LOCALAPPDATA%\Programs\SDM`.
 Python, FFmpeg veya Deno'yu ayrıca kurmak gerekmez; setup bunları içerir.
 Mağaza dışı eklentinin son yükleme onayı tarayıcıda bir kez verilmelidir.
-Güncellemeden sonra eklentiyi yeniden yükle ve açık video sayfasını yenile.
+0.3.1 eklentisinden geçerken tarayıcıda bir defa Yeniden yükle kullan. Sonraki güncellemelerde eklentinin Eklentiyi yenile düğmesini kullan; açık video sayfasını yenile.
 
 ## Kullanım
 
@@ -56,9 +59,9 @@ Güncellemeden sonra eklentiyi yeniden yükle ve açık video sayfasını yenile
 - **Takip:** Detay penceresini kullan; gizlediğin pencereyi indirmeye çift tıklayarak aç.
 - **Tablo:** Sütunlar menüsünden görmek istediğin alanları seç.
 - **Yakalama:** Ayarlar → Tarayıcı bölümünden site/uzantı tercihlerini düzenle; eklentiden geçici durdur.
-- **Güncelleme:** Ayarlar → Güncelleme bölümüne yalnızca SDM deposunda Contents: Read yetkili fine-grained token gir. Token Windows hesabına bağlı şifrelenir.
+- **Güncelleme:** Ayarlar → Güncelleme bölümünden kontrol et. Token gerekmez; kurulum onayınla başlar.
 - **Tema:** Ayarlar → Genel bölümünden light / dark / system seç.
-- **Yeni sürüm:** [0.3.1 değişiklikleri](RELEASE-NOTES-0.3.1.md).
+- **Yeni sürüm:** [0.4.0 değişiklikleri](RELEASE-NOTES-0.4.0.md).
 
 Hız, kısa aralıklı anlık değerler yerine zaman ağırlıklı ortalamayla gösterilir.
 Kalan süre bir tahmindir; ağ ve sunucu koşulları değiştikçe güncellenir.
@@ -80,9 +83,9 @@ olarak kapalıdır.
 - Tarayıcı köprüsü yalnızca yerel makinede çalışır; eklenti kimliği ve gizli bağlantı anahtarı doğrulanır.
 - Dosya aktarımında URL ve yönlendirmeler özel/yerel ağ adreslerine karşı kontrol edilir.
 - Kaynak incelemesinde gizli veri toplama veya uzaktan komut alma davranışı bulunmadı.
-- 27 motor/güvenlik regresyon testi ve yerel Windows arayüz kontrolleri geçti.
+- 41 motor/güvenlik regresyon testi ve yerel Windows arayüz kontrolleri geçti.
 - Chromium'da normal dosya yakalama ve başarısız aktarımda tarayıcıya dönüş test edildi.
-- Paketlenmiş uygulamada gerçek YouTube video/MP3 indirmesi ve kurulum/kaldırma testi geçti.
+- Önceki paketli sürümde gerçek YouTube video/MP3 ve kurulum/kaldırma testleri geçti. 0.4.0 setup GitHub Actions üzerinde üretilecektir.
 
 Bu kontroller bir güvenlik sertifikası değildir. Uygulama ve setup dijital
 olarak imzalanmamıştır. İndirme geçmişi ve adresler yerel `.sdm` klasöründe

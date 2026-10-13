@@ -80,7 +80,7 @@ class FeatureTests(unittest.TestCase):
         second=MagicMock(status_code=200);session.get.side_effect=[first,second]
         updater=GitHubUpdater(token='private-token',session=session)
         updater._get(API+'/releases/assets/1',True)
-        self.assertIn('Authorization',session.get.call_args_list[0].kwargs['headers'])
+        self.assertNotIn('Authorization',session.get.call_args_list[0].kwargs['headers'])
         self.assertNotIn('Authorization',session.get.call_args_list[1].kwargs['headers'])
 
 

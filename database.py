@@ -69,6 +69,9 @@ class DownloadDatabase:
                 )
                 conn.commit()
                 columns = {row[1] for row in cursor.execute('PRAGMA table_info(downloads)')}
+                for name,definition in [('priority','INTEGER NOT NULL DEFAULT 0'),('queue_name',"TEXT NOT NULL DEFAULT 'Ana kuyruk'")]:
+                    if name not in columns:cursor.execute(f'ALTER TABLE downloads ADD COLUMN {name} {definition}')
+                conn.commit()
                 if 'options_json' not in columns:
                     cursor.execute("ALTER TABLE downloads ADD COLUMN options_json TEXT NOT NULL DEFAULT '{}'")
                     conn.commit()
@@ -139,6 +142,16 @@ class DownloadDatabase:
             with self._get_connection() as conn:
                 conn.execute('UPDATE downloads SET options_json = ? WHERE id = ?',
                              (json.dumps(options,ensure_ascii=False),download_id))
+
+    def set_queue(self,download_id,name):
+        if not isinstance(name,str) or not name or len(name)>60:raise ValueError('Geçersiz kuyruk.')
+        with self._db_lock:
+            with self._get_connection() as conn:conn.execute('UPDATE downloads SET queue_name=? WHERE id=?',(name,download_id))
+
+    def set_priority(self,download_id,value):
+        if value not in (-1,0,1):raise ValueError('Geçersiz öncelik.')
+        with self._db_lock:
+            with self._get_connection() as conn:conn.execute('UPDATE downloads SET priority=? WHERE id=?',(value,download_id))
 
     def get_all_downloads(self, category: Optional[str] = None, search_term: Optional[str] = None) -> List[Dict[str, Any]]:
         """Fetch all downloads with optional filtering by category and search keyword."""

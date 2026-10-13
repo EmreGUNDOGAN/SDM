@@ -4,6 +4,7 @@ utils.py - Utility functions and configuration management for SDM.
 from __future__ import annotations
 
 import json
+import copy
 import mimetypes
 import os
 from pathlib import Path
@@ -34,6 +35,14 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "capture_paused_until": 0,
     "update_check_on_start": False,
     "scheduled_start": '',
+    "queues": [dict(name='Ana kuyruk',limit=3,enabled=False,days=list(range(7)),start='02:00',stop='07:00',once='')],
+    "relax_mode": False,
+    "relax_limit_kbs": 2048,
+    "auto_extract": False,
+    "extract_dir": '',
+    "mini_hud": False,
+    "duplicate_warning": True,
+    "disk_check": True,
     "shutdown_after_queue": False,
     "visible_columns": ['filename', 'size', 'downloaded', 'progress', 'speed', 'eta', 'status'],
     "monitored_extensions": [
@@ -64,16 +73,16 @@ def load_settings() -> Dict[str, Any]:
     ensure_config_dir()
     if not CONFIG_FILE.exists():
         save_settings(DEFAULT_SETTINGS)
-        return DEFAULT_SETTINGS.copy()
+        return copy.deepcopy(DEFAULT_SETTINGS)
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
         # Merge with defaults in case of missing keys
-        settings = DEFAULT_SETTINGS.copy()
+        settings = copy.deepcopy(DEFAULT_SETTINGS)
         settings.update(data)
         return settings
     except Exception:
-        return DEFAULT_SETTINGS.copy()
+        return copy.deepcopy(DEFAULT_SETTINGS)
 
 
 def save_settings(settings: Dict[str, Any]) -> bool:

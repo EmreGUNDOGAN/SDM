@@ -11,7 +11,7 @@ import requests
 from app_version import VERSION
 from utils import ensure_config_dir
 
-REPO = 'EmreGUNDOGAN/SDM'
+REPO = 'EmreGUNDOGAN/SDM-Updates'
 API = f'https://api.github.com/repos/{REPO}'
 
 
@@ -69,7 +69,7 @@ def version_tuple(value):
 
 class GitHubUpdater:
     def __init__(self, token=None, session=None):
-        self.token = load_token() if token is None else token
+        self.token = ''  # Public release repository: never transmit legacy credentials.
         self.session = session or requests.Session()
 
     def _get(self, url, binary=False):
@@ -97,7 +97,7 @@ class GitHubUpdater:
                                             stream=binary, timeout=(15, 45), allow_redirects=False)
             if response.status_code in (401, 403, 404):
                 response.close()
-                raise UpdateError('Özel depoya erişilemiyor. SDM deposu için Contents: Read yetkili token girin; süresi dolmuşsa yenileyin.')
+                raise UpdateError('Güncelleme deposuna erişilemiyor veya henüz yayımlanmış sürüm yok. Daha sonra tekrar dene.')
             response.raise_for_status()
             return response
         except requests.RequestException:
@@ -158,4 +158,4 @@ class GitHubUpdater:
 
 
 def launch_installer(path):
-    subprocess.Popen([str(path), '/NORESTART'], close_fds=True)
+    subprocess.Popen([str(path), '/NORESTART', '/SILENT'], close_fds=True)

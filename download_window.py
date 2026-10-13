@@ -44,6 +44,7 @@ class DownloadDetailDialog(tb.Toplevel):
         self.cancel_button.pack(side='right')
         self.pause_button = tb.Button(actions,text='Duraklat',bootstyle='light',command=self.pause_resume)
         self.pause_button.pack(side='right',padx=8)
+        tb.Button(actions,text='Hız grafiği',bootstyle='secondary-outline',command=lambda:parent.show_speed_graph(self.download_id)).pack(side='right',padx=8)
         self.details = tb.Frame(content)
         self.details.pack(fill='both',expand=True)
         tb.Separator(self.details).pack(fill='x',pady=(0,12))

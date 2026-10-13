@@ -15,8 +15,8 @@ def main():
     import winreg
 
     ROOT = Path(__file__).parent.resolve()
-    TARGET = ROOT / 'build' / 'installer-test-031'
-    DATA = ROOT / 'build' / 'installed-test-data-031'
+    TARGET = ROOT / 'build' / 'installer-test-032'
+    DATA = ROOT / 'build' / 'installed-test-data-032'
     KEYS = ['Software\\Google\\Chrome\\NativeMessagingHosts\\com.sdm.bridge',
             'Software\\Opera Software\\NativeMessagingHosts\\com.sdm.bridge']
     NODE = Path('C:/Users/emreg/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe')

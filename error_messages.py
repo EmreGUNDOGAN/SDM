@@ -1,7 +1,7 @@
 def explain_error(error):
     value = str(error).lower()
     if any(word in value for word in ('disk', 'space', 'winerror 112', 'errno 28')):
-        return ('Disk alanı yetersiz', 'Kayıt diskinde yer açın veya başka bir klasör seçin.', 'Klasörü göster')
+        return ('Disk alanı yetersiz', 'Kayıt diskinde yer açın veya başka bir klasör seçin.', 'Başka klasöre indir')
     if any(word in value for word in ('403', '401', '410', 'expired', 'oturum')):
         return ('Bağlantı veya erişim süresi doldu', 'Kaynak sayfadan yeni bir indirme bağlantısı alın.', 'Kaynak sayfayı aç')
     if any(word in value for word in ('range', '416')):

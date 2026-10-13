@@ -13,7 +13,7 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 
-## Windows setup (0.3.1)
+## Windows setup (0.4.0)
 
 Setup'a FFmpeg, ffprobe ve YouTube çözümlemesi için Deno dahildir.
 Python veya FFmpeg'i ayrıca kurmanız gerekmez.

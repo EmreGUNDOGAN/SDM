@@ -1,4 +1,13 @@
 const status=document.getElementById('status');
+chrome.storage.local.get('sdmReloadNotice').then(value=>{if(value.sdmReloadNotice)status.textContent=value.sdmReloadNotice;});
+document.getElementById('refresh').onclick=async()=>{
+  status.textContent='Yeni dosyalar doğrulanıyor…';
+  try {
+    const reply=await chrome.runtime.sendMessage({type:'extension-refresh'});
+    if(reply.error)throw Error(reply.error);
+    status.textContent=`${reply.result.version} doğrulandı. Eklenti yeniden yükleniyor…`;
+  }catch(error){status.textContent=error.message;}
+};
 async function control(body){
   status.textContent='Kaydediliyor…';
   try {

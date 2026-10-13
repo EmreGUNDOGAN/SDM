@@ -47,8 +47,10 @@ from download_window import DownloadDetailDialog
 from list_display import COLUMNS, row_values
 from modern_ui import ModernUI
 from app_actions import AppActions
+from advanced_actions import AdvancedActions
 from transfer_control import GLOBAL_LIMITER
 from download_cleanup import delete_download_files
+from ui_mailbox import UIMailbox
 
 logger = logging.getLogger("SDM.GUI")
 
@@ -67,7 +69,7 @@ def show_desktop_notification(title: str, message: str) -> None:
             logger.debug(f"Notification error: {e}")
 
 
-class MainWindow(ModernUI, AppActions, tb.Window):
+class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
 
 
     """SDM desktop window using the approved modern UI."""
@@ -76,6 +78,8 @@ class MainWindow(ModernUI, AppActions, tb.Window):
 
     def __init__(self):
         super().__init__(themename='cosmo')
+        self._mailbox=UIMailbox(self)
+        self._deleting=set()
         self.style.configure('.',foreground='#111111')
         self.style.configure('TLabel',foreground='#111111',background='#ffffff')
         self.style.configure('TEntry',foreground='#111111',fieldbackground='#ffffff')
@@ -161,10 +165,13 @@ class MainWindow(ModernUI, AppActions, tb.Window):
         videos=[t for t in self.video_tasks.values() if t.status=='İndiriliyor']
         speed=self.engine.get_total_speed()+sum(t.current_speed for t in videos)
         self.lbl_status_summary.configure(text=f'Aktif İndirmeler: {self.engine.get_active_count()+len(videos)} | Toplam Hız: {format_speed(speed)}')
+        records={record['id']:record for record in self.db.get_all_downloads()}
         for item in self.tree.get_children():
             did=int(self.tree.item(item,'values')[0])
-            record=self.db.get_download(did)
-            if record:self.tree.item(item,values=row_values(self,record))
+            record=records.get(did)
+            if record:
+                values=tuple(map(str,row_values(self,record)))
+                if self.tree.item(item,'values')!=values:self.tree.item(item,values=values)
         self.update_hud()
         self.after(1000,self._start_status_updater)
 
@@ -238,6 +245,7 @@ class MainWindow(ModernUI, AppActions, tb.Window):
                     auto_start=False,progress_callback=self._on_download_progress,
                     status_callback=self._on_download_status_change,metadata_callback=self._on_metadata_updated)
         task.queue_requested=False
+        task.priority=record.get('priority',0)
         task.status='Bekliyor'
         self.db.update_download_status(did,'Bekliyor')
         self._session_baselines.setdefault(did,record['downloaded_bytes'])
@@ -256,6 +264,7 @@ class MainWindow(ModernUI, AppActions, tb.Window):
         self.engine.default_connections = new_settings.get("default_connections", 8)
         self.engine.speed_limit_kbs = new_settings.get("speed_limit_kbs", 0)
         GLOBAL_LIMITER.configure(self.engine.speed_limit_kbs)
+        self.configure_rate()
         if hasattr(self,'clipboard_monitor'):
             self.clipboard_monitor.set_extensions(new_settings.get('monitored_extensions',[]))
             if new_settings.get('clipboard_monitoring',True):self.clipboard_monitor.start()
@@ -264,6 +273,7 @@ class MainWindow(ModernUI, AppActions, tb.Window):
             if not isinstance(child, tk.Toplevel):child.destroy()
         self._build_ui()
         self.initialize_drop()
+        if new_settings.get('mini_hud'):self.show_mini_hud()
 
     def add_download_from_dialog(
         self,
@@ -278,6 +288,15 @@ class MainWindow(ModernUI, AppActions, tb.Window):
         selected_height: Optional[int] = None,
         from_browser: bool = False,
     ) -> None:
+        if self.check_duplicate(url,is_video,video_quality,selected_height):return None
+        if self.settings.get('disk_check',True):
+            from file_tools import ensure_space
+            try:ensure_space(dest_path)
+            except OSError:
+                messagebox.showwarning('Disk alanı yetersiz','Başka bir kayıt klasörü seçmelisin.',parent=self)
+                folder=filedialog.askdirectory(parent=self)
+                if not folder:return None
+                dest_path=str(Path(folder)/filename);ensure_space(dest_path)
         cat = get_category_by_extension(filename)
         connections=connections or self.settings.get('default_connections',8)
         status = "Bekliyor" if auto_start else "Kuyrukta"
@@ -305,6 +324,7 @@ class MainWindow(ModernUI, AppActions, tb.Window):
         )
 
         self.db.set_options(did, {'quality':video_quality,'height':selected_height,'output_name':candidate.name if from_browser else None})
+        self.db.set_queue(did,self.settings['queues'][0]['name'])
         self._session_baselines[did]=0
         self._session_received[did]=0
         if is_video:
@@ -346,33 +366,50 @@ class MainWindow(ModernUI, AppActions, tb.Window):
     def _on_download_progress(
         self, did: int, downloaded: int, total: int, speed: float, eta: float, status: str
     ) -> None:
-        # Update database periodically
+        self.post_ui(lambda:self._apply_progress(did,downloaded,total),key=('progress',did))
+
+    def _apply_progress(self,did,downloaded,total):
+        if did in self._deleting or not self.db.get_download(did):return
         self.db.update_download_progress(did, downloaded, total)
         baseline=self._session_baselines.setdefault(did,downloaded)
         self._session_received[did]=max(self._session_received.get(did,0),downloaded-baseline,0)
 
     def _on_download_status_change(self, did: int, status: str, error: str) -> None:
-        # Engine callbacks can run while its lock is held; do not reacquire it here.
-        task=self.video_tasks.get(did) or self.engine.tasks.get(did)
+        self.post_ui(lambda:self._apply_status(did,status,error))
+
+    def _apply_status(self,did,status,error):
+        if did in self._deleting or not self.db.get_download(did):return
+        task=self.video_tasks.get(did) or self.engine.get_task(did)
         if status=='Duraklatıldı' and task and getattr(task,'queue_requested',False):
             status='Kuyrukta';task.status=status
+        elif task and task.status!=status:return
         completed = status == "Tamamlandı"
         self.db.update_download_status(did, status, error, completed=completed)
 
         if completed and self.settings.get("notifications_enabled", True):
             rec = self.db.get_download(did)
             fname = rec["filename"] if rec else f"İndirme #{did}"
-            show_desktop_notification("İndirme Tamamlandı", f"{fname} başarıyla indirildi.")
+            threading.Thread(target=show_desktop_notification,args=('İndirme Tamamlandı',f'{fname} başarıyla indirildi.'),daemon=True).start()
 
-        self.after(0, self.refresh_downloads)
-        if completed:self.after(0,lambda:self.completed_popup(did))
-        elif status=='Hata':self.after(0,lambda:self.show_download_error(did,error))
+        self.post_ui(self.refresh_downloads,key='refresh')
+        if completed:self.completed_popup(did)
+        elif status=='Hata':self.show_download_error(did,error)
 
     def _on_metadata_updated(
         self, did: int, filename: str, filepath: str, filesize: int, category: str
     ) -> None:
-        self.db.update_download_metadata(did, filename, filepath, filesize, category)
-        self.after(0, self.refresh_downloads)
+        def apply():
+            if did in self._deleting or not self.db.get_download(did):return
+            self.db.update_download_metadata(did,filename,filepath,filesize,category)
+            self.post_ui(self.refresh_downloads,key='refresh')
+        self.post_ui(apply,key=('metadata',did))
+
+    def post_ui(self,callback,key=None):
+        self._mailbox.post(callback,key)
+
+    def destroy(self):
+        if hasattr(self,'_mailbox'):self._mailbox.close()
+        super().destroy()
 
     def _get_selected_ids(self) -> List[int]:
         selected = []
@@ -407,26 +444,31 @@ class MainWindow(ModernUI, AppActions, tb.Window):
 
         pending = []
         for did in ids:
+            if did in self._deleting:continue
+            self._deleting.add(did)
             task = self.video_tasks.get(did) or self.engine.get_task(did)
             if task:
                 task.cancel()
             pending.append((did, self.db.get_download(did), task))
         def remove():
             errors = []
+            removed=[]
             for did, rec, task in pending:
                 try:
                     if delete_file and rec:
                         delete_download_files(rec, task)
                     self.engine.remove_task(did)
-                    self.video_tasks.pop(did, None)
                     self.db.delete_download(did)
+                    removed.append(did)
                 except Exception as error:
                     errors.append(f'#{did}: {error}')
             def finished():
+                for did in removed:self.video_tasks.pop(did,None)
+                self._deleting.difference_update(did for did,_,_ in pending)
                 self.refresh_downloads()
                 if errors:
                     messagebox.showerror('Silme tamamlanamadı', '\n'.join(errors), parent=self)
-            self.after(0, finished)
+            self.post_ui(finished)
         threading.Thread(target=remove, daemon=True).start()
 
     def open_file(self) -> None:

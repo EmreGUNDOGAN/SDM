@@ -114,6 +114,7 @@ class DownloadTask:
         self._report_lock = threading.Lock()
         self._last_report = 0.0
         self._worker = None
+        self._lifecycle_lock = threading.Lock()
 
     def _create_session(self) -> requests.Session:
         session = requests.Session()
@@ -172,6 +173,10 @@ class DownloadTask:
                     self.metadata_callback(self.download_id, new_dest.name, str(new_dest), self.filesize, category)
 
             resp.close()
+            from file_tools import ensure_space
+            if self.filesize:
+                existing=sum(self.get_part_file(i).stat().st_size for i in range(32) if self.get_part_file(i).exists())
+                ensure_space(self.dest_path,self.filesize,2,existing)
             return True
         except Exception as e:
             logger.error(f"Error inspecting remote file: {e}")
@@ -180,30 +185,35 @@ class DownloadTask:
         finally:
             session.close()
 
-    def start(self) -> None:
+    def start(self, only_if_queued=False) -> None:
         """Start or resume the download in a worker thread."""
-        if self._worker and self._worker.is_alive():
-            return
-        self._pause_event.clear()
-        self._cancel_event.clear()
-        self.status = "İndiriliyor"
-        self._notify_status("İndiriliyor")
-
-        worker = threading.Thread(target=self._run, name=f"Download-{self.download_id}", daemon=True)
-        self._worker = worker
-        worker.start()
+        with self._lifecycle_lock:
+            if self._worker and self._worker.is_alive():return False
+            if only_if_queued and self.status != 'Bekliyor':return False
+            self._pause_event.clear()
+            self._cancel_event.clear()
+            self.status = 'İndiriliyor'
+            worker=threading.Thread(target=self._run,name=f'Download-{self.download_id}',daemon=True)
+            self._worker=worker
+        self._notify_status('İndiriliyor')
+        with self._lifecycle_lock:
+            if self.status!='İndiriliyor' or self._pause_event.is_set() or self._cancel_event.is_set():return False
+            worker.start()
+        return True
 
     def pause(self) -> None:
         """Pause the download gracefully."""
-        self._pause_event.set()
-        self.status = "Duraklatıldı"
+        with self._lifecycle_lock:
+            self._pause_event.set()
+            self.status = "Duraklatıldı"
         self._notify_status("Duraklatıldı")
 
     def cancel(self) -> None:
         """Cancel the download and clean up temporary segment files."""
-        self._cancel_event.set()
-        self._pause_event.set()
-        self.status = "İptal Edildi"
+        with self._lifecycle_lock:
+            self._cancel_event.set()
+            self._pause_event.set()
+            self.status = "İptal Edildi"
         self._notify_status("İptal Edildi")
         if not self._worker or not self._worker.is_alive():
             self._cleanup_parts()
@@ -259,10 +269,18 @@ class DownloadTask:
             # 1. Inspect remote file if not already known
             if self.filesize <= 0:
                 if not self.inspect_remote_file():
+                    if self._cancel_event.is_set() or self._pause_event.is_set():
+                        self.status='İptal Edildi' if self._cancel_event.is_set() else 'Duraklatıldı'
+                        self._notify_status(self.status)
+                        return
                     self.status = "Hata"
                     self._notify_status("Hata", self.error_message or "Sunucuya bağlanılamadı")
                     return
 
+            if self._cancel_event.is_set() or self._pause_event.is_set():
+                self.status='İptal Edildi' if self._cancel_event.is_set() else 'Duraklatıldı'
+                self._notify_status(self.status)
+                return
             # Ensure parent folder exists
             self.dest_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -500,24 +518,24 @@ class DownloadEngine:
     def stop_engine(self) -> None:
         self._stop_dispatcher.set()
         with self._lock:
-            for task in list(self.tasks.values()):
-                if task.status == "İndiriliyor":
-                    task.pause()
+            tasks=list(self.tasks.values())
+        for task in tasks:
+            if task.status == "İndiriliyor":task.pause()
 
     def _dispatcher_loop(self) -> None:
         """Periodically check for queued downloads and start them up to max_concurrent."""
         while not self._stop_dispatcher.is_set():
+            external_active=self.external_active_count()
             with self._lock:
-                active_count = self.external_active_count() + sum(1 for t in self.tasks.values() if t.status in ('İndiriliyor','Birleştiriliyor'))
-                if active_count < self.max_concurrent:
-                    for task in self.tasks.values():
-                        if task.status == "Bekliyor":
-                            task.speed_limit_kbs = self.speed_limit_kbs
-                            task.start()
-                            active_count += 1
-                            if active_count >= self.max_concurrent:
-                                break
-            time.sleep(0.5)
+                active_count=external_active+sum(t.status in ('İndiriliyor','Birleştiriliyor') for t in self.tasks.values())
+                tasks=sorted([task for task in self.tasks.values() if task.status=='Bekliyor'],key=lambda t:(-getattr(t,'priority',0),t.download_id))[:max(0,self.max_concurrent-active_count)]
+            for task in tasks:
+                if self._stop_dispatcher.is_set():break
+                with self._lock:current=self.tasks.get(task.download_id)
+                if current is not task:continue
+                task.speed_limit_kbs=self.speed_limit_kbs
+                task.start(only_if_queued=True)
+            self._stop_dispatcher.wait(.5)
 
     def add_task(
         self,
@@ -571,24 +589,23 @@ class DownloadEngine:
     def pause_task(self, download_id: int) -> bool:
         with self._lock:
             task = self.tasks.get(download_id)
-            if task and task.status in ("İndiriliyor", "Bekliyor"):
-                task.pause()
-                return True
+        if task and task.status in ("İndiriliyor", "Bekliyor"):
+            task.pause()
+            return True
         return False
 
     def cancel_task(self, download_id: int) -> bool:
         with self._lock:
             task = self.tasks.get(download_id)
-            if task:
-                task.cancel()
-                return True
+        if task:
+            task.cancel()
+            return True
         return False
 
     def remove_task(self, download_id: int) -> None:
         with self._lock:
             task = self.tasks.pop(download_id, None)
-            if task:
-                task.cancel()
+        if task:task.cancel()
 
     def get_task(self, download_id: int) -> Optional[DownloadTask]:
         with self._lock:

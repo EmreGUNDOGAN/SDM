@@ -37,7 +37,7 @@ class AppActions:
     def initialize_actions(self):
         self._queue_running=False;self._queue_ids=set();self._session_received={};self._session_baselines={}
         self._completed_notified=set();self._update_busy=False;self._shutdown_window=None
-        self.engine.external_active_count=lambda:sum(v.status in ('İndiriliyor','Dönüştürülüyor') for v in self.video_tasks.values())
+        self.engine.external_active_count=lambda:sum(v.status in ('İndiriliyor','Dönüştürülüyor') for v in list(self.video_tasks.values()))
         self.after(1000,self.queue_tick)
         if self.settings.get('update_check_on_start'):self.after(2500,lambda:self.check_updates(True))
 
@@ -85,7 +85,7 @@ class AppActions:
 
     def queue_tick_once(self):
         records=self.db.get_all_downloads()
-        active=self.engine.get_active_count()+sum(v.status in ('İndiriliyor','Dönüştürülüyor') for v in self.video_tasks.values())
+        active=self.engine.get_active_count()+sum(v.status in ('İndiriliyor','Dönüştürülüyor') for v in list(self.video_tasks.values()))
         pending=sum(t.status=='Bekliyor' for t in self.engine.tasks.values())
         slots=max(0,self.settings.get('max_simultaneous_downloads',3)-active-pending)
         for did,task in list(self.video_tasks.items()):
@@ -137,8 +137,8 @@ class AppActions:
                 digest=hashlib.sha256()
                 with open(record['filepath'],'rb') as stream:
                     while chunk:=stream.read(1024*1024):digest.update(chunk)
-                self.after(0,lambda:self.show_hash(record['filename'],digest.hexdigest()))
-            except OSError:self.after(0,lambda:messagebox.showerror('SHA-256','Dosya okunamadı.'))
+                self.post_ui(lambda:self.show_hash(record['filename'],digest.hexdigest()))
+            except OSError:self.post_ui(lambda:messagebox.showerror('SHA-256','Dosya okunamadı.'))
         threading.Thread(target=work,daemon=True).start()
 
     def show_hash(self,name,value):
@@ -166,6 +166,12 @@ class AppActions:
             record=self.db.get_download(did)
             if not record:return window.destroy()
             if action=='Kaynak sayfayı aç':webbrowser.open(record['url'])
+            elif action=='Başka klasöre indir':
+                folder=filedialog.askdirectory(parent=window)
+                if not folder:return
+                options=json.loads(record.get('options_json') or '{}')
+                dest=get_unique_filepath(folder,record['filename'])
+                self.add_download_from_dialog(record['url'],dest.name,str(dest),is_video=record['download_type']=='video',video_quality=options.get('quality','En İyi'),selected_height=options.get('height'))
             elif action=='Klasörü göster':os.startfile(str(Path(record['filepath']).parent))
             elif action=='Sıfırdan indir':
                 dest=get_unique_filepath(Path(record['filepath']).parent,record['filename'])
@@ -199,10 +205,10 @@ class AppActions:
             try:
                 from updater import GitHubUpdater
                 updater=GitHubUpdater();update=updater.check()
-                self.after(0,lambda:self.update_checked(updater,update,quiet))
+                self.post_ui(lambda:self.update_checked(updater,update,quiet))
             except Exception as error:
                 message=str(error)
-                self.after(0,lambda:self.update_failed(message,quiet))
+                self.post_ui(lambda:self.update_failed(message,quiet))
         threading.Thread(target=work,daemon=True).start()
 
     def update_failed(self,message,quiet=False):
@@ -219,10 +225,10 @@ class AppActions:
         self._update_busy=True
         def work():
             try:
-                path=updater.download(update,lambda got,total:self.after(0,lambda:self.lbl_status_info.configure(text=f'Güncelleme indiriliyor: %{got/total*100:.0f}')))
-                self.after(0,lambda:self.install_update(path))
+                path=updater.download(update,lambda got,total:self.post_ui(lambda:self.lbl_status_info.configure(text=f'Güncelleme indiriliyor: %{got/total*100:.0f}')))
+                self.post_ui(lambda:self.install_update(path))
             except Exception as error:
-                message=str(error);self.after(0,lambda:self.update_failed(message))
+                message=str(error);self.post_ui(lambda:self.update_failed(message))
         threading.Thread(target=work,daemon=True).start()
 
     def install_update(self,path):
@@ -238,8 +244,8 @@ class AppActions:
                 if worker and worker.is_alive():
                     worker.join(45)
                     if worker.is_alive():
-                        self.after(0,lambda:self.update_failed('İndirme henüz durmadı. Güncellemeyi biraz sonra tekrar deneyin.'));return
-            self.after(0,lambda:self.launch_update(path))
+                        self.post_ui(lambda:self.update_failed('İndirme henüz durmadı. Güncellemeyi biraz sonra tekrar deneyin.'));return
+            self.post_ui(lambda:self.launch_update(path))
         threading.Thread(target=work,daemon=True).start()
 
     def launch_update(self,path):

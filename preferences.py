@@ -25,6 +25,10 @@ def validate_settings(data):
     for key,minimum,maximum in [('default_connections',1,32),('max_simultaneous_downloads',1,10),('speed_limit_kbs',0,1000000)]:
         if key in result and not minimum<=result[key]<=maximum:raise ValueError(f'Geçersiz ayar: {key}')
     if 'theme' in result and result['theme'] not in ('light','dark','system','cosmo'):raise ValueError('Geçersiz tema.')
+    if 'queues' in result:
+        from queue_rules import validate_queues
+        validate_queues(result['queues'])
+    if 'relax_limit_kbs' in result and not 1<=result['relax_limit_kbs']<=1000000:raise ValueError('Rahatlat modu hızı geçersiz.')
     return result
 
 

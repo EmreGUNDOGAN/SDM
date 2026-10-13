@@ -228,8 +228,10 @@ class VideoDownloadTask:
                     self.progress = 0.0
 
             self.speed = d.get("speed", 0) or 0
+            if self._cancel_flag.is_set():raise RuntimeError('İndirme duraklatıldı veya iptal edildi')
+            changed=self.status!='İndiriliyor'
             self.status = "İndiriliyor"
-            self._notify_status("İndiriliyor")
+            if changed:self._notify_status("İndiriliyor")
 
         status = d.get("status")
         if status == "downloading":
@@ -323,6 +325,9 @@ class VideoDownloadTask:
                 formats = info.get('requested_formats') or info.get('requested_downloads') or [info]
                 self._expected_total = sum(f.get('filesize') or f.get('filesize_approx') or 0 for f in formats)
                 self.total_bytes = self._expected_total
+                from file_tools import ensure_space
+                existing=sum(p.stat().st_size for p in staging.rglob('*') if p.is_file())
+                ensure_space(staging/'output',self._expected_total,3,existing)
                 self.meter.reset(self.downloaded_bytes)
                 info = ydl.process_ie_result(info, download=True)
                 if info:
@@ -343,6 +348,7 @@ class VideoDownloadTask:
                         (Path(self.output_name).stem + final_path.suffix) if self.output_name else final_path.name)
                     final_path.replace(destination)
                     final_path = destination
+                    self.target_filepath=str(final_path)
                     final_name = final_path.name
                     if self.metadata_callback:
                         cat = "Müzik" if self.is_audio_only else "Video"

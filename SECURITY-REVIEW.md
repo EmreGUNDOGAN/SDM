@@ -88,3 +88,36 @@ Native UI tests verified both themes, icons, HUD, cancel/close, capture decision
 queue start/pause, completion UI, five settings sections and native drag/drop registration.
 Chromium tests exercised normal capture/fallback and video/MP3 selections.
 The final test installer was installed under a separate application ID. Actual native messaging, YouTube MKV and MP3 downloads completed; uninstall passed and prior native-host registry values were restored. Existing SDM was not replaced. pip-audit reported zero known vulnerabilities including tkinterdnd2 0.6.4.
+
+
+## 0.3.2 responsiveness fix
+
+The 0.3.1 engine mutex/callback deadlock was reproduced in isolation.
+31 regression tests passed, including callback reentrancy, UI/motor lock inversion,
+cancel-before-start and worker-to-UI queue coalescing. A real Tk mainloop ran
+12 live cancel/remove cycles with heartbeat checks; the longest observed delay
+was 0.406 seconds. Existing theme, popup, queue and exact transfer checks passed.
+
+The packaged 0.3.2 installer also passed native messaging, actual YouTube MKV/MP3
+download and uninstall tests; the prior native-host registry entries were restored.
+
+
+## 0.4.0 validation
+
+41 motor/security/feature tests passed, covering recurrence across midnight, priorities,
+archive traversal/device/symlink rejection, disk checks, organization exclusions,
+active-only speed averages and conservative antivirus report interpretation.
+Real Tk views exercised six settings tabs, calendar/named queues, relax mode, mini HUD
+and graph. Twelve cancel/remove cycles kept the UI heartbeat responsive (worst observed
+delay 0.391 seconds). Exact parallel HTTP GUI transfer and completion passed.
+Real FFmpeg cut/MP3 conversion/cancellation preserved the source. An upstream RAR fixture
+extracted using bundled 7-Zip. A real YouTube subtitle selection produced an SRT file.
+Installed Kaspersky 21.26 scanned a harmless file; report counters were validated.
+Chromium capture/fallback and quality/MP3 tests passed. Extension hash validation, mismatched
+copy rejection and popup reload invocation passed; runtime.reload was mocked in that test
+because command-line/CDP-installed extensions are disabled by Chrome on actual reload.
+Normal user-loaded unpacked extension reload remains a browser-specific validation limit.
+No new Python dependency was added; pip-audit found no known vulnerabilities.
+Local media processing permits only file/pipe protocols; update requests never send
+legacy GitHub credentials. No setup was built locally for this release. GitHub Actions
+will build and publish the installer after its checks succeed.
