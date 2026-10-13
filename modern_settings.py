@@ -39,7 +39,7 @@ class SettingsDialog(tb.Toplevel):
         for key,label in [('auto_open_details','Yeni indirmede ilerleme penceresini aç'),('completion_popup','İndirme tamamlandı penceresini göster'),('notifications_enabled','Masaüstü bildirimi göster'),('clipboard_monitoring','Panodaki bağlantıları izle'),('start_minimized','Simge durumunda başlat')]:self.check(general,key,label)
         browser=self.tabs['Tarayıcı'];self.check(browser,'browser_capture','Tarayıcı indirmelerini yakala')
         tb.Label(browser,text='Hariç tutulan siteler · Her satıra bir alan adı').pack(anchor='w',pady=(15,5))
-        self.sites=tk.Text(browser,height=7,bg=parent.palette['panel'],fg=parent.palette['text'],insertbackground=parent.palette['text'],relief='flat',font=('Segoe UI',11))
+        self.sites=tk.Text(browser,height=7,bg=parent.palette['panel'],fg=parent.palette['text'],insertbackground=parent.palette['text'],relief='flat',font=('Inter',11))
         self.sites.pack(fill='x');self.sites.insert('1.0','\n'.join(self.settings.get('excluded_sites',['canva.com'])))
         self.extensions=tk.StringVar(value=', '.join(self.settings.get('capture_extensions',[])))
         tb.Label(browser,text='Yakalanacak uzantılar (zip, exe, mp4…) · Boş = tümü').pack(anchor='w',pady=(15,5))
@@ -59,7 +59,7 @@ class SettingsDialog(tb.Toplevel):
         tb.Button(tools,text='Arşiv klasörü seç',command=lambda:self.pick_extract()).pack(anchor='w',pady=10)
         tb.Label(tools,text='Virüs taraması tamamlandı penceresindeki “Virüs tarat” ile başlar.\nKaspersky bilgisayarda kurulu olmalıdır. Otomatik tarama yapılmaz.',wraplength=620).pack(anchor='w',pady=15)
         update=self.tabs['Güncelleme']
-        tb.Label(update,text=f'SDM {VERSION}',font=('Segoe UI',20,'bold')).pack(anchor='w')
+        tb.Label(update,text=f'SDM {VERSION}',font=('Inter',20,'bold')).pack(anchor='w')
         self.check(update,'update_check_on_start','Açılışta GitHub güncellemelerini kontrol et')
         tb.Label(update,text='Güncelleme kaynağı: EmreGUNDOGAN/SDM-Updates\nToken gerekmez. Setup SHA-256 ile doğrulanır; kurulum onayınla başlar.\nKaynak kodlar ayrı, özel SDM deposunda kalır.',wraplength=620).pack(anchor='w',pady=15)
         tb.Button(update,text='Önceden kaydedilmiş tokenı sil',bootstyle='secondary-outline',command=self.remove_token).pack(anchor='w')

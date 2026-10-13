@@ -42,7 +42,7 @@ class SpeedGraph(tb.Toplevel):
 class MiniHUD(tb.Toplevel):
     def __init__(self,parent):
         super().__init__(parent);self.parent=parent;self.title('SDM · Canlı indirmeler');self.geometry('350x170');self.attributes('-topmost',True)
-        self.label=tb.Label(self,padding=16,justify='left',font=('Segoe UI',11));self.label.pack(fill='both',expand=True)
+        self.label=tb.Label(self,padding=16,justify='left',font=('Inter',11));self.label.pack(fill='both',expand=True)
         tb.Button(self,text='SDM’yi göster',command=self.show_main).pack(pady=(0,10))
         self.protocol('WM_DELETE_WINDOW',self.close);self.tick()
     def show_main(self):self.parent.deiconify();self.parent.lift()

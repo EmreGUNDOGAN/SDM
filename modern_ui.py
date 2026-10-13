@@ -37,6 +37,11 @@ class ModernUI:
         for name,button in self.status_buttons.items():button.selected=name==value;button.draw()
         self.refresh_downloads()
 
+    def toggle_theme(self):
+        from utils import save_settings
+        settings=dict(self.settings,theme=f'{self.theme_family}_{"light" if self.ui_theme=="dark" else "dark"}')
+        if save_settings(settings):self.apply_settings(settings)
+
     def show_remove_menu(self):
         if not self._get_selected_ids():return
         p=self.palette
@@ -46,6 +51,7 @@ class ModernUI:
         menu.tk_popup(self.winfo_pointerx(),self.winfo_pointery())
 
     def paint_progress(self):
+        if hasattr(self,'data_view') and self.data_view.winfo_exists():self.data_view.schedule();return
         if not hasattr(self,'_progress_canvases') or not self.tree.winfo_exists():return
         alive=set(self.tree.get_children())
         for key in list(self._progress_canvases):
@@ -101,9 +107,10 @@ class ModernUI:
 
     def update_hud(self):
         videos=[v for v in self.video_tasks.values() if v.status in ('İndiriliyor','Dönüştürülüyor')]
-        self.hud_active.set(f'{self.engine.get_active_count()+len(videos)} indirme')
-        self.hud_speed.set(format_speed(self.engine.get_total_speed()+sum(v.current_speed for v in videos)))
-        self.hud_received.set(format_bytes(sum(self._session_received.values())))
+        self.hud_active.set(str(self.engine.get_active_count()+len(videos)))
+        local=lambda text:text.replace('.',',') if self.settings.get('language','tr')=='tr' else text
+        self.hud_speed.set(local(format_speed(self.engine.get_total_speed()+sum(v.current_speed for v in videos))))
+        self.hud_received.set(local(format_bytes(sum(self._session_received.values()))))
         enabled=capture_enabled(self.settings)
         self.capture_label.configure(text='Yakalama açık' if enabled else 'Yakalama kapalı',bootstyle='success-outline' if enabled else 'secondary-outline')
         mapping={'Belgeler':8,'Resimler':9,'Müzik':10,'Video':11,'Arşivler':12,'Programlar':13}

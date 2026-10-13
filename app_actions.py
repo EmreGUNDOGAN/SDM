@@ -19,6 +19,9 @@ class AppActions:
         TkinterDnD.require(self)
         self.tree.drop_target_register(DND_TEXT,DND_FILES)
         self.tree.dnd_bind('<<Drop>>',self.on_drop)
+        if hasattr(self,'data_view'):
+            self.data_view.drop_target_register(DND_TEXT,DND_FILES)
+            self.data_view.dnd_bind('<<Drop>>',self.on_drop)
 
     def on_drop(self,event):
         from utils import is_valid_url

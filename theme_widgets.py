@@ -10,18 +10,21 @@ class Button(tk.Canvas):
     def __init__(self,master,text='',command=None,palette=None,image=None,primary=False,quiet=False,width=None,**kwargs):
         self.p=palette;self.text=text;self.command=command;self.image=image;self.primary=primary;self.quiet=quiet
         self.selected=False;self.disabled=False;self.hover=False;self.pressed=False;self.focused=False
+        self._mouse_focus=False
         self.underline=False;self.side_accent=False
-        self.font=font.Font(family='Segoe UI',size=10)
-        width=width or self.font.measure(text)+(40 if image else 28)
-        super().__init__(master,width=width,height=38,bg=master.cget('bg'),highlightthickness=0,takefocus=1,cursor='hand2')
+        self.font=font.Font(family='Inter',size=-15)
+        from ui_surface import font as measure_font
+        width=width or round(measure_font(15,'Medium' if primary else 'Regular').getlength(text))+(52 if image else 28)
+        super().__init__(master,width=width,height=40,bg=master.cget('bg'),highlightthickness=0,takefocus=1,cursor='hand2')
         self.bind('<Configure>',lambda e:self.draw())
         self.bind('<Enter>',lambda e:self.state('hover',True));self.bind('<Leave>',lambda e:(self.state('hover',False),self.state('pressed',False)))
         self.bind('<ButtonPress-1>',self.press);self.bind('<ButtonRelease-1>',self.release)
-        self.bind('<FocusIn>',lambda e:self.state('focused',True));self.bind('<FocusOut>',lambda e:self.state('focused',False))
+        self.bind('<FocusIn>',lambda e:self.state('focused',not self._mouse_focus));self.bind('<FocusOut>',self.blur)
         self.bind('<space>',lambda e:self.invoke());self.bind('<Return>',lambda e:self.invoke());self.draw()
     def state(self,key,value):setattr(self,key,value);self.draw()
     def press(self,event):
-        if not self.disabled:self.focus_set();self.state('pressed',True)
+        if not self.disabled:self._mouse_focus=True;self.focus_set();self.state('focused',False);self.state('pressed',True)
+    def blur(self,event):self._mouse_focus=False;self.state('focused',False)
     def release(self,event):
         pressed=self.pressed;self.state('pressed',False)
         if pressed and 0<=event.x<self.winfo_width() and 0<=event.y<self.winfo_height():self.invoke()
@@ -36,46 +39,80 @@ class Button(tk.Canvas):
     config=configure
     def draw(self):
         if not self.winfo_exists():return
-        p=self.p;self.delete('all');w=max(self.winfo_width(),int(self.cget('width')));h=38
-        bg=p['accent'] if self.primary else p['selected'] if self.selected else p['hover'] if self.hover else self.cget('bg') if self.quiet else p['panel']
-        if self.primary and self.hover:
-            color=p['accent'].lstrip('#');bg='#'+''.join(f'{min(255,int(color[i:i+2],16)+18):02x}' for i in (0,2,4))
-        if self.disabled:bg=p['line']
-        if self.pressed:bg=p['selected'] if not self.primary else '#ce5527' if p['accent']=='#f26b2f' else '#0566c5'
-        fg=p['muted'] if self.disabled else '#ffffff' if self.primary else p['accent'] if self.selected else p['text']
-        rounded(self,1,1,w-2,h-2,fill=bg,outline=p['accent'] if self.focused or self.selected else '' if self.quiet else p['line'],width=1)
-        if self.selected and self.underline:
-            self.delete('all');self.create_rectangle(0,h-3,w,h,fill=p['accent'],outline='')
-        elif self.selected and self.side_accent:self.create_rectangle(1,5,4,h-5,fill=p['accent'],outline='')
-        if self.image:self.create_image(16,h/2,image=self.image,anchor='center')
-        self.create_text(30 if self.image else w/2,h/2+int(self.pressed),text=self.text,fill=fg,font=self.font,anchor='w' if self.image else 'center')
+        from ui_surface import surface,font as text_font,photo,icon
+        from PIL import Image,ImageDraw
+        p=self.p;w=max(1,self.winfo_width() if self.winfo_width()>1 else int(self.cget('width')));h=int(self.cget('height'))
+        bg=p['accent'] if self.primary else p['selected'] if self.selected and not self.underline else p['hover'] if self.hover else self.cget('bg') if self.quiet else p['control']
+        if self.primary and self.hover:bg=p['accent_hover']
+        if self.pressed:bg=p['accent_pressed'] if self.primary else p['selected']
+        if self.disabled:bg=self.cget('bg') if self.quiet else p['disabled_bg']
+        fg=p['disabled_text'] if self.disabled else '#ffffff' if self.primary else p['accent'] if self.selected else p['text']
+        if getattr(self,'status_badge',False):
+            enabled='kapalı' not in self.text
+            bg='#eaf9ee' if enabled else p['panel']
+            if p['bg'] in ('#111c2b','#17212b','#222529'):bg='#19382a' if enabled else p['panel']
+            fg='#55d67d' if p['bg'] in ('#111c2b','#17212b','#222529') else '#198849'
+        edge=p['accent'] if self.focused else p['line'] if not self.quiet and not self.primary else None
+        if getattr(self,'status_badge',False):edge='#285b3c' if p['bg'] in ('#111c2b','#17212b','#222529') else '#a6dfb3' 
+        image=surface(w,h,self.cget('bg'),bg,edge,7)
+        d=ImageDraw.Draw(image)
+        if self.selected and self.underline:d.rectangle((0,h-3,w,h),fill=p['accent'])
+        elif self.selected and self.side_accent:d.rectangle((0,7,3,h-7),fill=p['accent'])
+        name=getattr(self,'icon_name',None)
+        x=13 if self.quiet else 14
+        if name:
+            image.paste(icon(name,18,fg),(x,(h-18)//2),icon(name,18,fg));x+=26
+        elif self.image:x+=24
+        face=text_font(15,'Medium' if self.primary or self.selected else 'Regular')
+        dropdown=self.text.endswith(' ▾')
+        display_text=self.text.lstrip('● ')[:-2] if dropdown else self.text.lstrip('● ')
+        if not name and not self.image:x=round((w-face.getlength(display_text))/2)
+        if getattr(self,'status_badge',False):
+            d.ellipse((11,h//2-4,19,h//2+4),fill=fg);x=26
+        d.text((x,(h-15)//2-1),display_text,font=face,fill=fg,anchor='lt')
+        if dropdown:
+            glyph=icon('chevron',12,fg);image.paste(glyph,(w-20,(h-12)//2),glyph)
+        self._surface=photo(image,self);self.delete('all');self.create_image(0,0,image=self._surface,anchor='nw')
 
-class Search(tk.Frame):
+class Search(tk.Canvas):
     def __init__(self,master,var,palette,placeholder='İndirmelerde ara…'):
-        p=palette;super().__init__(master,bg=p['line'],padx=1,pady=1)
-        inner=tk.Frame(self,bg=p['panel']);inner.pack(fill='both',expand=True)
-        tk.Label(inner,text='⌕',bg=p['panel'],fg=p['muted'],font=('Segoe UI',16)).pack(side='left',padx=(10,4))
-        self.entry=tk.Entry(inner,textvariable=var,bg=p['panel'],fg=p['text'],insertbackground=p['text'],relief='flat',font=('Segoe UI',10),width=25)
-        self.entry.pack(side='left',fill='x',expand=True,pady=9)
-        self.placeholder=tk.Label(inner,text=placeholder,bg=p['panel'],fg=p['muted'],font=('Segoe UI',10),cursor='xterm')
-        self.placeholder.place(x=32,y=9);self.placeholder.bind('<Button-1>',lambda e:self.entry.focus_set())
-        self.clear=tk.Label(inner,text='×',bg=p['panel'],fg=p['muted'],cursor='hand2',font=('Segoe UI',13))
-        self.clear.bind('<Button-1>',lambda e:var.set(''))
-        def update(*args):
-            if var.get():self.placeholder.place_forget();self.clear.pack(side='right',padx=9)
-            else:self.clear.pack_forget();self.placeholder.place(x=32,y=9)
-        var.trace_add('write',update);update()
-        self.entry.bind('<FocusIn>',lambda e:self.configure(bg=p['accent']))
-        self.entry.bind('<FocusOut>',lambda e:self.configure(bg=p['line']))
+        self.p=palette;self.var=var;self.focused=False;self.placeholder_text=placeholder
+        super().__init__(master,bg=master.cget('bg'),height=40,width=320,highlightthickness=0)
+        self.entry=tk.Entry(self,textvariable=var,bg=palette['control'],fg=palette['text'],insertbackground=palette['text'],relief='flat',borderwidth=0,font=('Inter',-15))
+        self.entry.place(x=38,y=12,relwidth=1,width=-70,height=18)
+        from ui_surface import TextLabel
+        self.placeholder=TextLabel(self,text=placeholder,size=15,fg=palette['muted']);self.placeholder.configure(bg=palette['control'])
+        self.placeholder.bind('<Button-1>',lambda e:self.entry.focus_set())
+        self.bind('<Configure>',lambda e:self.draw());self.bind('<Button-1>',self.click)
+        self.entry.bind('<FocusIn>',lambda e:self.focus(True));self.entry.bind('<FocusOut>',lambda e:self.focus(False))
+        self._trace=var.trace_add('write',lambda *args:self.draw());self.bind('<Destroy>',self.dispose);self.draw()
+    def dispose(self,event):
+        if event.widget is self:
+            try:self.var.trace_remove('write',self._trace)
+            except tk.TclError:pass
+    def focus(self,value):self.focused=value;self.draw()
+    def click(self,event):
+        if self.var.get() and event.x>self.winfo_width()-32:self.var.set('')
+        self.entry.focus_set()
+    def draw(self):
+        from ui_surface import surface,photo,icon
+        p=self.p;w=max(40,self.winfo_width() if self.winfo_width()>1 else 320)
+        image=surface(w,40,self.cget('bg'),p['control'],p['accent'] if self.focused else p['line'],7)
+        glyph=icon('search',18,p['muted']);image.paste(glyph,(12,11),glyph)
+        if self.var.get():
+            self.placeholder.place_forget();glyph=icon('x',16,p['muted']);image.paste(glyph,(w-27,12),glyph)
+        else:self.placeholder.place(x=38,y=10)
+        self._image=photo(image,self);self.delete('surface');self.create_image(0,0,image=self._image,anchor='nw',tags='surface');self.tag_lower('surface')
 
 class Panel(tk.Canvas):
-    def __init__(self,master,palette):
-        self.p=palette
-        super().__init__(master,bg=master.cget('bg'),height=90,highlightthickness=0)
+    def __init__(self,master,palette,padding=12,radius=8):
+        self.p=palette;self.padding=padding;self.radius=radius
+        super().__init__(master,bg=master.cget('bg'),width=200,height=90,highlightthickness=0)
         self.content=tk.Frame(self,bg=palette['panel'])
-        self.window=self.create_window(12,10,window=self.content,anchor='nw')
+        self.window=self.create_window(padding,padding,window=self.content,anchor='nw')
         self.bind('<Configure>',self.resize)
     def resize(self,event):
-        self.delete('surface')
-        rounded(self,1,1,event.width-2,event.height-2,8,fill=self.p['panel'],outline=self.p['line'],tags='surface')
-        self.tag_lower('surface');self.itemconfigure(self.window,width=max(1,event.width-24),height=max(1,event.height-20))
+        from ui_surface import surface,photo
+        self._surface=photo(surface(max(1,event.width),max(1,event.height),self.cget('bg'),self.p['panel'],self.p['line'],self.radius),self)
+        self.delete('surface');self.create_image(0,0,image=self._surface,anchor='nw',tags='surface')
+        self.tag_lower('surface');self.itemconfigure(self.window,width=max(1,event.width-2*self.padding),height=max(1,event.height-2*self.padding))

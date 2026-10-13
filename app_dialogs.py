@@ -28,7 +28,7 @@ class CapturePrompt(tb.Toplevel):
         if video:name+= '.mp3' if request.get('audio') else '.mkv'
         self.name=tk.StringVar(value=name)
         self.folder=tk.StringVar(value=parent.settings['download_dir'])
-        tb.Label(frame,text='İndirmeyi nasıl başlatalım?',font=('Segoe UI',18,'bold')).pack(anchor='w',pady=(0,16))
+        tb.Label(frame,text='İndirmeyi nasıl başlatalım?',font=('Inter',18,'bold')).pack(anchor='w',pady=(0,16))
         tb.Label(frame,text='Dosya adı').pack(anchor='w');tb.Entry(frame,textvariable=self.name).pack(fill='x',pady=(5,10))
         group=tb.Frame(frame);group.pack(fill='x')
         tb.Entry(group,textvariable=self.folder).pack(side='left',fill='x',expand=True)
@@ -72,8 +72,8 @@ class CompletionDialog(tb.Toplevel):
     def __init__(self,parent,record):
         super().__init__(parent);self.parent=parent;self.record=record;self.title('SDM · İndirme tamamlandı');self.geometry('610x335')
         content=tb.Frame(self,padding=24);content.pack(fill='both',expand=True)
-        tb.Label(content,text='Dosyan hazır',font=('Segoe UI',20,'bold')).pack(anchor='w')
-        tb.Label(content,text=record['filename'],wraplength=455,font=('Segoe UI',12,'bold')).pack(anchor='w',pady=(18,6))
+        tb.Label(content,text='Dosyan hazır',font=('Inter',20,'bold')).pack(anchor='w')
+        tb.Label(content,text=record['filename'],wraplength=455,font=('Inter',12,'bold')).pack(anchor='w',pady=(18,6))
         tb.Label(content,text=format_bytes(record['filesize'])).pack(anchor='w')
         buttons=tb.Frame(content);buttons.pack(fill='x',pady=22)
         for label,target in [('Aç',record['filepath']),('Klasörü göster',str(Path(record['filepath']).parent))]:
@@ -106,9 +106,9 @@ class BatchDialog(tb.Toplevel):
     def __init__(self,parent,initial=''):
         super().__init__(parent);self.parent=parent;self.title('SDM · Yeni indirme');self.geometry('720x730')
         frame=tb.Frame(self,padding=22);frame.pack(fill='both',expand=True)
-        tb.Label(frame,text='Bağlantı ekle',font=('Segoe UI',20,'bold')).pack(anchor='w')
+        tb.Label(frame,text='Bağlantı ekle',font=('Inter',20,'bold')).pack(anchor='w')
         tb.Label(frame,text='Bir veya birden fazla bağlantıyı ayrı satırlara yapıştır.').pack(anchor='w',pady=10)
-        self.urls=tk.Text(frame,height=5,background=parent.palette['panel'],foreground=parent.palette['text'],insertbackground=parent.palette['text'],relief='flat',font=('Segoe UI',11))
+        self.urls=tk.Text(frame,height=5,background=parent.palette['panel'],foreground=parent.palette['text'],insertbackground=parent.palette['text'],relief='flat',font=('Inter',11))
         self.urls.pack(fill='x');self.urls.insert('1.0',initial)
         controls=tb.Frame(frame);controls.pack(fill='x',pady=10)
         self.video=tk.BooleanVar(value=False);tb.Checkbutton(controls,text='Video / ses',variable=self.video).pack(side='left')

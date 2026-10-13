@@ -12,7 +12,7 @@ def main():
     for theme in THEMES:
         app.apply_settings(dict(app.settings,theme=theme));app.update()
         app.select_category('Video');app.update();assert len(app.tree.get_children())>=1
-        if not theme.startswith('atlas'):assert app.status_buttons['Tümü'].selected
+        if theme.startswith('orbit'):assert app.status_buttons['Tümü'].selected
         app.search_var.set('no-such-file-9f8a');app.update()
         assert not app.tree.get_children() and app.empty_label.winfo_ismapped() and app.empty_clear.winfo_ismapped()
         assert all(b.disabled for b in app.action_buttons)
@@ -25,7 +25,7 @@ def main():
         button.event_generate('<ButtonPress-1>',x=10,y=10);app.update();assert button.pressed
         button.event_generate('<ButtonRelease-1>',x=10,y=10);app.update();assert not button.pressed and len(calls)==1
         button.command=original
-        if not theme.startswith('atlas'):
+        if theme.startswith('orbit'):
             app.select_status_filter('Tamamlananlar');assert not app.tree.get_children()
             app.select_status_filter('Tümü')
     dialog=SettingsDialog(app);app.update();dialog.vars['language'].set('en');app.update()

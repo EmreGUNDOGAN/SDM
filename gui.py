@@ -83,8 +83,8 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         self.style.configure('.',foreground='#111111')
         self.style.configure('TLabel',foreground='#111111',background='#ffffff')
         self.style.configure('TEntry',foreground='#111111',fieldbackground='#ffffff')
-        self.style.configure('SDM.Treeview',foreground='#111111',background='#ffffff',fieldbackground='#ffffff',rowheight=30,font=('Segoe UI',10))
-        self.style.configure('SDM.Treeview.Heading',foreground='#111111',background='#f4f6f8',font=('Segoe UI',10))
+        self.style.configure('SDM.Treeview',foreground='#111111',background='#ffffff',fieldbackground='#ffffff',rowheight=30,font=('Inter',10))
+        self.style.configure('SDM.Treeview.Heading',foreground='#111111',background='#f4f6f8',font=('Inter',10))
         self.style.map('SDM.Treeview',foreground=[('selected','#111111')],background=[('selected','#e6f1fc')])
         self.detail_windows = {}
         self.title("SDM")
@@ -176,7 +176,7 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
     def _start_status_updater(self):
         videos=[t for t in self.video_tasks.values() if t.status=='İndiriliyor']
         speed=self.engine.get_total_speed()+sum(t.current_speed for t in videos)
-        self.lbl_status_summary.configure(text=f'Aktif İndirmeler: {self.engine.get_active_count()+len(videos)} | Toplam Hız: {format_speed(speed)}')
+        self.lbl_status_summary.configure(text='Hazır' if not self.engine.get_active_count()+len(videos) else f'{self.engine.get_active_count()+len(videos)} aktif indirme')
         records={record['id']:record for record in self.db.get_all_downloads()}
         for item in self.tree.get_children():
             did=int(self.tree.item(item,'values')[0])
