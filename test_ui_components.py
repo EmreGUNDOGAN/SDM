@@ -2,6 +2,8 @@
 
 
 def main():
+    import os
+    import time
     import tkinter as tk
     from pathlib import Path
     from unittest.mock import patch
@@ -14,13 +16,51 @@ def main():
     from ui_indicators import (StatusBadge,FileTile,ProgressBar,ProgressRing,
                                SpeedChart,Sparkline,PartMap,Summary,SectionTimeline)
     from ui_overlays import PopupMenu,MessageDialog,Drawer,ToastManager,Tooltip
-    root=tk.Tk();root.geometry('1080x840+20+20');root.title('SDM 0.5.0 · Shared components')
+    root=tk.Tk()
+    # Windows can clamp a requested 840px window to a smaller runner desktop.
+    # Exercise the same fixture at a reduced height without hiding its controls.
+    height=min(int(os.environ.get('SDM_COMPONENT_VIEWPORT_HEIGHT','840')),root.winfo_screenheight()-100)
+    root.geometry(f'1080x{height}+20+20');root.title('SDM 0.5.0 · Shared components')
     register_fonts();errors=[]
     root.report_callback_exception=lambda *args:errors.append(args)
     Path('build').mkdir(exist_ok=True)
+
+    def wait_for(predicate,message):
+        """Wait for Tk's asynchronous mapping/focus; never skip an assertion."""
+        deadline=time.monotonic()+2
+        while True:
+            root.update()
+            if predicate():return
+            if time.monotonic()>=deadline:raise AssertionError(message)
+            time.sleep(.01)
+
     for theme in THEMES:
         p=palette(theme);root.configure(bg=p['bg'])
-        frame=tk.Frame(root,bg=p['bg']);frame.pack(fill='both',expand=True,padx=20,pady=16)
+        gallery=tk.Frame(root,bg=p['bg']);gallery.pack(fill='both',expand=True,padx=20,pady=16)
+        viewport=tk.Canvas(gallery,bg=p['bg'],highlightthickness=0)
+        vertical=tk.Scrollbar(gallery,orient='vertical',command=viewport.yview)
+        horizontal=tk.Scrollbar(gallery,orient='horizontal',command=viewport.xview)
+        viewport.configure(yscrollcommand=vertical.set,xscrollcommand=horizontal.set)
+        viewport.grid(row=0,column=0,sticky='nsew');vertical.grid(row=0,column=1,sticky='ns')
+        horizontal.grid(row=1,column=0,sticky='ew')
+        gallery.rowconfigure(0,weight=1);gallery.columnconfigure(0,weight=1)
+        frame=tk.Frame(viewport,bg=p['bg'])
+        content=viewport.create_window(0,0,window=frame,anchor='nw')
+        frame.bind('<Configure>',lambda e:viewport.configure(scrollregion=viewport.bbox('all')))
+        viewport.bind('<Configure>',lambda e:viewport.itemconfigure(content,width=max(e.width,frame.winfo_reqwidth())))
+
+        def reveal(widget):
+            wait_for(widget.winfo_ismapped,f'{theme}: target is not mapped')
+            top=widget.winfo_rooty()-frame.winfo_rooty()
+            bottom=top+widget.winfo_height()
+            visible_top=viewport.canvasy(0);visible_bottom=visible_top+viewport.winfo_height()
+            total=max(1,frame.winfo_height())
+            if bottom>visible_bottom:viewport.yview_moveto(max(0,bottom-viewport.winfo_height())/total)
+            elif top<visible_top:viewport.yview_moveto(top/total)
+            root.update()
+            assert widget.winfo_ismapped(),f'{theme}: target is not mapped'
+            assert viewport.winfo_rooty()<=widget.winfo_rooty(),f'{theme}: target above viewport'
+            assert widget.winfo_rooty()+widget.winfo_height()<=viewport.winfo_rooty()+viewport.winfo_height(),f'{theme}: target below viewport'
         TextLabel(frame,theme,size=20,weight='Bold',fg=p['text']).pack(anchor='w',pady=(0,12))
         bar=tk.Frame(frame,bg=p['bg']);bar.pack(fill='x')
         calls=[]
@@ -83,6 +123,7 @@ def main():
         radio.invoke();assert choice.get()=='1080p'
         select.configure(state='disabled');select.step(1);assert choice.get()=='1080p';select.configure(state='normal')
         entry.variable.set('https://example.invalid/file');entry.set_error('Geçersiz bağlantı');root.update()
+        wait_for(entry.error_label.winfo_ismapped,f'{theme}: inline error label is not mapped')
         assert entry.error_label.winfo_ismapped();entry.set_error('')
         multi.variable.set('first\nsecond');assert multi.entry.get('1.0','end-1c')=='first\nsecond'
         multi.entry.insert('end','\nthird');root.update();assert multi.variable.get().endswith('third')
@@ -90,7 +131,14 @@ def main():
         chips.remove('mp4');assert chips.values==['zip','mkv']
         timeline.set_range(20,90);timeline.choose_handle('end');timeline.nudge(-1)
         assert events[-1]==(20,89)
-        timeline.focus_set();root.update();timeline.event_generate('<Left>');root.update();assert timeline.end==88
+        reveal(timeline)
+        # Acquire the test top-level before dispatching a key. Desktop activation
+        # can change while the earlier form checks process native window events.
+        root.focus_force();timeline.focus_set()
+        wait_for(lambda:root.focus_get() is timeline,f'{theme}: timeline did not receive keyboard focus')
+        assert root.focus_get() is timeline,f'{theme}: keyboard focus is {root.focus_get()}'
+        timeline.event_generate('<Left>');root.update()
+        assert timeline.end==88 and events[-1]==(20,88)
         try:timeline.set_range(90,20);raise AssertionError('Invalid range accepted')
         except ValueError:pass
         actions=[];menu=PopupMenu(root,p)
@@ -132,13 +180,16 @@ def main():
         tip=Tooltip(button,'Yeni indirme',p);tip.show();root.update();tip.hide()
         # Freeze just the fixture spinner for a stable screenshot; no runtime setting changes.
         spinner.set(.5);root.update()
-        # Capture this HWND, not the desktop rectangle behind an occluded window.
-        preview=ImageGrab.grab(window=root.winfo_id())
-        assert preview.size==(root.winfo_width(),root.winfo_height()),preview.size
-        assert preview.getpixel((preview.width-10,10))==ImageColor.getrgb(p['bg'])
-        preview.save(Path('build')/f'phase1-components-{theme}.png')
+        # Capture both scroll positions from this HWND, never the desktop.
+        for suffix,at_top in (('',True),('-timeline',False)):
+            if at_top:viewport.yview_moveto(0);root.update()
+            else:reveal(timeline)
+            preview=ImageGrab.grab(window=root.winfo_id())
+            assert preview.size==(root.winfo_width(),root.winfo_height()),preview.size
+            assert preview.getpixel((preview.width-10,10))==ImageColor.getrgb(p['bg'])
+            preview.save(Path('build')/f'phase1-components-{theme}{suffix}.png')
         trace_before=len(boolean.trace_info());assert trace_before==2
-        frame.destroy();root.update();assert len(boolean.trace_info())==0
+        gallery.destroy();root.update();assert len(boolean.trace_info())==0
         assert spinner._timer is None
         assert not errors,errors
     root.destroy()

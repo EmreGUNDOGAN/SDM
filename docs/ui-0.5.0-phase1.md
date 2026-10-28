@@ -88,6 +88,28 @@ birleştirmez veya yayımlamaz. Başladığında bağlantı kullanıcıya verili
   `pip check` başarılı. Gerçek kullanıcı profili veya kurulu SDM değiştirilmedi.
 - Setup/portable üretilmedi, kurulum denenmedi ve yayın yapılmadı.
 
+### Verify sonrası küçük pencere düzeltmesi
+
+İlk Verify koşumunda kaynak kontrolleri ve 64 birim testi geçti; bileşen galerisinin
+zaman çizelgesi klavye testi başarısız oldu. Aynı hata 1080×640 yerel pencerede
+yeniden üretildi: 814 piksel yüksekliğindeki test içeriğinin en alt bileşeni
+pencereye sığmadığından Tk tarafından görünür hale getirilmiyordu.
+
+Galeri iki yönde kaydırılabilir hale getirildi. Klavye denemesi öncesinde hedef
+görünür alana getirilir; görünürlük ve gerçek odak sahipliği ayrıca doğrulanır.
+Tk'nin eşzamansız eşleme/odak işlemleri en çok iki saniye beklenir; hedef test
+penceresi klavye olayından önce etkinleştirilir. Süre sonunda beklenen durum
+oluşmamışsa test hata verir. Satır içi hata etiketinin görünürlüğü de aynı biçimde
+beklenir ve denetlenir.
+Sol ok tuşundan sonra bitişin 88 saniye olması ve değişiklik bildirimi denetlenmeye
+devam eder. Kontrol atlanmadı veya gevşetilmedi. Her palet için üst alan ve zaman
+çizelgesi olmak üzere iki ayrı HWND görüntüsü üretilir. Verify adımı 640 piksel
+yüksekliği açıkça seçerek bu koşulu sürekli sınar.
+
+Uygulama kodu değişmedi. Değişen bileşen testi küçük ve normal pencere boylarında
+yerelde doğrulandı; başarılı ve değişmeyen motor/birim testleri tekrarlanmadı.
+Test ve CI değiştiği için yeni commit için Verify yeniden gereklidir.
+
 ## Sonraki aşamalar
 
 2. Atlas ana pencere, tablo/panel, araç/durum çubuğu, menüler, bildirim bağlantıları.
