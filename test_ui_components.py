@@ -25,6 +25,11 @@ def main():
     register_fonts();errors=[]
     root.report_callback_exception=lambda *args:errors.append(args)
     Path('build').mkdir(exist_ok=True)
+    native_environment=dict(tcl=str(root.tk.call('info','patchlevel')),
+                            tk=str(root.tk.call('package','provide','Tk')),
+                            screen_depth=root.winfo_screendepth(),
+                            screen=(root.winfo_screenwidth(),root.winfo_screenheight()))
+    print('Native UI environment:',native_environment,flush=True)
 
     def wait_for(predicate,message):
         """Wait for Tk's asynchronous mapping/focus; never skip an assertion."""
@@ -40,7 +45,10 @@ def main():
     root.configure(bg='#ffffff');root.update()
     root.configure(bg='#0e1116')
     pending=capture_client(root)
-    assert pending.getpixel((pending.width-10,10))==(14,17,22)
+    pending_pixel=pending.getpixel((pending.width-10,10))
+    assert pending_pixel==(14,17,22),dict(actual=pending_pixel,expected=(14,17,22),
+                                         native=native_environment,size=pending.size,
+                                         widget_background=root.cget('bg'))
 
     for theme in THEMES:
         p=palette(theme);root.configure(bg=p['bg'])

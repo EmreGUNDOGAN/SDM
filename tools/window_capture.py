@@ -39,6 +39,7 @@ def capture_client(widget):
     gdi.SelectObject.argtypes=[wintypes.HDC,wintypes.HANDLE];gdi.SelectObject.restype=wintypes.HANDLE
     gdi.DeleteObject.argtypes=[wintypes.HANDLE];gdi.DeleteObject.restype=wintypes.BOOL
     gdi.DeleteDC.argtypes=[wintypes.HDC];gdi.DeleteDC.restype=wintypes.BOOL
+    gdi.GdiFlush.argtypes=[];gdi.GdiFlush.restype=wintypes.BOOL
 
     if widget.winfo_toplevel() is not widget:
         raise ValueError('Capture target must be a Tk top-level window')
@@ -71,6 +72,9 @@ def capture_client(widget):
         if not user.RedrawWindow(hwnd,None,None,0x0001|0x0004|0x0080|0x0100):
             raise ctypes.WinError(ctypes.get_last_error())
         if not user.PrintWindow(hwnd,memory,1):raise ctypes.WinError(ctypes.get_last_error())
+        # CreateDIBSection exposes CPU memory while GDI may still batch drawing.
+        # Its documented contract requires completion before ANY pointer access.
+        if not gdi.GdiFlush():raise OSError('GDI draw completion failed before bitmap read')
         return Image.frombytes('RGB',(width,height),ctypes.string_at(pixels,width*height*4),'raw','BGRX')
     finally:
         if previous:gdi.SelectObject(memory,previous)

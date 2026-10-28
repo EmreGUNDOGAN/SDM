@@ -144,6 +144,33 @@ Uygulama kodu yine değişmedi. Değişen yakalama/bileşen/rapor kontrolleri ye
 çalıştırıldı; başarılı ve değişmeyen motor/birim/UI scriptleri tekrarlanmadı.
 Test/CI farkı ve yeni yardımcılar manifestte yer alır; yeni commit Verify gerektirir.
 
+### DIB belleğini okumadan önce çizim tamamlanması
+
+Üçüncü Verify'da 67 birim testi ve kaynak kontrolleri geçti. Yerel UI adımı,
+beyazdan koyuya geçişin ilk piksel kontrolünde durdu. Önceki yakalama değişikliği
+bu CI hatasını gidermemiştir; yerel başarı CI başarısı olarak kabul edilmez.
+
+Yakalama yardımcısında `CreateDIBSection` ile alınan bellek, GDI çizimi
+tamamlanmadan CPU tarafından okunuyordu. [Microsoft'un sözleşmesi](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-createdibsection),
+bu erişimden önce çizimin `GdiFlush` ile tamamlanmasını açıkça ister.
+Okuma artık bu çağrıdan sonra yapılır; tamamlanma hatası yakalama hatasıdır.
+Piksel beklentileri ve örtülü pencere kontrolleri aynen korunur.
+
+Üç yeni regresyon testi, gecikmiş çizimi ancak flush sırasında belleğe aktaran
+sahte Windows arka ucunu kullanır. Eski kodda güncel piksel ve hata aktarımı
+testleri başarısız oldu; düzeltmeden sonra üçü de geçti. Kaynakların hata halinde
+bırakılması ve başka sürece ait pencerenin reddi de denetlenir.
+Önizleme raporunun üç regresyon testi de yeniden geçti. CI komutuna yeni test
+modülü eklendi. Başarısız piksel kontrolü artık gerçek/beklenen rengi, Tk sürümünü
+ve ekran derinliğini de bildirir.
+
+640 piksel yükseklikte dört palet, sekiz gerçek pencere görüntüsü ve zorunlu
+önizleme raporu geçici sahte profilde yerelde geçti. Değişmeyen motor testleri
+ve diğer UI scriptleri yeniden çalıştırılmadı. Bu düzeltmenin CI üzerindeki etkisi
+yeni Verify ile doğrulanacaktır; önceki başarılı adımlar yeni commit için
+tamamlanmış doğrulama sayılmaz. Uygulama kodu değişmedi; test/CI değişiklikleri
+ve regresyon dosyası manifest kapsamındadır.
+
 ## Sonraki aşamalar
 
 2. Atlas ana pencere, tablo/panel, araç/durum çubuğu, menüler, bildirim bağlantıları.
