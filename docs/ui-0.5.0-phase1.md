@@ -110,6 +110,40 @@ Uygulama kodu değişmedi. Değişen bileşen testi küçük ve normal pencere b
 yerelde doğrulandı; başarılı ve değişmeyen motor/birim testleri tekrarlanmadı.
 Test ve CI değiştiği için yeni commit için Verify yeniden gereklidir.
 
+### Verify sonrası yerel pencere yakalaması ve kota düzeltmesi
+
+İkinci Verify koşumunda kaynak kontrolleri ve 64 birim testi yeniden geçti.
+Zaman çizelgesi kontrolü de geçti; sonraki koyu tema görüntüsünde beklenen zemin
+rengi bulunmadı. Önizleme yüklemesi ayrıca GitHub artifact depolama kotası dolu
+olduğu için başarısız oldu. Bunlar iki ayrı hatadır.
+
+Pillow'un HWND yakalaması [kaynak kodunda](https://github.com/python-pillow/Pillow/blob/main/src/display.c)
+pencere DC'sinden `BitBlt` ile kopyalama yapar. Yerelde bekleyen tema boyaması
+koşulu yeniden üretildi: beyazdan koyuya ayarlanan pencere için bu kopya beyaz
+piksel döndürürken, pencerenin kendisine güncel çizimi yaptırmak koyu piksel verdi.
+
+`tools/window_capture.py`, yalnız test sürecine ait Tk üst penceresini kabul eder.
+Tk'nin iç HWND'si yerine `wm frame` ile bulunan yerel üst pencere kullanılır;
+istemci alanı, [RedrawWindow](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-redrawwindow)
+ve [PrintWindow](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-printwindow)
+ile senkron çizdirilir. Beklenen palet yakalama yardımcısına verilmez; çıktı
+bitmapine beklenen renkler sonradan boyanmaz. GDI nesneleri işlem sonunda bırakılır.
+
+Önizlemeler, test penceresinin üstü tamamen başka bir sahte pencereyle örtülüyken
+alınır. Önceki zemin kontrolü korunur; ayrıca çizilmiş vurgu rengi işareti aranır.
+Bekleyen tema boyaması için ayrı bir yerel yakalama kontrolü de vardır.
+640 ve 840 piksel yükseklikte dört palet ve iki kaydırma konumu yerelde geçti.
+
+`tools/report_component_previews.py`, sekiz PNG'nin varlığını, okunabilirliğini,
+zemin/işaret renklerini ve gerçek dosya SHA-256 değerlerini zorunlu olarak denetler.
+Eksik, bozuk, eski paletli veya boş görüntüler üç yeni regresyon testiyle reddedilir.
+Sonuçlar artifact yüklemesi yerine GitHub iş özetine yazılır; mevcut kullanıcının
+artifact dosyaları silinmez. Başarısız kontrolleri yok sayan bir seçenek eklenmedi.
+
+Uygulama kodu yine değişmedi. Değişen yakalama/bileşen/rapor kontrolleri yerelde
+çalıştırıldı; başarılı ve değişmeyen motor/birim/UI scriptleri tekrarlanmadı.
+Test/CI farkı ve yeni yardımcılar manifestte yer alır; yeni commit Verify gerektirir.
+
 ## Sonraki aşamalar
 
 2. Atlas ana pencere, tablo/panel, araç/durum çubuğu, menüler, bildirim bağlantıları.

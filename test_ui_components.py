@@ -7,7 +7,8 @@ def main():
     import tkinter as tk
     from pathlib import Path
     from unittest.mock import patch
-    from PIL import ImageGrab,ImageColor
+    from PIL import ImageColor
+    from tools.window_capture import capture_client
     from theme_catalog import THEMES,palette
     from theme_widgets import Button,Panel
     from ui_surface import register_fonts,TextLabel
@@ -34,8 +35,17 @@ def main():
             if time.monotonic()>=deadline:raise AssertionError(message)
             time.sleep(.01)
 
+    # A pending dark-theme paint used to leave white pixels in a window-DC grab.
+    # Capture must ask the owning top-level to render the current palette now.
+    root.configure(bg='#ffffff');root.update()
+    root.configure(bg='#0e1116')
+    pending=capture_client(root)
+    assert pending.getpixel((pending.width-10,10))==(14,17,22)
+
     for theme in THEMES:
         p=palette(theme);root.configure(bg=p['bg'])
+        marker=tk.Canvas(root,width=8,height=8,bg=p['accent'],highlightthickness=0)
+        marker.place(x=0,y=0)
         gallery=tk.Frame(root,bg=p['bg']);gallery.pack(fill='both',expand=True,padx=20,pady=16)
         viewport=tk.Canvas(gallery,bg=p['bg'],highlightthickness=0)
         vertical=tk.Scrollbar(gallery,orient='vertical',command=viewport.yview)
@@ -180,16 +190,23 @@ def main():
         tip=Tooltip(button,'Yeni indirme',p);tip.show();root.update();tip.hide()
         # Freeze just the fixture spinner for a stable screenshot; no runtime setting changes.
         spinner.set(.5);root.update()
-        # Capture both scroll positions from this HWND, never the desktop.
+        # Capture both scroll positions while a synthetic topmost window fully
+        # covers the fixture. The owner renders the requested window directly.
         for suffix,at_top in (('',True),('-timeline',False)):
             if at_top:viewport.yview_moveto(0);root.update()
             else:reveal(timeline)
-            preview=ImageGrab.grab(window=root.winfo_id())
+            cover=tk.Toplevel(root);cover.overrideredirect(True);cover.configure(bg='#ff00ff')
+            cover.geometry(f'{root.winfo_width()}x{root.winfo_height()}+{root.winfo_rootx()}+{root.winfo_rooty()}')
+            cover.attributes('-topmost',True);cover.lift();root.update()
+            try:preview=capture_client(root)
+            finally:cover.destroy();root.update()
             assert preview.size==(root.winfo_width(),root.winfo_height()),preview.size
-            assert preview.getpixel((preview.width-10,10))==ImageColor.getrgb(p['bg'])
+            actual_bg=preview.getpixel((preview.width-10,10));actual_accent=preview.getpixel((4,4))
+            assert actual_bg==ImageColor.getrgb(p['bg']),(theme,suffix,'background',actual_bg,p['bg'])
+            assert actual_accent==ImageColor.getrgb(p['accent']),(theme,suffix,'accent',actual_accent,p['accent'])
             preview.save(Path('build')/f'phase1-components-{theme}{suffix}.png')
         trace_before=len(boolean.trace_info());assert trace_before==2
-        gallery.destroy();root.update();assert len(boolean.trace_info())==0
+        marker.destroy();gallery.destroy();root.update();assert len(boolean.trace_info())==0
         assert spinner._timer is None
         assert not errors,errors
     root.destroy()
