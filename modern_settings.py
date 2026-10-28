@@ -1,6 +1,7 @@
 import threading
 import tkinter as tk
-from tkinter import filedialog,messagebox
+from tkinter import filedialog
+from ui_messages import messagebox
 from datetime import datetime
 import ttkbootstrap as tb
 from app_version import VERSION

@@ -27,8 +27,8 @@ Bu dosya SDM deposundaki bütün çalışmalar için geçerli kural kitabıdır.
 - PR başlığı ve açıklaması son kapsamı ve sürümü anlatır.
 
 ## GitHub Verify
-- Verify başlayınca bağlantı kullanıcıya verilir ve çalışma durdurulur. Testin bitmesi izlenmez; setup, birleştirme veya yayın aşamasına geçilmez. Kullanıcı "bitti/devam" diyene kadar beklenir.
-- Kullanıcı devam dediğinde Verify sonucu ve commit kontrol edilir. Başarısızsa hata çözülür; başarılı olmayan kaynak yayımlanmaz. Setup, doğrulanmış uygulama kodundan üretilir.
+- Kullanıcının son talimatıyla kalan 0.5.0 aşamalarında Verify başlayınca bağlantı verilir ve sonuç yardımcı tarafından takip edilir; bu noktada kullanıcıdan "bitti/devam" beklenmez. Başarısız koşumlar araştırılıp düzeltilir ve yeniden doğrulanır.
+- Her Verify sonucu ve doğruladığı commit kontrol edilir. Başarılı olmayan kaynak yayımlanmaz. Setup, doğrulanmış uygulama kodundan üretilir. Birleştirme ve yayın hakkındaki ayrı kurallar korunur.
 - Verify sonrasında uygulama/test/CI kodu değişirse önceki başarı yeterli sayılmaz. Yalnız son doğrulama belgeleri ve manifest değişmişse bu fark açıkça kaydedilir; aynı uygulama için tam test gereksiz yere yeniden başlatılmaz.
 
 ## Windows paketi doğrulaması
@@ -59,13 +59,13 @@ Aşağıdakiler kuralların bu depoda nasıl uygulanacağını açıklar; kurall
 - **Testler.** Motor ve güvenlik: `python -m unittest test_advanced_features test_responsiveness test_features test_download_safety test_progress_meter test_browser_files test_browser_bridge test_transfer_details test_video_access test_theme_section`. Arayüz: `test_ui_031.py`, `test_ui_themes.py`, `test_gui_transfer.py`, `test_cancel_remove_ui.py`, `test_section_live.py`, `test_update_handoff_live.py` (her biri kendi `SDM_DATA_DIR` klasörüyle). Eklenti: `test_*.cjs`.
 - **Manifest.** Kullanıcının onayladığı SOURCE-MANIFEST.sha256 ve tools/source_manifest.py biçimi uygulanır; ayrıntılar aşağıdadır.
 - **Gizli bilgi taraması.** Gönderilecek farkta token, parola, eklenti bağlantı anahtarı, kullanıcı veritabanı (`*.db`), `~/.sdm` içeriği veya kişisel yol bulunmadığı kontrol edilir.
-- **İlerleme.** Uzun işlerde yaklaşık her %10'da kullanıcıya kısa durum bildirilir; GitHub Verify başladığında bağlantı verilip durulur.
+- **İlerleme.** Uzun işlerde yaklaşık her %10'da kullanıcıya kısa durum bildirilir; GitHub Verify bağlantısı ve sonucu paylaşılır, kalan 0.5.0 aşamalarında onay beklemek için durulmaz.
 
 
 ## Onaylanan 0.5.0 arayüz yenilemesi
 
-- Kullanıcı 0.5.0 hedefini, 1. aşamayı ve ardından 2. aşamayı (Atlas ana pencere: A01/A02/A18, sağ panel ve köşe bildirimleri) onayladı. Model/çaba seçimi: GPT-6.1 Sol / high. Aynı kapsam içinde tekrar onay istenmez; kapsam veya çaba artışı yeniden onay gerektirir.
-- Altı aşama: (1) temel/token/bileşen/göç/manifest, (2) Atlas ana pencere, (3) Atlas pencereleri, (4) ayarlar, (5) Odak Akışı, (6) temizlik ve son uyumluluk kontrolleri. Her aşama ayrı dal ve PR. Bir aşamanın onayı sonraki aşamaya başlama onayı sayılmaz.
+- Kullanıcı 0.5.0 hedefini ve altı aşamanın tamamlanmasını onayladı. Son talimat: kalan 3–6. aşamalar bitirilir ve Verify sonuçları yardımcı tarafından takip edilir. Model/çaba seçimi GPT-6.1 Sol / high olarak sürer; çaba artışı yeniden onay gerektirir.
+- Altı aşama: (1) temel/token/bileşen/göç/manifest, (2) Atlas ana pencere, (3) Atlas pencereleri, (4) ayarlar, (5) Odak Akışı, (6) temizlik ve son uyumluluk kontrolleri. Her aşama ayrı dal ve PR. Kullanıcı kalan aşamaların tümünü ayrıca onayladığından aşama geçişlerinde yeniden onay beklenmez.
 - Varsayılan yeni kurulum: design=atlas, color_mode=light. Tasarım ve renk modu bağımsızdır; system tercihi saklanır, başlangıçta Windows uygulama paleti okunur.
 - Eski atlas/orbit/nova açık ve koyu tema anahtarları Atlas'ın aynı renk moduna göç eder. Eski yedekler de aynı dönüşümü kullanır.
 - Atlas'ta Masaüstü HUD, alt menüde Araçlar ile Ayarlar arasında bulunur.

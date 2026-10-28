@@ -27,6 +27,7 @@ class Button(tk.Canvas):
         self.radius=RADII[palette.get('design','atlas')]['button']
         self.underline=False;self.side_accent=False
         self.font=font.Font(family='Inter',size=-15)
+        self._auto_width=width is None
         from ui_surface import font as measure_font
         width=width or round(measure_font(13,'SemiBold' if primary else 'Regular').getlength(text))+(52 if image else 28)
         height=kwargs.pop('height',SIZES['button'])
@@ -51,7 +52,10 @@ class Button(tk.Canvas):
     def invoke(self):
         if not self.disabled and self.command:self.command()
     def configure(self,cnf=None,**kw):
-        for key in ('text','image'):
+        if 'text' in kw and 'width' not in kw and self._auto_width:
+            from ui_surface import font as measure_font
+            kw['width']=round(measure_font(13,'SemiBold' if self.primary else 'Regular').getlength(kw['text']))+(52 if self.image or getattr(self,'icon_name',None) else 28)
+        for key in ('text','image','command'):
             if key in kw:setattr(self,key,kw.pop(key))
         if 'state' in kw:
             self.disabled=kw.pop('state')=='disabled'

@@ -118,7 +118,7 @@ class ModernUI:
         workspace=getattr(self,'_atlas_workspace',None)
         if workspace and workspace.alive:workspace.update_hud(self.engine.get_total_speed()+sum(v.current_speed for v in videos))
 
-    def notify(self,title,message,action=None):
+    def notify(self,title,message,action=None,tone='info'):
         workspace=getattr(self,'_atlas_workspace',None)
-        if workspace and workspace.alive:return workspace.toast_manager.show(title,message,action)
+        if workspace and workspace.alive:return workspace.toast_manager.show(title,message,action,tone=tone)
         return __import__('tkinter').messagebox.showinfo(title,message,parent=self)

@@ -12,7 +12,8 @@ import sys
 import threading
 import tkinter as tk
 from PIL import ImageTk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog
+from ui_messages import messagebox
 from typing import Any, Dict, List, Optional
 
 try:
@@ -474,11 +475,13 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         if not ids:
             return
 
-        msg = "Seçilen indirmeleri kaldırmak istiyor musunuz?"
+        msg = f"{len(ids)} indirme listeden kaldırılsın mı? Dosyalar diskte kalır."
         if delete_file:
-            msg = "Seçilen indirmeler ve bilgisayarınızdaki dosyaları kalıcı olarak silinecek. Emin misiniz?"
+            msg = f"{len(ids)} indirme ve dosyası kalıcı olarak silinsin mi? Bu işlem geri alınamaz."
 
-        if not messagebox.askyesno("Onayla", msg):
+        listing=[record['filename']+' · '+format_bytes(record['filesize']) for did in ids if (record:=self.db.get_download(did))]
+        if not messagebox.askyesno("Dosyaları sil" if delete_file else "Listeden kaldır", msg,parent=self,items=listing,
+                affirmative='Dosyaları sil' if delete_file else 'Listeden kaldır',danger=delete_file):
             return
 
         pending = []

@@ -3,10 +3,12 @@ from collections import deque
 from datetime import datetime
 from pathlib import Path
 import tkinter as tk
-from tkinter import filedialog,messagebox
+from tkinter import filedialog
+from ui_messages import messagebox
 import threading
 import ttkbootstrap as tb
 from utils import format_speed,format_bytes,format_eta
+from ui_dialog import AppWindow
 
 class SpeedHistory:
     def __init__(self):self.points=deque(maxlen=1200);self.last=None;self.bytes=0;self.active_seconds=0
@@ -20,77 +22,24 @@ class SpeedHistory:
     @property
     def average(self):return self.bytes/self.active_seconds if self.active_seconds else 0
 
-class SpeedGraph(tb.Toplevel):
-    def __init__(self,parent,did):
-        super().__init__(parent);self.parent=parent;self.did=did;self.title('SDM · Hız grafiği');self.geometry('700x340')
-        self.canvas=tk.Canvas(self,bg=parent.palette['panel'],highlightthickness=0);self.canvas.pack(fill='both',expand=True,padx=20,pady=20)
-        self.label=tb.Label(self);self.label.pack(pady=(0,15));self.tick()
-    def tick(self):
-        if not self.winfo_exists():return
-        history=self.parent.speed_history.get(self.did)
-        self.canvas.delete('all')
-        if history and len(history.points)>1:
-            points=list(history.points)[-300:];width=max(1,self.canvas.winfo_width()-30);height=max(1,self.canvas.winfo_height()-35)
-            peak=max(1,max(value for _,value in points));first=points[0][0];span=max(1,points[-1][0]-first)
-            coords=[c for stamp,value in points for c in (15+(stamp-first)/span*width,15+height-value/peak*height)]
-            self.canvas.create_line(*coords,fill='#3478f4',width=2)
-            self.canvas.create_text(15,8,text=format_speed(peak),fill=self.parent.palette['text'],anchor='nw')
-            self.label.configure(text=f'Aktif aktarım ortalaması: {format_speed(history.average)} · Son 5 dakika · Duraklamalarda hız 0')
-        else:self.label.configure(text='Gerçek aktarım örnekleri bekleniyor…')
-        self.after(1000,self.tick)
 
-class MiniHUD(tb.Toplevel):
-    def __init__(self,parent):
-        super().__init__(parent);self.parent=parent;self.title('SDM · Canlı indirmeler');self.geometry('350x170');self.attributes('-topmost',True)
-        self.label=tb.Label(self,padding=16,justify='left',font=('Inter',11));self.label.pack(fill='both',expand=True)
-        tb.Button(self,text='SDM’yi göster',command=self.show_main).pack(pady=(0,10))
-        self.protocol('WM_DELETE_WINDOW',self.close);self.tick()
-    def show_main(self):self.parent.deiconify();self.parent.lift()
-    def close(self):self.parent._mini_hud=None;self.destroy()
-    def tick(self):
-        if not self.winfo_exists():return
-        records=[r for r in self.parent.db.get_all_downloads() if r['status'] in ('İndiriliyor','Birleştiriliyor','Dönüştürülüyor')]
-        speed=self.parent.engine.get_total_speed()+sum(v.current_speed for v in list(self.parent.video_tasks.values()) if v.status=='İndiriliyor')
-        total=sum(r['filesize'] for r in records);received=sum(r['downloaded_bytes'] for r in records)
-        percent=f'{min(100,received/total*100):.1f}%' if total and all(r['filesize'] for r in records) else 'Boyut bilinmiyor'
-        eta=format_eta(max(0,total-received)/speed) if speed and total and all(r['filesize'] for r in records) else '—'
-        self.label.configure(text=f'{len(records)} aktif indirme   ·   {format_speed(speed)}\n{percent}   ·   Kalan süre: {eta}\nİndirilen: {format_bytes(received)}')
-        self.after(1000,self.tick)
 
-class ToolsDialog(tb.Toplevel):
+class ToolsDialog(AppWindow):
     def __init__(self,parent):
-        super().__init__(parent);self.parent=parent;self.title('SDM · İndirme araçları');self.geometry('860x720');self.minsize(800,650);self.cancel=threading.Event();self.busy=False
-        frame=tb.Frame(self,padding=20);frame.pack(fill='both',expand=True)
-        self.mode=tk.StringVar(value='Biçim dönüştürme')
-        from theme_widgets import Button
-        navigation=tk.Frame(frame,bg=parent.palette['bg']);navigation.pack(fill='x',pady=(0,16))
-        self.mode_buttons={}
-        for name,short in [('Biçim dönüştürme','Dönüştürme'),('Video / ses kesme','Kesme'),('Bağlantı kontrolü','Bağlantılar'),('Klasörü düzenleme','Klasörler'),('Altyazı indirme','Altyazı')]:
-            button=Button(navigation,short,lambda value=name:self.mode.set(value),palette=parent.palette,quiet=True)
-            button.pack(side='left',padx=3);self.mode_buttons[name]=button
-        self.input=tk.StringVar();self.output=tk.StringVar();self.start=tk.StringVar(value='00:00');self.end=tk.StringVar(value='00:30');self.format=tk.StringVar(value='mp4')
-        for label,var in [('Dosya / klasör / video bağlantısı',self.input),('Çıktı klasörü',self.output)]:
-            tb.Label(frame,text=label).pack(anchor='w',pady=(12,4));tb.Entry(frame,textvariable=var).pack(fill='x')
-        browse=tb.Frame(frame);browse.pack(fill='x',pady=8)
-        for label,command in [('Dosya seç',self.browse_file),('Klasör seç',self.browse_folder),('Çıktı klasörü seç',self.browse_output)]:tb.Button(browse,text=label,command=command,bootstyle='secondary-outline').pack(side='left',padx=(0,7))
-        row=tb.Frame(frame);row.pack(fill='x');tb.Entry(row,textvariable=self.start,width=12).pack(side='left');tb.Label(row,text=' → ').pack(side='left');tb.Entry(row,textvariable=self.end,width=12).pack(side='left')
-        tb.Combobox(row,textvariable=self.format,values=['mp4','mkv','mp3','m4a','wav','srt','vtt'],state='readonly',width=8).pack(side='right')
-        self.help_label=tb.Label(frame,text='',wraplength=740);self.help_label.pack(anchor='w',pady=10)
-        self.list=tk.Text(frame,height=7,bg=parent.palette['panel'],fg=parent.palette['text'],insertbackground=parent.palette['text']);self.list.pack(fill='both',expand=True)
-        self.mode.trace_add('write',lambda *args:self.update_mode())
-        self.update_mode()
-        self.progress=tb.Progressbar(frame,maximum=100);self.progress.pack(fill='x',pady=8)
-        self.status=tk.StringVar(value='');tb.Label(frame,textvariable=self.status,wraplength=610).pack(anchor='w')
-        controls=tb.Frame(frame);controls.pack(fill='x',pady=8)
-        self.run_button=tb.Button(controls,text='Çalıştır / önizle',command=self.run);self.run_button.pack(side='left')
-        tb.Button(controls,text='İşlemi iptal et',command=self.cancel.set,bootstyle='secondary-outline').pack(side='right')
-        self.protocol('WM_DELETE_WINDOW',self.close)
-        from tkinterdnd2 import DND_FILES
-        self.drop_target_register(DND_FILES);self.dnd_bind('<<Drop>>',lambda e:self.input.set(self.tk.splitlist(e.data)[0]))
+        super().__init__(parent,'Araçlar',900,760)
+        from feature_windows import build_tools
+        build_tools(self,parent)
     def update_mode(self):
         for name,button in self.mode_buttons.items():button.selected=name==self.mode.get();button.draw()
-        if self.mode.get()=='Bağlantı kontrolü':self.list.pack(fill='both',expand=True)
+        if self.mode.get() in ('Bağlantı kontrolü','Klasörü düzenleme','Altyazı indirme'):self.list.pack(fill='both',expand=True)
         else:self.list.pack_forget()
+        if self.mode.get()=='Video / ses kesme':self.cut_fields.pack(fill='x')
+        else:self.cut_fields.pack_forget()
+        if self.mode.get() in ('Biçim dönüştürme','Video / ses kesme'):
+            self.format_host.pack(fill='x',pady=12)
+            if self.format.get() not in ('mp4','mkv','mp3','m4a','wav'):self.format.set('mp4')
+        else:self.format_host.pack_forget()
+        self.run_button.configure(command=self.run,text={'Biçim dönüştürme':'Dönüştür','Video / ses kesme':'Kes','Bağlantı kontrolü':'Kontrol et','Klasörü düzenleme':'Önizle ve taşı','Altyazı indirme':'Altyazıyı indir'}[self.mode.get()])
         self.help_label.configure(text={
             'Video / ses kesme':'İndirilmiş bir medya dosyası seçin. Başlangıç → bitiş aralığı yeni dosyaya kaydedilir; kaynak korunur.',
             'Biçim dönüştürme':'Bir video / ses dosyası seçin ve çıktı biçimini belirleyin. Yeni dosya oluşturulur; kaynak korunur.',
@@ -160,21 +109,28 @@ class ToolsDialog(tb.Toplevel):
                 self.parent.post_ui(self.parent.refresh_downloads,key='refresh')
             threading.Thread(target=work,daemon=True).start()
     def choose_subtitles(self,url,folder,fmt,choices):
-        self.finished('Dil seç.');self.list.delete('1.0','end')
+        from ui_controls import Select
+        from ui_dialog import label
+        self.finished('Dil ve altyazı biçimini seç.')
+        for child in self.subtitle_host.winfo_children():child.destroy()
         if not choices:return self.finished('Bu videoda erişilebilir altyazı bulunamadı.')
-        window=tb.Toplevel(self);window.title('Altyazı dili');window.geometry('390x240')
-        labels={f'{language}'+(' · otomatik' if automatic else ' · yayıncı'): (language,automatic) for language,automatic in choices}
-        selected=tk.StringVar(value=next(iter(labels)))
-        tb.Combobox(window,textvariable=selected,values=list(labels),state='readonly',width=40).pack(padx=20,pady=30)
-        output=tk.StringVar(value=fmt if fmt in ('srt','vtt') else 'srt');tb.Combobox(window,textvariable=output,values=['srt','vtt'],state='readonly').pack()
+        labels={language+(' (otomatik)' if automatic else ' (yayıncı)'):(language,automatic) for language,automatic in choices}
+        selected=tk.StringVar(self,next(iter(labels)))
+        output=tk.StringVar(self,fmt if fmt in ('srt','vtt') else 'srt')
+        Select(self.subtitle_host,labels.keys(),selected,palette=self.p,width=260).pack(fill='x',pady=8)
+        Select(self.subtitle_host,{'srt':'SRT','vtt':'VTT'},output,palette=self.p,width=120).pack(anchor='w')
         def download():
-            language,automatic=labels[selected.get()];extension=output.get();window.destroy();self.busy=True;self.run_button.configure(state='disabled');self.status.set('Altyazı indiriliyor…')
+            language,automatic=labels[selected.get()];extension=output.get()
+            target_folder=self.output.get().strip() or folder
+            self.busy=True;self.run_button.configure(state='disabled');self.status.set('Altyazı indiriliyor…');self.cancel.clear()
             def work():
                 try:
                     from subtitle_tools import download_subtitle
-                    paths=download_subtitle(url,folder,language,automatic,extension,self.cancel)
+                    paths=download_subtitle(url,target_folder,language,automatic,extension,self.cancel)
                     self.deliver(lambda:self.finished('Altyazı kaydedildi: '+', '.join(str(p) for p in paths)))
                 except Exception as error:
                     text=str(error);self.deliver(lambda:self.finished(text))
             threading.Thread(target=work,daemon=True).start()
-        tb.Button(window,text='Altyazıyı indir',command=download).pack(pady=20)
+        self.run_button.configure(command=download)
+
+from feature_windows import SpeedGraph,MiniHUD

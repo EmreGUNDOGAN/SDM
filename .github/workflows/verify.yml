@@ -31,8 +31,18 @@ jobs:
         run: python tools/check_source.py
       - name: Install locked dependencies
         run: python -m pip install -r requirements-lock.txt
+      - name: Prepare SHA-pinned media tools for real tests
+        run: python tools/prepare_test_media.py
+      - name: Install locked browser test tools
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: '${{ github.workspace }}/build/pw-browsers'
+        run: |
+          npm ci --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { throw 'Browser dependencies failed' }
+          npx playwright install chromium
+          if ($LASTEXITCODE -ne 0) { throw 'Isolated browser preparation failed' }
       - name: Engine, security, preferences and manifest regressions
-        run: python -m unittest test_advanced_features test_responsiveness test_features test_download_safety test_progress_meter test_browser_files test_browser_bridge test_transfer_details test_video_access test_theme_section test_ui_foundations test_source_manifest test_preview_report test_window_capture test_atlas_view test_atlas_preview_report
+        run: python -m unittest test_advanced_features test_responsiveness test_features test_download_safety test_progress_meter test_browser_files test_browser_bridge test_transfer_details test_video_access test_theme_section test_ui_foundations test_source_manifest test_preview_report test_window_capture test_atlas_view test_atlas_preview_report test_dialog_inspection
       - name: Four design-mode combinations and native UI in disposable profiles
         env:
           SDM_COMPONENT_VIEWPORT_HEIGHT: '640'
@@ -41,3 +51,16 @@ jobs:
         run: python tools/report_component_previews.py
       - name: Validate Atlas workspace and menu previews
         run: python tools/report_atlas_previews.py
+      - name: Real browser HTTP and SHA-256 checks
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: '${{ github.workspace }}/build/pw-browsers'
+          SDM_TEST_PYTHON: python
+        run: |
+          node test_extension.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Extension UI failed' }
+          node test_capture.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Real browser HTTP failed' }
+          node test_extension_refresh.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Browser SHA validation failed' }
+      - name: Validate all download, tool, HUD and browser previews
+        run: python tools/report_dialog_previews.py

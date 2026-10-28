@@ -190,7 +190,7 @@ class PartMap(Indicator):
                 value=fraction(value) or 0;x=left+j*cell;cw=max(1,cell-gap)
                 d.rounded_rectangle((x*s,y*s,(x+cw)*s,(y+22)*s),radius=3*s,fill=p['track'])
                 if value:d.rounded_rectangle((x*s,y*s,(x+cw*value)*s,(y+22)*s),radius=min(3,cw*value/2)*s,fill=p['accent'])
-            labels.append((y,label,metadata,sum(parts)/len(parts) if parts else None))
+            labels.append((y,label,metadata,sum(parts)/len(parts) if parts and all(value is not None for value in parts) else None))
         image=image.resize((w,h),Image.Resampling.LANCZOS)
         for y,label,metadata,value in labels:
             text_on(image,(0,y),ellipsize(label,min(124,w//3-8)),fill=p['text'])

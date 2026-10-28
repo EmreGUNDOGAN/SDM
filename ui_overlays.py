@@ -206,8 +206,14 @@ class DialogShell(tk.Toplevel):
 
 
 class MessageDialog(DialogShell):
-    def __init__(self,master,title,message,palette,technical='',items=(),**kwargs):
+    def __init__(self,master,title,message,palette,technical='',items=(),tone='info',**kwargs):
         super().__init__(master,title,palette,**kwargs)
+        from ui_surface import surface,icon,photo
+        role='danger' if tone=='error' else tone
+        image=surface(40,40,palette['dialog'],palette.get(role+'_bg',palette['info_bg']),radius=10)
+        glyph=icon('alert-circle' if role=='danger' else 'info',22,palette.get(role+'_fg',palette['info_fg']));image.paste(glyph,(9,9),glyph)
+        self._glyph=photo(image,self)
+        picture=tk.Label(self.header,image=self._glyph,bg=palette['dialog']);picture.pack(side='left',before=self.header.winfo_children()[1],padx=(0,12))
         tk.Label(self.body,text=message,wraplength=480,justify='left',anchor='w',
                  bg=palette['dialog'],fg=palette['text'],font=('Inter',-13)).pack(fill='x')
         if items:
@@ -244,11 +250,16 @@ class Drawer(tk.Frame):
 
 
 class Toast(tk.Toplevel):
-    def __init__(self,manager,title,message,action=None):
+    def __init__(self,manager,title,message,action=None,tone='info'):
         super().__init__(manager.owner);self.withdraw();self.overrideredirect(True)
         self.manager=manager;self.p=manager.p;self._timer=None;self._deadline=0;self._remaining=0
         self.attributes('-topmost',True);self.configure(bg=self.p['toast'])
         body=tk.Frame(self,bg=self.p['toast']);body.pack(fill='both',expand=True,padx=14,pady=12)
+        from ui_surface import surface,icon,photo
+        role=tone if tone in ('success','warning','danger') else 'info'
+        tile=surface(28,28,self.p['toast'],self.p[role+'_bg'],radius=7)
+        glyph=icon('check-small' if role=='success' else 'alert-circle' if role in ('warning','danger') else 'info',16,self.p[role+'_fg']);tile.paste(glyph,(6,6),glyph)
+        self._glyph=photo(tile,self);tk.Label(body,image=self._glyph,bg=self.p['toast']).pack(side='left',padx=(0,10))
         if action:
             label,callback=action
             action_palette=dict(self.p,text_2=self.p['toast_text'],subtle=self.p['toast'],card=self.p['toast'])
@@ -288,12 +299,12 @@ class ToastManager:
         self._configure=owner.bind('<Configure>',lambda e:self.reflow() if e.widget is owner else None,add='+')
         self._destroy=owner.bind('<Destroy>',lambda e:self.close() if e.widget is owner else None,add='+')
 
-    def show(self,title,message,action=None):
+    def show(self,title,message,action=None,tone='info'):
         if self.owner.state() in ('iconic','withdrawn'):
             if self.windows_notify:self.windows_notify(title,message)
             return None
         while len(self.toasts)>=TOAST_LIMIT:self.toasts[0].close()
-        toast=Toast(self,title,message,action);self.toasts.append(toast);self.reflow();return toast
+        toast=Toast(self,title,message,action,tone);self.toasts.append(toast);self.reflow();return toast
 
     def reflow(self):
         if self._closed or not self.owner.winfo_exists():return

@@ -67,17 +67,4 @@ def download_section(task,info,staging):
     info['requested_downloads']=[{'filepath':str(target)}]
     return info
 
-class SectionFields:
-    def __init__(self,parent):
-        import tkinter as tk
-        import ttkbootstrap as tb
-        self.enabled=tk.BooleanVar(value=False);self.start=tk.StringVar(value='00:00:00');self.end=tk.StringVar(value='00:00:30');self.exact=tk.BooleanVar(value=False)
-        box=tb.Frame(parent);box.pack(fill='x',pady=8)
-        tb.Checkbutton(box,text='Belirli video / ses bölümünü indir',variable=self.enabled).pack(anchor='w')
-        row=tb.Frame(box);row.pack(fill='x',pady=6)
-        for title,var in [('Başlangıç',self.start),('Bitiş',self.end)]:
-            tb.Label(row,text=title).pack(side='left',padx=(0,5));tb.Entry(row,textvariable=var,width=11).pack(side='left',padx=(0,12))
-        tb.Radiobutton(box,text='Hızlı kesim — birkaç saniye sapabilir',variable=self.exact,value=False).pack(anchor='w')
-        tb.Radiobutton(box,text='Hassas kesim — yeniden kodlar, daha fazla işlemci kullanır',variable=self.exact,value=True).pack(anchor='w')
-    def collect(self):
-        return validate_section(dict(start=parse_time(self.start.get()),end=parse_time(self.end.get()),exact=self.exact.get())) if self.enabled.get() else None
+from section_fields_ui import SectionFields

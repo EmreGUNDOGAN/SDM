@@ -7,13 +7,13 @@ const fs=require('fs');
 const assert=require('assert/strict');
 
 (async()=>{
-  const root=__dirname, extension=path.join(root,'build/capture-test-extension');
+  const root=__dirname,temporary=fs.mkdtempSync(path.join(root,'build/capture-phase3-')),extension=path.join(temporary,'extension');
   fs.cpSync(path.join(root,'extension'),extension,{recursive:true});
   const bg=path.join(extension,'background.js');
   fs.writeFileSync(bg,fs.readFileSync(bg,'utf8').replaceAll('49282','49382'));
-  const fixture=spawn(path.join(root,'.venv/Scripts/python.exe'),['browser_fixture.py'],{
+  const fixture=spawn(process.env.SDM_TEST_PYTHON || path.join(root,'.venv/Scripts/python.exe'),['browser_fixture.py'],{
     cwd:root,windowsHide:true,env:{...process.env,SDM_BRIDGE_PORT:'49382',SDM_ALLOW_LOCAL_TEST_URLS:'1',
-    SDM_DATA_DIR:path.join(root,'build/capture-fixture-data')}});
+    SDM_DATA_DIR:path.join(temporary,'data')}});
   const rl=readline.createInterface({input:fixture.stdout}), messages=[];
   let resolve; const ready=new Promise(r=>resolve=r);
   rl.on('line',line=>{const data=JSON.parse(line);if(data.token)resolve(data);else messages.push(data)});
@@ -36,8 +36,8 @@ const assert=require('assert/strict');
   async function until(fn){for(let i=0;i<100;i++){if(await fn())return;await new Promise(r=>setTimeout(r,100));}throw Error('capture timeout')}
   try{
     const config=await ready;
-    context=await chromium.launchPersistentContext(path.join(root,'build/capture-browser-profile'),{
-      channel:'chromium',headless:true,acceptDownloads:true,downloadsPath:path.join(root,'build/capture-browser-downloads'),
+    context=await chromium.launchPersistentContext(path.join(temporary,'profile'),{
+      channel:'chromium',headless:true,acceptDownloads:true,downloadsPath:path.join(temporary,'downloads'),
       args:[`--disable-extensions-except=${extension}`,`--load-extension=${extension}`]});
     let worker=context.serviceWorkers()[0]||await context.waitForEvent('serviceworker');
     await worker.evaluate(c=>{chrome.runtime.sendNativeMessage=async()=>c},config);
