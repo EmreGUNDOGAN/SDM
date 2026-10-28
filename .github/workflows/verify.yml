@@ -66,3 +66,5 @@ jobs:
         run: python tools/report_dialog_previews.py
       - name: Validate all six settings sections in four appearances
         run: python tools/report_settings_previews.py
+      - name: Validate Odak cards, drawer, settings and adjacent queue menu
+        run: python tools/report_odak_previews.py

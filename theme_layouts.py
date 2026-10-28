@@ -50,6 +50,9 @@ def build_ui(app):
     app.hud_active=tk.StringVar(value='0');app.hud_speed=tk.StringVar(value='0 KB/s');app.hud_received=tk.StringVar(value='0 B')
     app.filter_summary=tk.StringVar();app.page_title=tk.StringVar()
     app._atlas_workspace=None
+    if design=='odak':
+        from layout_odak import build
+        return build(app)
     if family=='atlas':
         from layout_atlas import build
         return build(app)

@@ -166,6 +166,8 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         records=[r for r in records if matches_status(r['status'],state)]
         queue=getattr(self,'current_queue_filter',None)
         if queue:records=[r for r in records if r.get('queue_name')==queue]
+        workspace=getattr(self,'_atlas_workspace',None)
+        if workspace and hasattr(workspace,'sort_records'):records=workspace.sort_records(records)
         self._visible_records={r['id']:r for r in records};self._all_records=all_records
         wanted=[f'download-{r["id"]}' for r in records]
         stale=set(self.tree.get_children())-set(wanted)
@@ -214,10 +216,13 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         BatchDialog(self, initial_url)
 
     def open_settings_dialog(self) -> None:
+        workspace=getattr(self,'_atlas_workspace',None)
+        if self.theme_family=='odak' and workspace and workspace.alive:return workspace.navigate('settings')
         from modern_settings import SettingsDialog as ModernSettingsDialog
         ModernSettingsDialog(self)
 
     def apply_visible_columns(self):
+        if self.theme_family=='odak':self.tree.configure(displaycolumns=('filename',));return
         valid={c[0] for c in COLUMNS}
         visible=[c for c in self.settings.get('visible_columns',[]) if c in valid]
         if 'filename' not in visible:visible.insert(0,'filename')
@@ -242,6 +247,8 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         self.apply_visible_columns()
 
     def show_download_details(self,did):
+        workspace=getattr(self,'_atlas_workspace',None)
+        if self.theme_family=='odak' and workspace and workspace.alive:return workspace.open_detail(did)
         existing=self.detail_windows.get(did)
         if existing and existing.winfo_exists():
             existing.lift()
