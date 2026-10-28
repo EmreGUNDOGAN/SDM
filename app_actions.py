@@ -229,6 +229,7 @@ class AppActions:
         threading.Thread(target=work,daemon=True).start()
 
     def update_failed(self,message,quiet=False):
+        self._update_result_text='Denetim tamamlanamadı. Sonuç doğrulanmadı.'
         if getattr(self,'_update_panel',None) and self._update_panel.winfo_exists():self._update_panel.destroy()
         if getattr(self,'_install_waiting',False):
             self._install_waiting=False;self.engine.start_engine()
@@ -237,6 +238,8 @@ class AppActions:
 
     def update_checked(self,updater,update,quiet):
         self._update_busy=False
+        from datetime import datetime
+        self._update_result_text=('Yeni sürüm var: '+update['version'] if update else 'Güncel')+' · Son denetim: '+datetime.now().strftime('%d.%m.%Y %H:%M')
         if not update:
             self.lbl_status_info.configure(text='SDM güncel')
             if not quiet:self.notify('GitHub güncellemesi','Son kararlı sürümü kullanıyorsun.')

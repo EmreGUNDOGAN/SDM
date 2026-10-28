@@ -141,6 +141,7 @@ def main() -> None:
         and bool(os.environ.get('SDM_DATA_DIR')))
 
     bridge = BrowserBridge()
+    app._browser_bridge=bridge
     bridge.start()
 
     def process_browser_queue():

@@ -68,6 +68,14 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual([q['height'] for q in options['qualities']], [1080, 720])
         self.assertTrue(options['audio'])
 
+    def test_authenticated_client_status_and_invalid_metadata(self):
+        self.assertEqual(self.request('/ping',body={'client':{'browser':'Chrome','version':'0.5.0'}}).status_code,200)
+        self.assertEqual(self.bridge.client_snapshot()['Chrome']['version'],'0.5.0')
+        self.request('/ping',body={'client':{'browser':'Chrome','version':'untrusted\nvalue'}})
+        self.assertEqual(self.bridge.client_snapshot()['Chrome']['version'],'0.5.0')
+        self.assertEqual(self.request('/ping',headers={'Origin':browser_bridge.ORIGIN},body={'client':{'browser':'Opera','version':'0.5.0'}}).status_code,403)
+        self.assertNotIn('Opera',self.bridge.client_snapshot())
+
     def test_formats_endpoint(self):
         with patch('video_downloader.fetch_video_formats', return_value={
                 'title': 'Test', 'qualities': [{'height': 720, 'label': '720p'}], 'audio': True}):

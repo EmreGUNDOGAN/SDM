@@ -64,3 +64,5 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Browser SHA validation failed' }
       - name: Validate all download, tool, HUD and browser previews
         run: python tools/report_dialog_previews.py
+      - name: Validate all six settings sections in four appearances
+        run: python tools/report_settings_previews.py
