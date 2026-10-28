@@ -18,17 +18,19 @@ def main():
                                SpeedChart,Sparkline,PartMap,Summary,SectionTimeline)
     from ui_overlays import PopupMenu,MessageDialog,Drawer,ToastManager,Tooltip
     root=tk.Tk()
-    # Windows can clamp a requested 840px window to a smaller runner desktop.
-    # Exercise the same fixture at a reduced height without hiding its controls.
+    # Fit both axes on the runner desktop; overflowing windows can retain stale
+    # pixels outside the visible area. Scrollbars keep every control reachable.
+    width=min(int(os.environ.get('SDM_COMPONENT_VIEWPORT_WIDTH','1080')),root.winfo_screenwidth()-100)
     height=min(int(os.environ.get('SDM_COMPONENT_VIEWPORT_HEIGHT','840')),root.winfo_screenheight()-100)
-    root.geometry(f'1080x{height}+20+20');root.title('SDM 0.5.0 · Shared components')
+    root.geometry(f'{width}x{height}+20+20');root.title('SDM 0.5.0 · Shared components')
     register_fonts();errors=[]
     root.report_callback_exception=lambda *args:errors.append(args)
     Path('build').mkdir(exist_ok=True)
     native_environment=dict(tcl=str(root.tk.call('info','patchlevel')),
                             tk=str(root.tk.call('package','provide','Tk')),
                             screen_depth=root.winfo_screendepth(),
-                            screen=(root.winfo_screenwidth(),root.winfo_screenheight()))
+                            screen=(root.winfo_screenwidth(),root.winfo_screenheight()),
+                            requested_viewport=(width,height))
     print('Native UI environment:',native_environment,flush=True)
 
     def wait_for(predicate,message):
@@ -43,6 +45,8 @@ def main():
     # A pending dark-theme paint used to leave white pixels in a window-DC grab.
     # Capture must ask the owning top-level to render the current palette now.
     root.configure(bg='#ffffff');root.update()
+    assert 0<=root.winfo_rootx() and root.winfo_rootx()+root.winfo_width()<=root.winfo_screenwidth()
+    assert 0<=root.winfo_rooty() and root.winfo_rooty()+root.winfo_height()<=root.winfo_screenheight()
     root.configure(bg='#0e1116')
     pending=capture_client(root)
     pending_pixel=pending.getpixel((pending.width-10,10))

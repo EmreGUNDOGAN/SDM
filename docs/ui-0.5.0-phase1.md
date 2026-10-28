@@ -171,6 +171,42 @@ yeni Verify ile doğrulanacaktır; önceki başarılı adımlar yeni commit içi
 tamamlanmış doğrulama sayılmaz. Uygulama kodu değişmedi; test/CI değişiklikleri
 ve regresyon dosyası manifest kapsamındadır.
 
+### Dar CI ekranı ve yerel olayların işlenmesi
+
+Dördüncü Verify, `6eddf139a1ca059715ed92297478ddd52c0eaec2` commit'ini kontrol etti.
+Kaynak kontrolleri ve 70 birim testi geçti. UI adımı yine ilk pikselde durdu;
+bu kez tanılama gerçek rengin `(255,255,255)`, beklenenin `(14,17,22)` olduğunu
+gösterdi. Tk 8.6.15 ve 32 bit ekran, yereldekiyle aynıdır. Ancak CI masaüstü
+1024×768 iken pencere istemcisi 1028×640 olmuş, örneklenen sağ kenar ekranın
+dışına taşmıştır. Önceki `GdiFlush` düzeltmesi tek başına bu hatayı çözmemiştir.
+
+Ekranı aşan bir pencere yerelde de yeniden üretildi: 2048 piksellik ekranda
+2052 piksellik istemcinin sağ kenarında eski/siyah pikseller okundu. Tam Tk olay
+işleme de ekran dışındaki pikselleri güvenilir yapmadı. Bu nedenle yardımcı artık
+ekran sınırlarının dışındaki istemciyi DC almadan açık hatayla reddeder; güvenilmez
+görüntüyü başarılı saymaz. Gerçek taşan Tk penceresinin reddi yerelde doğrulandı.
+
+Test galerisi artık hem genişlikte hem yükseklikte ekrana sığar. Dar CI ekranında
+924×640 istemci istenir; yatay/dikey kaydırma korunur. İstemcinin bütünüyle ekran
+içinde olduğu ayrıca doğrulanır. Kesin zemin rengi, vurgu işareti, örtülü pencere,
+klavye odağı ve zaman çizelgesi bildirim kontrolleri değişmedi.
+
+Yakalama, ilk hazırlıkta ve `RedrawWindow` sonrasında tam Tk olay kuyruğunu işler.
+[Tcl belgesindeki](https://github.com/tcltk/tcl/blob/core-8-6-15/doc/update.n)
+ayrıma göre `update idletasks`, yerel boyut/Expose olaylarını işlemez. İki yeni
+regresyon testi, bu olaylar işlenmeden eski beyaz piksel okunmasını ve ekran
+dışındaki hedefin kabul edilmesini yakalar; her biri düzeltmesinden önce
+başarısız, sonra başarılı oldu. GDI tamamlanması ve hata/handle temizliği
+kontrolleri de korunur.
+
+Son durumda yakalama/rapor için sekiz birim testi başarılıdır. Geçici sahte
+profillerde 924×640 ve 1080×840 görünümde dört palet, iki kaydırma konumu ve
+sekiz önizlemenin zorunlu doğrulaması geçti. Değişmeyen başarılı motor ve diğer
+UI scriptleri yeniden çalıştırılmadı. Uygulama/CI komutu değişmedi; aynı CI test
+modülündeki iki yeni regresyonla birim takımı 72 test içerir. Test yardımcısı,
+bileşen testi, regresyonlar ve belge değiştiğinden manifest güncellenir ve yeni
+Verify gerekir; yerel sonuç yeni CI başarısı olarak sunulmaz.
+
 ## Sonraki aşamalar
 
 2. Atlas ana pencere, tablo/panel, araç/durum çubuğu, menüler, bildirim bağlantıları.

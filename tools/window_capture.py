@@ -1,7 +1,8 @@
-"""Capture a process-owned Tk client via WM_PRINT, including occluded windows.
+"""Capture a process-owned Tk client inside the screen bounds, even occluded.
 
 Pillow's HWND grab reads a window device context with BitBlt; it does not ask
-the owner to render the window. PrintWindow avoids stale/occluded screen pixels.
+the owner to render the window. Offscreen pixels can remain stale even with
+PrintWindow; reject those targets rather than returning an unreliable image.
 """
 import ctypes
 from ctypes import wintypes
@@ -19,7 +20,8 @@ class BitmapInfoHeader(ctypes.Structure):
 
 def capture_client(widget):
     if os.name!='nt':raise OSError('Native window capture requires Windows')
-    widget.update_idletasks()
+    # Native resize/expose events are not serviced by update_idletasks().
+    widget.update()
     user=ctypes.WinDLL('user32',use_last_error=True)
     gdi=ctypes.WinDLL('gdi32',use_last_error=True)
     user.GetWindowThreadProcessId.argtypes=[wintypes.HWND,ctypes.POINTER(wintypes.DWORD)]
@@ -53,6 +55,9 @@ def capture_client(widget):
     if not user.GetClientRect(hwnd,ctypes.byref(rect)):raise ctypes.WinError(ctypes.get_last_error())
     width,height=rect.right-rect.left,rect.bottom-rect.top
     if width<=0 or height<=0:raise ValueError('Capture target has no client area')
+    x,y=widget.winfo_rootx(),widget.winfo_rooty()
+    if x<0 or y<0 or x+width>widget.winfo_screenwidth() or y+height>widget.winfo_screenheight():
+        raise ValueError('Capture target must fit entirely inside the Tk screen')
     screen=user.GetDC(hwnd)
     if not screen:raise ctypes.WinError(ctypes.get_last_error())
     memory=bitmap=previous=None
@@ -71,6 +76,9 @@ def capture_client(widget):
         ctypes.memset(pixels,0,width*height*4)
         if not user.RedrawWindow(hwnd,None,None,0x0001|0x0004|0x0080|0x0100):
             raise ctypes.WinError(ctypes.get_last_error())
+        # WM_PAINT can queue Tk events/idle drawing after native invalidation.
+        # Settle those before PrintWindow reads the native window backing store.
+        widget.update()
         if not user.PrintWindow(hwnd,memory,1):raise ctypes.WinError(ctypes.get_last_error())
         # CreateDIBSection exposes CPU memory while GDI may still batch drawing.
         # Its documented contract requires completion before ANY pointer access.
