@@ -69,6 +69,7 @@ class Button(tk.Canvas):
                    self.selected,self.disabled,self.hover,self.pressed,self.focused,
                    self.underline,self.side_accent,getattr(self,'status_badge',False),
                    getattr(self,'icon_name',None),getattr(self,'segment_choice',False),tuple(sorted(p.items())))
+        signature+=(getattr(self,'icon_only',False),)
         if getattr(self,'_draw_signature',None)==signature:return
         self._draw_signature=signature
         kind=self.kind
@@ -95,11 +96,13 @@ class Button(tk.Canvas):
         name=getattr(self,'icon_name',None)
         x=13 if self.quiet else 14
         if name:
-            image.paste(icon(name,18,fg),(x,(h-18)//2),icon(name,18,fg));x+=26
+            glyph_x=(w-18)//2 if not self.text or getattr(self,'icon_only',False) else x
+            image.paste(icon(name,18,fg),(glyph_x,(h-18)//2),icon(name,18,fg));x+=26
         elif self.image:x+=24
         face=text_font(13,'SemiBold' if solid or self.selected else 'Regular')
         dropdown=self.text.endswith(' ▾')
         display_text=self.text.lstrip('● ')[:-2] if dropdown else self.text.lstrip('● ')
+        if getattr(self,'icon_only',False):display_text=''
         if not name and not self.image:x=round((w-face.getlength(display_text))/2)
         if getattr(self,'status_badge',False):
             d.ellipse((11,h//2-4,19,h//2+4),fill=fg);x=26

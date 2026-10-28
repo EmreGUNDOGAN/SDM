@@ -22,6 +22,11 @@ class AppActions:
         if hasattr(self,'data_view'):
             self.data_view.drop_target_register(DND_TEXT,DND_FILES)
             self.data_view.dnd_bind('<<Drop>>',self.on_drop)
+        workspace=getattr(self,'_atlas_workspace',None)
+        if workspace and workspace.alive:
+            for widget in (workspace.empty,workspace.drop_zone):
+                widget.drop_target_register(DND_TEXT,DND_FILES)
+                widget.dnd_bind('<<Drop>>',self.on_drop)
 
     def on_drop(self,event):
         from utils import is_valid_url
@@ -34,7 +39,7 @@ class AppActions:
                     line=line.removeprefix('URL=').strip()
                     if is_valid_url(line):urls.append(line)
         if urls:self.open_add_dialog('\n'.join(urls))
-        else:messagebox.showinfo('Sürükle-bırak','Bir indirme bağlantısı veya bağlantılar içeren .url / .txt dosyası bırakın.')
+        else:self.notify('Sürükle-bırak','Bir indirme bağlantısı veya bağlantılar içeren .url / .txt dosyası bırakın.')
         return event.action
 
     def initialize_actions(self):
@@ -138,7 +143,7 @@ class AppActions:
         ids=self._get_selected_ids()
         if not ids:return
         record=self.db.get_download(ids[0])
-        if not record or record['status']!='Tamamlandı':return messagebox.showinfo('SHA-256','Önce indirme tamamlanmalı.')
+        if not record or record['status']!='Tamamlandı':return self.notify('SHA-256','Önce indirme tamamlanmalı.')
         self.lbl_status_info.configure(text='SHA-256 hesaplanıyor…')
         def work():
             try:
@@ -154,7 +159,8 @@ class AppActions:
         expected=askstring('SHA-256',f'{name}\n\nHesaplanan değer:\n{value}\n\nKarşılaştırmak için beklenen SHA-256 değerini gir:',parent=self)
         if expected:
             match=expected.strip().lower()==value
-            messagebox.showinfo('SHA-256','Dosya özeti eşleşiyor.' if match else 'Dosya özeti EŞLEŞMİYOR.',parent=self)
+            if match:self.notify('SHA-256','Dosya özeti eşleşiyor.')
+            else:messagebox.showerror('SHA-256','Dosya özeti EŞLEŞMİYOR.',parent=self)
         self.lbl_status_info.configure(text='SHA-256 kontrolü tamamlandı')
 
     def completed_popup(self,did):
@@ -230,7 +236,7 @@ class AppActions:
         self._update_busy=False
         if not update:
             self.lbl_status_info.configure(text='SDM güncel')
-            if not quiet:messagebox.showinfo('GitHub güncellemesi','Son kararlı sürümü kullanıyorsun.',parent=self)
+            if not quiet:self.notify('GitHub güncellemesi','Son kararlı sürümü kullanıyorsun.')
             return
         if not messagebox.askyesno('SDM güncellemesi',f'{update["version"]} sürümü bulundu. Güncelleme indirilecek, indirmeler duraklatılacak ve SDM yeniden açılacak. Güncellensin mi?',parent=self):return
         self._update_busy=True

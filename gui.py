@@ -130,11 +130,16 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
     def _setup_shortcuts(self) -> None:
         self.bind("<Control-n>", lambda e: self.open_add_dialog())
         self.bind("<Control-N>", lambda e: self.open_add_dialog())
-        self.bind("<Delete>", lambda e: self.delete_selected())
+        self.bind("<Delete>", self._delete_shortcut)
         self.bind("<F5>", lambda e: self.refresh_downloads())
+
+    def _delete_shortcut(self,event):
+        if event.widget.winfo_class() in ('Entry','TEntry','Text','TCombobox','Spinbox','TSpinbox'):return
+        self.delete_selected()
 
     def select_category(self, cat: str) -> None:
         self.current_category = cat
+        self.current_queue_filter=None
         for name,btn in self.category_buttons.items():
             btn.selected=name==cat;btn.draw()
         for name,btn in self.status_buttons.items():
@@ -150,21 +155,35 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         self.refresh_downloads()
 
     def refresh_downloads(self):
+        from atlas_view import matches_status
         selected=set(self._get_selected_ids())
-        special=self.current_category in ('Devam Edenler','Tamamlananlar')
+        special=self.current_category in ('Devam Edenler','Tamamlananlar','Hatalı')
+        all_records=self.db.get_all_downloads()
         records=self.db.get_all_downloads(category=None if special else self.current_category,search_term=self.search_term)
-        if self.current_category=='Devam Edenler':records=[r for r in records if r['status'] not in ('Tamamlandı','İptal Edildi')]
-        if self.current_category=='Tamamlananlar':records=[r for r in records if r['status']=='Tamamlandı']
+        if special:records=[r for r in records if matches_status(r['status'],self.current_category)]
         state=getattr(self,'current_status_filter','Tümü')
-        if state=='Devam Edenler':records=[r for r in records if r['status'] not in ('Tamamlandı','İptal Edildi')]
-        elif state=='Tamamlananlar':records=[r for r in records if r['status']=='Tamamlandı']
-        self.tree.delete(*self.tree.get_children())
-        for record in records:
-            item=self.tree.insert('', END, values=row_values(self,record))
-            if record['id'] in selected:self.tree.selection_add(item)
+        records=[r for r in records if matches_status(r['status'],state)]
+        queue=getattr(self,'current_queue_filter',None)
+        if queue:records=[r for r in records if r.get('queue_name')==queue]
+        self._visible_records={r['id']:r for r in records};self._all_records=all_records
+        wanted=[f'download-{r["id"]}' for r in records]
+        stale=set(self.tree.get_children())-set(wanted)
+        if stale:self.tree.delete(*stale)
+        for record,item in zip(records,wanted):
+            values=tuple(map(str,row_values(self,record)))
+            if self.tree.exists(item):
+                if tuple(self.tree.item(item,'values'))!=values:self.tree.item(item,values=values)
+            else:self.tree.insert('',END,iid=item,values=values)
+        if tuple(self.tree.get_children())!=tuple(wanted):
+            for index,item in enumerate(wanted):self.tree.move(item,'',index)
+        selection=tuple(item for record,item in zip(records,wanted) if record['id'] in selected)
+        if tuple(self.tree.selection())!=selection:self.tree.selection_set(selection)
         self.filter_summary.set(f'{self.current_category} · {len(records)} sonuç'+(f' · {self.search_term}' if self.search_term else ''))
         self.page_title.set('Tüm indirmeler' if self.current_category=='Tümü' else self.current_category)
-        if not records:
+        workspace=getattr(self,'_atlas_workspace',None)
+        if workspace and workspace.alive:
+            workspace.sync(records,all_records)
+        elif not records:
             self.empty_label.configure(text='Aramanızla eşleşen indirme bulunamadı' if self.search_term else 'Bu kategoride henüz indirme yok')
             self.empty_label.place(relx=.5,rely=.35,anchor='center')
             if self.search_term:self.empty_clear.place(relx=.5,rely=.35,y=40,anchor='center')
@@ -178,6 +197,8 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         speed=self.engine.get_total_speed()+sum(t.current_speed for t in videos)
         self.lbl_status_summary.configure(text='Hazır' if not self.engine.get_active_count()+len(videos) else f'{self.engine.get_active_count()+len(videos)} aktif indirme')
         records={record['id']:record for record in self.db.get_all_downloads()}
+        self._all_records=list(records.values())
+        self._visible_records={did:records[did] for did in getattr(self,'_visible_records',{}) if did in records}
         for item in self.tree.get_children():
             did=int(self.tree.item(item,'values')[0])
             record=records.get(did)
@@ -202,6 +223,8 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         self.tree.configure(displaycolumns=visible)
 
     def show_column_menu(self):
+        workspace=getattr(self,'_atlas_workspace',None)
+        if workspace and workspace.alive:return workspace.column_menu()
         menu=tk.Menu(self,tearoff=False)
         self.column_vars={}
         visible=set(self.tree.cget('displaycolumns'))
@@ -525,6 +548,8 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         if item:
             if item not in self.tree.selection():
                 self.tree.selection_set(item)
+            workspace=getattr(self,'_atlas_workspace',None)
+            if workspace and workspace.alive:return workspace.context_menu(event)
             self.context_menu.post(event.x_root, event.y_root)
 
     def on_close_window(self) -> None:

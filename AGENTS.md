@@ -64,7 +64,7 @@ Aşağıdakiler kuralların bu depoda nasıl uygulanacağını açıklar; kurall
 
 ## Onaylanan 0.5.0 arayüz yenilemesi
 
-- Kullanıcı 0.5.0 hedefini ve 1. aşamayı onayladı. Model/çaba seçimi: GPT-6.1 Sol / high. Aynı kapsam içinde tekrar onay istenmez; kapsam veya çaba artışı yeniden onay gerektirir.
+- Kullanıcı 0.5.0 hedefini, 1. aşamayı ve ardından 2. aşamayı (Atlas ana pencere: A01/A02/A18, sağ panel ve köşe bildirimleri) onayladı. Model/çaba seçimi: GPT-6.1 Sol / high. Aynı kapsam içinde tekrar onay istenmez; kapsam veya çaba artışı yeniden onay gerektirir.
 - Altı aşama: (1) temel/token/bileşen/göç/manifest, (2) Atlas ana pencere, (3) Atlas pencereleri, (4) ayarlar, (5) Odak Akışı, (6) temizlik ve son uyumluluk kontrolleri. Her aşama ayrı dal ve PR. Bir aşamanın onayı sonraki aşamaya başlama onayı sayılmaz.
 - Varsayılan yeni kurulum: design=atlas, color_mode=light. Tasarım ve renk modu bağımsızdır; system tercihi saklanır, başlangıçta Windows uygulama paleti okunur.
 - Eski atlas/orbit/nova açık ve koyu tema anahtarları Atlas'ın aynı renk moduna göç eder. Eski yedekler de aynı dönüşümü kullanır.

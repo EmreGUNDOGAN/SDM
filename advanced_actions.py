@@ -27,6 +27,7 @@ class AdvancedActions:
         self.settings['relax_mode']=not self.settings.get('relax_mode',False);save_settings(self.settings);self.configure_rate()
         self.lbl_status_info.configure(text='İnterneti rahatlat açık' if self.settings['relax_mode'] else 'Önceki hız sınırı geri yüklendi')
         if hasattr(self,'relax_button'):self.relax_button.configure(text='Rahatlat: açık' if self.settings['relax_mode'] else 'İnterneti rahatlat')
+        if getattr(self,'_atlas_workspace',None):self.update_hud()
 
     def open_tools(self):
         from feature_ui import ToolsDialog
@@ -68,6 +69,8 @@ class AdvancedActions:
         self.lbl_status_info.configure(text='İndirme önceliği güncellendi');self.refresh_downloads()
 
     def show_queue_menu(self):
+        workspace=getattr(self,'_atlas_workspace',None)
+        if workspace and workspace.alive:return workspace.queue_menu()
         menu=tk.Menu(self,tearoff=0)
         for queue in self.settings['queues']:
             name=queue['name'];sub=tk.Menu(menu,tearoff=0)

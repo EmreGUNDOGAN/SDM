@@ -49,6 +49,10 @@ def build_ui(app):
     app.category_buttons={};app.status_buttons={};app.action_buttons=[]
     app.hud_active=tk.StringVar(value='0');app.hud_speed=tk.StringVar(value='0 KB/s');app.hud_received=tk.StringVar(value='0 B')
     app.filter_summary=tk.StringVar();app.page_title=tk.StringVar()
+    app._atlas_workspace=None
+    if family=='atlas':
+        from layout_atlas import build
+        return build(app)
     def frame(parent,bg=None,**pack):
         widget=tk.Frame(parent,bg=bg or parent.cget('bg'));widget.pack(**pack);return widget
     def label(parent,text='',var=None,size=10,color=None,bold=False,**pack):

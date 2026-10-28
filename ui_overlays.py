@@ -6,6 +6,34 @@ from ui_surface import TextLabel
 from ui_tokens import SIZES, RADII, TOAST_DURATION, TOAST_ACTION_DURATION, TOAST_LIMIT
 
 
+class MenuButton(Button):
+    """A18 left label, right shortcut and a distinct checkbox/radio indicator."""
+    def draw(self):
+        if not hasattr(self,'menu_spec'):return super().draw()
+        from PIL import ImageDraw
+        from ui_surface import surface,text_on,ellipsize,icon
+        spec=self.menu_spec;p=self.p
+        w=self.winfo_width() if self.winfo_width()>1 else int(self.cget('width'));h=int(self.cget('height'))
+        bg=p['accent_nav'] if self.selected else p['subtle'] if self.hover else p['card']
+        fg=p['danger_fg'] if spec['danger'] else p['text_2'];left=12
+        image=surface(w,h,self.cget('bg'),bg,radius=7);d=ImageDraw.Draw(image)
+        variable=spec['variable']
+        if variable is not None:
+            checked=bool(variable.get()) if spec['check'] else variable.get()==spec['value']
+            if spec['check']:
+                d.rounded_rectangle((9,h//2-8,25,h//2+8),radius=4,fill=p['accent'] if checked else p['card'],outline=p['accent'] if checked else p['input_border'])
+                if checked:
+                    glyph=icon('check-small',12,p['on_accent']);image.paste(glyph,(11,h//2-6),glyph)
+            elif checked:d.ellipse((14,h//2-3,20,h//2+3),fill=p['accent'])
+            left=35
+        shortcut='›' if spec['submenu'] else spec['shortcut'];reserved=90 if shortcut else 16
+        y=10 if spec['description'] else h//2-7
+        text_on(image,(left,y),ellipsize(self.text,w-left-reserved,13),13,fill=fg)
+        if shortcut:text_on(image,(w-12,h/2),shortcut,11,fill=p['muted'],anchor='rm')
+        if spec['description']:text_on(image,(left,31),ellipsize(spec['description'],w-left-12,12),12,fill=p['muted'])
+        self.display(image)
+
+
 class PopupMenu(tk.Toplevel):
     def __init__(self,master,palette,parent_menu=None):
         super().__init__(master)
@@ -13,7 +41,7 @@ class PopupMenu(tk.Toplevel):
         self.parent_menu=parent_menu;self.child_menu=None;self.items=[];self.active=-1
         self._previous_focus=None;self._previous_grab=None;self._closing=False;self._focus_check=None
         self.configure(bg=palette['card'])
-        self.panel=Panel(self,palette,padding=SIZES['menu_padding'],radius=RADII[palette.get('design','atlas')]['menu'])
+        self.panel=Panel(self,dict(palette,panel=palette['card']),padding=SIZES['menu_padding'],radius=RADII[palette.get('design','atlas')]['menu'])
         self.panel.pack(fill='both',expand=True)
         self.panel.content.configure(bg=palette['card'])
         self.bind('<Escape>',lambda e:self.close_root())
@@ -24,23 +52,24 @@ class PopupMenu(tk.Toplevel):
         self.bind('<FocusOut>',self.lost_focus,add='+')
 
     def add_item(self,label,command=None,disabled=False,danger=False,shortcut='',
-                 submenu=None,variable=None,value=None,description=''):
+                 submenu=None,variable=None,value=None,description='',check=False):
         index=len(self.items)
         prefix=('● ' if variable.get()==value else '   ') if variable is not None else ''
         suffix='  ›' if submenu is not None else '  '+shortcut if shortcut else ''
-        button=Button(self.panel.content,prefix+label+suffix,lambda:self.activate(index),
+        button=MenuButton(self.panel.content,label,lambda:self.activate(index),
                       palette=self.p,kind='danger_ghost' if danger else 'ghost',
                       width=max(SIZES['menu_width'],len(label+suffix)*8+24),
                       height=SIZES['menu_row']+(18 if description else 0))
+        button.menu_spec=dict(shortcut=shortcut,submenu=submenu,variable=variable,value=value,
+                              description=description,check=check,danger=danger)
         button.pack(fill='x');button.configure(takefocus=0,state='disabled' if disabled else 'normal')
-        item=dict(button=button,command=command,submenu=submenu,variable=variable,value=value)
+        item=dict(button=button,command=command,submenu=submenu,variable=variable,value=value,check=check)
         self.items.append(item)
         button.bind('<Enter>',lambda e,i=index:self.highlight(i),add='+')
-        if description:
-            # Description is retained for callers and testing; separate text keeps wrapping native.
-            hint=TextLabel(self.panel.content,description,size=12,fg=self.p['muted'])
-            hint.pack(fill='x',padx=12,pady=(0,4))
         return button
+
+    def add_caption(self,text):
+        TextLabel(self.panel.content,text,size=11,weight='SemiBold',fg=self.p['muted']).pack(anchor='w',padx=12,pady=(8,6))
 
     def add_separator(self):
         tk.Frame(self.panel.content,bg=self.p['line'],height=1).pack(fill='x',pady=5)
@@ -58,18 +87,18 @@ class PopupMenu(tk.Toplevel):
     def fit_position(x,y,width,height,screen_width,screen_height):
         return max(0,min(x,screen_width-width)),max(0,min(y,screen_height-height))
 
-    def highlight(self,index):
+    def highlight(self,index,open_child=True):
         if self.items[index]['button'].disabled:return
         self.active=index
         for i,item in enumerate(self.items):item['button'].selected=i==index;item['button'].draw()
         if self.child_menu and self.child_menu.winfo_exists():self.child_menu.close(restore=False)
-        if self.items[index]['submenu'] is not None:self.open_submenu()
+        if open_child and self.items[index]['submenu'] is not None:self.open_submenu()
 
     def move(self,direction):
         enabled=[i for i,item in enumerate(self.items) if not item['button'].disabled]
         if enabled:
             position=enabled.index(self.active) if self.active in enabled else (-1 if direction>0 else 0)
-            self.highlight(enabled[(position+direction)%len(enabled)])
+            self.highlight(enabled[(position+direction)%len(enabled)],open_child=False)
         return 'break'
 
     def activate(self,index=None):
@@ -81,7 +110,7 @@ class PopupMenu(tk.Toplevel):
         if item['submenu'] is not None:return self.open_submenu()
         variable,value,command=item['variable'],item['value'],item['command']
         self.close_root()
-        if variable is not None:variable.set(value)
+        if variable is not None:variable.set(not variable.get() if item['check'] else value)
         if command:command()
         return 'break'
 
@@ -255,19 +284,19 @@ class Toast(tk.Toplevel):
 
 class ToastManager:
     def __init__(self,owner,palette,windows_notify=None):
-        self.owner=owner;self.p=palette;self.windows_notify=windows_notify;self.toasts=[]
+        self.owner=owner;self.p=palette;self.windows_notify=windows_notify;self.toasts=[];self._closed=False
         self._configure=owner.bind('<Configure>',lambda e:self.reflow() if e.widget is owner else None,add='+')
         self._destroy=owner.bind('<Destroy>',lambda e:self.close() if e.widget is owner else None,add='+')
 
     def show(self,title,message,action=None):
-        if self.owner.state()=='iconic':
+        if self.owner.state() in ('iconic','withdrawn'):
             if self.windows_notify:self.windows_notify(title,message)
             return None
         while len(self.toasts)>=TOAST_LIMIT:self.toasts[0].close()
         toast=Toast(self,title,message,action);self.toasts.append(toast);self.reflow();return toast
 
     def reflow(self):
-        if not self.owner.winfo_exists():return
+        if self._closed or not self.owner.winfo_exists():return
         bottom=self.owner.winfo_rooty()+self.owner.winfo_height()-16
         right=self.owner.winfo_rootx()+self.owner.winfo_width()-16
         for toast in reversed(self.toasts):
@@ -275,6 +304,8 @@ class ToastManager:
             bottom-=h;toast.geometry(f'{w}x{h}+{max(0,right-w)}+{max(0,bottom)}');bottom-=8
 
     def close(self):
+        if self._closed:return
+        self._closed=True
         for toast in list(self.toasts):toast.close()
         if self.owner.winfo_exists():
             self.owner.unbind('<Configure>',self._configure);self.owner.unbind('<Destroy>',self._destroy)

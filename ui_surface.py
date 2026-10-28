@@ -141,6 +141,7 @@ ICON_NAMES=['plus','play','pause','x','trash','settings','columns','folder','fil
 class TextLabel(tk.Canvas):
     def __init__(self,parent,text='',textvariable=None,size=13,weight='Regular',fg='#172331',**kwargs):
         self.text=text;self.var=textvariable;self.size=size;self.weight=weight;self.fg=fg
+        self.max_width=kwargs.pop('max_width',None)
         super().__init__(parent,bg=parent.cget('bg'),highlightthickness=0,height=size+6)
         self._trace=textvariable.trace_add('write',lambda *args:self.draw()) if textvariable is not None else None
         self.bind('<Configure>',lambda e:self.draw());self.bind('<Destroy>',self.dispose);self.draw()
@@ -157,6 +158,10 @@ class TextLabel(tk.Canvas):
     config=configure
     def draw(self):
         text=self.var.get() if self.var is not None else self.text
+        if self.max_width is not None:text=ellipsize(text,self.max_width,self.size,self.weight)
+        signature=(text,self.size,self.weight,self.fg,self.cget('bg'))
+        if signature==getattr(self,'_text_signature',None):return
+        self._text_signature=signature
         face=font(self.size,self.weight);w=max(1,round(face.getlength(text))+2);h=self.size+7
         super().configure(width=w,height=h)
         image=Image.new('RGB',(w*3,h*3),self.cget('bg'));d=ImageDraw.Draw(image);d.text((0,2*3),text,font=font(self.size*3,self.weight),fill=self.fg,anchor='lt')

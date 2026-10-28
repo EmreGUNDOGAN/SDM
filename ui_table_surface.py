@@ -13,8 +13,16 @@ class TableSurface(tk.Canvas):
         self.bind('<Button-1>',self.select);self.bind('<Double-1>',lambda e:(self.select(e),app.show_selected_details()))
         self.bind('<Button-3>',self.context);self.bind('<MouseWheel>',self.wheel)
         self.bind('<Shift-MouseWheel>',lambda e:(self.tree.xview_scroll(-1 if e.delta>0 else 1,'units'),self.schedule()))
+        self._keyboard_focus=False;self._mouse_focus=False
+        self.tree.bind('<FocusIn>',self.focus_in,add='+')
+        self.tree.bind('<FocusOut>',lambda e:self.schedule(),add='+')
+        self.tree.bind('<KeyPress>',self.key_pressed,add='+')
+    def focus_in(self,event):
+        self._keyboard_focus=not self._mouse_focus;self._mouse_focus=False;self.schedule()
+    def key_pressed(self,event):self._keyboard_focus=True;self.schedule()
     def wheel(self,event):self.tree.yview_scroll(-3 if event.delta>0 else 3,'units');self.schedule();return 'break'
     def select(self,event):
+        self._mouse_focus=True;self._keyboard_focus=False
         self.tree.focus_set();item=self.tree.identify_row(event.y)
         if item:
             if event.state&0x4:
@@ -25,8 +33,12 @@ class TableSurface(tk.Canvas):
             else:self.tree.selection_set(item)
             self.tree.focus(item)
         elif self.tree.identify_region(event.x,event.y)=='heading':self.app.show_column_menu()
+        else:self.tree.selection_remove(self.tree.selection())
         self.schedule()
-    def context(self,event):self.select(event);self.app._on_tree_right_click(event)
+    def context(self,event):
+        item=self.tree.identify_row(event.y)
+        if item and item not in self.tree.selection():self.select(event)
+        self.app._on_tree_right_click(event)
     def schedule(self):
         if self.pending is None:self.pending=self.after_idle(self.paint)
     def dispose(self,event):
@@ -36,10 +48,21 @@ class TableSurface(tk.Canvas):
         self.pending=None
         if not self.winfo_exists():return
         app=self.app;p=app.palette;tree=self.tree;w=max(1,self.winfo_width());h=max(1,self.winfo_height())
-        image=Image.new('RGB',(w*2,h*2),p['bg']);draw=ImageDraw.Draw(image)
         columns=list(tree.cget('displaycolumns'));head_h=40
         visible=[(item,tree.bbox(item)) for item in tree.get_children() if tree.bbox(item)]
         if visible:head_h=visible[0][1][1] if visible[0][1][1]<70 else 40
+        if app.theme_family=='atlas':
+            signature=(w,h,head_h,tuple(columns),tuple(tree.selection()),tree.xview(),tree.yview(),
+                self._keyboard_focus and tree.focus_get() is tree,
+                tuple((item,box,tree.item(item,'values'),getattr(app,'_visible_records',{}).get(int(tree.item(item,'values')[0]),{})) for item,box in visible))
+            if signature==getattr(self,'_atlas_signature',None):return
+            self._atlas_signature=signature
+            from atlas_table import render
+            self._image=photo(render(app,w,h,visible,head_h),self)
+            if not hasattr(self,'_atlas_item'):self._atlas_item=self.create_image(0,0,image=self._image,anchor='nw')
+            else:self.itemconfigure(self._atlas_item,image=self._image)
+            return
+        image=Image.new('RGB',(w*2,h*2),p['bg']);draw=ImageDraw.Draw(image)
         def rect(box,fill,outline=None,radius=0):draw.rounded_rectangle(tuple(round(v*2) for v in box),radius=radius*2,fill=fill,outline=outline,width=2)
         def text(x,y,value,size=14,color=None,weight='Regular',limit=None):
             value=str(value);face=font(size*2,weight)
