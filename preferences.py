@@ -3,10 +3,14 @@ import json
 from pathlib import Path
 from capture_policy import normalize_domain
 from utils import DEFAULT_SETTINGS
+from theme_catalog import LEGACY_THEMES, migrate_settings
+from ui_tokens import DESIGNS, COLOR_MODES
 
 
 def validate_settings(data):
     if not isinstance(data,dict):raise ValueError('Ayar dosyası geçersiz.')
+    if 'theme' in data and (type(data['theme']) is not str or data['theme'] not in LEGACY_THEMES):
+        raise ValueError('Geçersiz tema.')
     result={}
     for key,value in data.items():
         if key not in DEFAULT_SETTINGS:continue
@@ -24,17 +28,20 @@ def validate_settings(data):
         if key in result and any(not isinstance(v,str) or len(v)>80 for v in result[key]):raise ValueError('Geçersiz liste.')
     for key,minimum,maximum in [('default_connections',1,32),('max_simultaneous_downloads',1,10),('speed_limit_kbs',0,1000000)]:
         if key in result and not minimum<=result[key]<=maximum:raise ValueError(f'Geçersiz ayar: {key}')
-    if 'theme' in result and result['theme'] not in ('light','dark','system','cosmo',*__import__('theme_catalog').THEMES):raise ValueError('Geçersiz tema.')
+    if 'design' in result and result['design'] not in DESIGNS:raise ValueError('Geçersiz tasarım.')
+    if 'color_mode' in result and result['color_mode'] not in COLOR_MODES:raise ValueError('Geçersiz renk modu.')
     if 'language' in result and result['language'] not in ('tr','en'):raise ValueError('Geçersiz dil.')
     if 'queues' in result:
         from queue_rules import validate_queues
         validate_queues(result['queues'])
     if 'relax_limit_kbs' in result and not 1<=result['relax_limit_kbs']<=1000000:raise ValueError('Rahatlat modu hızı geçersiz.')
+    if any(key in data for key in ('theme','design','color_mode')):
+        return migrate_settings(dict(result,**({'theme':data['theme']} if 'theme' in data else {})))
     return result
 
 
 def export_settings(path,settings):
-    data={k:v for k,v in settings.items() if k in DEFAULT_SETTINGS}
+    data={k:v for k,v in migrate_settings(settings).items() if k in DEFAULT_SETTINGS}
     data['capture_paused_until']=0
     Path(path).write_text(json.dumps({'format':'sdm-settings-v1','settings':data},ensure_ascii=False,indent=2),encoding='utf-8')
 

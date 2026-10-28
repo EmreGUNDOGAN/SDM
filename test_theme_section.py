@@ -1,18 +1,22 @@
 import tempfile
 import unittest
-from theme_catalog import THEMES,theme_key,theme_name,palette
+from theme_catalog import THEMES,theme_key,theme_name,palette,migrate_settings
 from video_section import parse_time,validate_section
 from preferences import validate_settings
 
 class ThemeTests(unittest.TestCase):
-    def test_six_saved_variants_and_names(self):
-        self.assertEqual(len(THEMES),6)
+    def test_four_design_mode_combinations_and_names(self):
+        self.assertEqual(len(THEMES),4)
         for key in THEMES:
-            self.assertEqual(validate_settings({'theme':key})['theme'],key)
-            self.assertIn('Tema',theme_name(key,'tr'))
-            self.assertNotIn('Tema',theme_name(key,'en'))
+            design,mode=key.split('_')
+            values=validate_settings({'design':design,'color_mode':mode})
+            self.assertEqual(theme_key(values),key)
+            self.assertIn('Açık' if mode=='light' else 'Koyu',theme_name(key,'tr'))
+            self.assertIn(mode.title(),theme_name(key,'en'))
+            self.assertIn('Pro' if design=='atlas' else 'Akışı',theme_name(key,'en'))
         self.assertEqual(theme_key({'theme':'dark'}),'atlas_dark')
-        self.assertNotEqual(palette('nova_dark')['accent'],palette('orbit_dark')['accent'])
+        self.assertEqual(palette('atlas_dark')['accent'],palette('odak_dark')['accent'])
+        self.assertNotEqual(palette('atlas_light')['bg'],palette('atlas_dark')['bg'])
     def test_time_bounds(self):
         self.assertEqual(parse_time('02:00:00'),7200)
         self.assertEqual(parse_time('03:00:00'),10800)

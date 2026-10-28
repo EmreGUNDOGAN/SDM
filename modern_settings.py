@@ -21,20 +21,23 @@ class SettingsDialog(tb.Toplevel):
         general=self.tabs['Genel']
         self.field(general,'download_dir','Kayıt klasörü')
         tb.Button(general,text='Klasör seç',bootstyle='secondary-outline',command=self.browse).pack(anchor='w',pady=(0,10))
-        from theme_catalog import THEMES,theme_name,theme_key
-        self.settings['theme']=theme_key(self.settings)
-        self.field(general,'language','Tema adlarının dili / Theme language',choices=['tr','en'])
-        self.theme_labels={theme_name(key,self.settings.get('language','tr')):key for key in THEMES}
-        self.theme_choice=tk.StringVar(value=theme_name(self.settings['theme'],self.settings.get('language','tr')))
+        from theme_catalog import migrate_settings
+        from ui_tokens import DESIGN_NAMES
+        from ui_controls import Select,SegmentedControl
+        self.settings=migrate_settings(self.settings)
+        self.field(general,'language','Sayı biçimi · Türkçe (1,5) / English (1.5)',choices=['tr','en'])
+        self.vars['design']=tk.StringVar(value=self.settings['design'])
+        self.vars['color_mode']=tk.StringVar(value=self.settings['color_mode'])
         theme_row=tb.Frame(general);theme_row.pack(fill='x',pady=5)
-        tb.Label(theme_row,text='Tema / Theme').pack(side='left')
-        self.theme_combo=tb.Combobox(theme_row,textvariable=self.theme_choice,values=list(self.theme_labels),state='readonly',width=28)
-        self.theme_combo.pack(side='right')
-        def relabel(*args):
-            current=self.theme_labels.get(self.theme_choice.get(),self.settings['theme'])
-            self.theme_labels={theme_name(key,self.vars['language'].get()):key for key in THEMES}
-            self.theme_combo.configure(values=list(self.theme_labels));self.theme_choice.set(theme_name(current,self.vars['language'].get()))
-        self.vars['language'].trace_add('write',relabel)
+        tb.Label(theme_row,text='Görünüm').pack(side='left')
+        self.design_select=Select(theme_row,variable=self.vars['design'],
+                                  choices=DESIGN_NAMES,palette=parent.palette,width=240)
+        self.design_select.pack(side='right')
+        mode_row=tb.Frame(general);mode_row.pack(fill='x',pady=5)
+        tb.Label(mode_row,text='Renk modu').pack(side='left')
+        self.mode_select=SegmentedControl(mode_row,variable=self.vars['color_mode'],
+                        choices={'light':'Açık','dark':'Koyu','system':'Sistem'},palette=parent.palette)
+        self.mode_select.pack(side='right')
         for key,label in [('default_connections','Paralel bağlantı sayısı (1–32)'),('max_simultaneous_downloads','Eşzamanlı indirme (1–10)'),('speed_limit_kbs','Toplam hız sınırı (KB/sn, 0 = sınırsız)')]:self.field(general,key,label)
         for key,label in [('auto_open_details','Yeni indirmede ilerleme penceresini aç'),('completion_popup','İndirme tamamlandı penceresini göster'),('notifications_enabled','Masaüstü bildirimi göster'),('clipboard_monitoring','Panodaki bağlantıları izle'),('start_minimized','Simge durumunda başlat')]:self.check(general,key,label)
         browser=self.tabs['Tarayıcı'];self.check(browser,'browser_capture','Tarayıcı indirmelerini yakala')
@@ -94,7 +97,6 @@ class SettingsDialog(tb.Toplevel):
 
     def collect(self):
         values=dict(self.settings)
-        values['theme']=self.theme_labels[self.theme_choice.get()]
         for key,var in self.vars.items():
             values[key]=int(var.get()) if type(DEFAULT_SETTINGS.get(key)) is int else var.get()
         values['excluded_sites']=sorted(set(normalize_domain(v) for v in self.sites.get('1.0','end').splitlines() if v.strip()))

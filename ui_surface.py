@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 import tkinter as tk
 from PIL import Image,ImageDraw,ImageFont,ImageTk
+from ui_tokens import SURFACE_SCALE
 
 ROOT=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))
 def register_fonts():
@@ -17,13 +18,41 @@ def font(size=13,weight='Regular'):
     return ImageFont.truetype(str(ROOT/'assets/fonts'/f'Inter-{weight}.ttf'),round(size))
 
 def photo(image,master):return ImageTk.PhotoImage(image,master=master)
-def surface(w,h,bg,fill,border=None,radius=7,scale=3):
+@lru_cache(maxsize=96)
+def _surface(w,h,bg,fill,border,radius,scale):
     image=Image.new('RGB',(max(1,w)*scale,max(1,h)*scale),bg)
     draw=ImageDraw.Draw(image)
     draw.rounded_rectangle((scale/2,scale/2,w*scale-scale/2,h*scale-scale/2),radius=radius*scale,fill=fill,outline=border,width=scale if border else 1)
     return image.resize((max(1,w),max(1,h)),Image.Resampling.LANCZOS)
 
-def icon(name,size,color):
+def surface(w,h,bg,fill,border=None,radius=7,scale=SURFACE_SCALE):
+    return _surface(max(1,round(w)),max(1,round(h)),bg,fill,border,radius,scale).copy()
+
+
+def text_on(image,xy,text,size=13,weight='Regular',fill='#111827',anchor='lt'):
+    """Supersample text independently of its canvas/surface (no Tk text raster)."""
+    scale=SURFACE_SCALE
+    layer=Image.new('RGBA',(image.width*scale,image.height*scale))
+    ImageDraw.Draw(layer).text(tuple(round(v*scale) for v in xy),str(text),
+                              font=font(round(size*scale),weight),fill=fill,anchor=anchor)
+    layer=layer.resize(image.size,Image.Resampling.LANCZOS)
+    image.paste(layer,(0,0),layer)
+
+
+def ellipsize(text,width,size=13,weight='Regular'):
+    face=font(size,weight)
+    if face.getlength(text)<=width:return text
+    if face.getlength('…')>width:return ''
+    low,high=0,len(text)
+    while low<high:
+        mid=(low+high+1)//2
+        if face.getlength(text[:mid]+'…')<=width:low=mid
+        else:high=mid-1
+    return text[:low]+'…'
+
+
+@lru_cache(maxsize=256)
+def _icon(name,size,color):
     """Native vector geometry, matching the reference's thin rounded strokes."""
     scale=4;image=Image.new('RGBA',(size*scale,size*scale));d=ImageDraw.Draw(image)
     unit=size*scale/24;stroke=max(1,round(unit*1.65))
@@ -72,8 +101,40 @@ def icon(name,size,color):
         line(points,True);circle(12,12,3)
     elif name=='queue':
         for y in (6,12,18):line([(5,y),(20,y)])
+    elif name=='copy':box(8,8,13,13);line([(16,8),(16,3),(3,3),(3,16),(8,16)])
+    elif name=='clipboard':box(5,4,14,17);box(9,2,6,4,1)
+    elif name in ('shield','shield-check'):
+        line([(12,2),(21,6),(20,14),(17,19),(12,22),(7,19),(4,14),(3,6),(12,2)])
+        if name=='shield-check':line([(7,12),(10,15),(17,8)])
+    elif name=='globe':
+        circle(12,12,9);line([(3,12),(21,12)]);d.ellipse((8*unit,3*unit,16*unit,21*unit),outline=color,width=stroke)
+    elif name=='scissors':
+        circle(6,6,3);circle(6,18,3);line([(8,8),(21,21)]);line([(8,16),(21,3)])
+    elif name=='video':box(3,5,13,14);line([(16,9),(22,6),(22,18),(16,15)])
+    elif name=='refresh':
+        d.arc((3*unit,3*unit,21*unit,21*unit),-60,240,fill=color,width=stroke)
+        line([(21,3),(21,9),(15,9)])
+    elif name=='upload':
+        line([(12,17),(12,3)]);line([(7,8),(12,3),(17,8)]);line([(4,17),(4,21),(20,21),(20,17)])
+    elif name=='arrow-right':line([(3,12),(21,12)]);line([(15,6),(21,12),(15,18)])
+    elif name in ('info','alert-circle'):
+        circle(12,12,9)
+        line([(12,11),(12,17)] if name=='info' else [(12,6),(12,12)])
+        y=7 if name=='info' else 17;d.ellipse((11*unit,(y-1)*unit,13*unit,(y+1)*unit),fill=color)
+    elif name=='chevron-up':line([(6,15),(12,9),(18,15)])
+    elif name=='check-small':line([(5,12),(10,17),(19,6)])
+    elif name=='play-circle':circle(12,12,9);line([(10,8),(16,12),(10,16)],True)
     else:circle(12,12,9);line([(12,6),(12,12),(16,14)])
     return image.resize((size,size),Image.Resampling.LANCZOS)
+
+
+def icon(name,size,color):
+    return _icon(name,size,color).copy()
+
+
+NEW_ICON_NAMES=('copy','clipboard','shield','shield-check','globe','scissors','video',
+                'refresh','upload','arrow-right','info','alert-circle','chevron-up',
+                'check-small','play-circle')
 
 ICON_NAMES=['plus','play','pause','x','trash','settings','columns','folder','file','image','music','play','archive','program','clock','check','speed','database']
 

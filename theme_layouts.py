@@ -4,7 +4,7 @@ import tkinter as tk
 from pathlib import Path
 import ttkbootstrap as tb
 from PIL import Image,ImageTk
-from theme_catalog import theme_key,palette
+from theme_catalog import theme_key,palette,migrate_settings
 from theme_widgets import Button,Search,Panel
 from list_display import COLUMNS
 from ui_surface import register_fonts,TextLabel,icon,photo,ICON_NAMES
@@ -13,8 +13,11 @@ CATEGORIES=[('Tümü',7),('Belgeler',8),('Resimler',9),('Müzik',10),('Video',11
 STATUS=[('Tümü',7),('Devam Edenler',14),('Tamamlananlar',15)]
 
 def build_ui(app):
-    key=theme_key(app.settings);app.settings['theme']=key
-    family,mode=key.split('_');app.theme_family=family;app.ui_theme=mode;app.palette=palette(key);p=app.palette
+    app.settings=migrate_settings(app.settings);key=theme_key(app.settings)
+    design,mode=key.split('_');app.theme_family=design;app.ui_theme=mode;app.palette=palette(key);p=app.palette
+    # Staged migration: Odak's full card/rail layout arrives in phase 5.
+    # Keep the existing renderer available until its replacement is verified.
+    family='orbit' if design=='odak' else design
     register_fonts()
     from tkinter import font as tkfont
     for named in ('TkDefaultFont','TkTextFont','TkMenuFont','TkHeadingFont'):

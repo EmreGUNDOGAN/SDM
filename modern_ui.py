@@ -11,15 +11,8 @@ from capture_policy import capture_enabled
 
 
 def effective_theme(settings):
-    choice = settings.get('theme','light')
-    if choice == 'system' and os.name == 'nt':
-        import winreg
-        try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,r'Software\Microsoft\Windows\CurrentVersion\Themes\Personalize') as key:
-                return 'light' if winreg.QueryValueEx(key,'AppsUseLightTheme')[0] else 'dark'
-        except OSError:
-            return 'light'
-    return 'dark' if choice == 'dark' else 'light'
+    from theme_catalog import effective_mode
+    return effective_mode(settings)
 
 
 class ModernUI:
@@ -39,7 +32,7 @@ class ModernUI:
 
     def toggle_theme(self):
         from utils import save_settings
-        settings=dict(self.settings,theme=f'{self.theme_family}_{"light" if self.ui_theme=="dark" else "dark"}')
+        settings=dict(self.settings,color_mode='light' if self.ui_theme=='dark' else 'dark')
         if save_settings(settings):self.apply_settings(settings)
 
     def show_remove_menu(self):

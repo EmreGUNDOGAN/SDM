@@ -1,29 +1,49 @@
 """Solid, rounded controls with mouse and keyboard state feedback."""
 import tkinter as tk
 from tkinter import font
+from ui_tokens import SIZES,RADII,FOCUS_WIDTH,FOCUS_GAP,DISABLED_OPACITY
+
+def background(master,palette):
+    try:return master.cget('bg')
+    except tk.TclError:return palette['bg']
 
 def rounded(canvas,x,y,w,h,r=7,**kw):
-    points=[x+r,y,x+w-r,y,x+w,y,x+w,y+r,x+w,y+h-r,x+w,y+h,x+w-r,y+h,x+r,y+h,x,y+h,x,y+h-r,x,y+r,x,y]
-    return canvas.create_polygon(points,smooth=True,**kw)
+    """Compatibility helper: antialiased PIL surfaces, never smoothed polygons."""
+    from ui_surface import surface,photo
+    images=getattr(canvas,'_rounded_images',{})
+    alive=set(canvas.find_all());images={key:value for key,value in images.items() if key in alive}
+    picture=photo(surface(w,h,canvas.cget('bg'),kw.pop('fill',canvas.cget('bg')),
+                          kw.pop('outline',None) or None,r),canvas)
+    item=canvas.create_image(x,y,image=picture,anchor='nw',**kw)
+    images[item]=picture;canvas._rounded_images=images
+    return item
 
 class Button(tk.Canvas):
-    def __init__(self,master,text='',command=None,palette=None,image=None,primary=False,quiet=False,width=None,**kwargs):
+    def __init__(self,master,text='',command=None,palette=None,image=None,primary=False,quiet=False,width=None,kind=None,**kwargs):
         self.p=palette;self.text=text;self.command=command;self.image=image;self.primary=primary;self.quiet=quiet
         self.selected=False;self.disabled=False;self.hover=False;self.pressed=False;self.focused=False
         self._mouse_focus=False
+        self.kind=kind or ('primary' if primary else 'ghost' if quiet else 'secondary')
+        self.radius=RADII[palette.get('design','atlas')]['button']
         self.underline=False;self.side_accent=False
         self.font=font.Font(family='Inter',size=-15)
         from ui_surface import font as measure_font
-        width=width or round(measure_font(15,'Medium' if primary else 'Regular').getlength(text))+(52 if image else 28)
-        super().__init__(master,width=width,height=40,bg=master.cget('bg'),highlightthickness=0,takefocus=1,cursor='hand2')
+        width=width or round(measure_font(13,'SemiBold' if primary else 'Regular').getlength(text))+(52 if image else 28)
+        height=kwargs.pop('height',SIZES['button'])
+        super().__init__(master,width=width,height=height,bg=background(master,palette),highlightthickness=0,takefocus=1,cursor='hand2',**kwargs)
         self.bind('<Configure>',lambda e:self.draw())
         self.bind('<Enter>',lambda e:self.state('hover',True));self.bind('<Leave>',lambda e:(self.state('hover',False),self.state('pressed',False)))
         self.bind('<ButtonPress-1>',self.press);self.bind('<ButtonRelease-1>',self.release)
-        self.bind('<FocusIn>',lambda e:self.state('focused',not self._mouse_focus));self.bind('<FocusOut>',self.blur)
-        self.bind('<space>',lambda e:self.invoke());self.bind('<Return>',lambda e:self.invoke());self.draw()
+        self.bind('<FocusIn>',self.focus_in);self.bind('<FocusOut>',self.blur)
+        self.bind('<space>',self.key_invoke);self.bind('<Return>',self.key_invoke);self.draw()
+    def focus_in(self,event):
+        mouse=self._mouse_focus;self._mouse_focus=False;self.state('focused',not mouse)
+    def key_invoke(self,event):
+        self.invoke();return 'break'
     def state(self,key,value):setattr(self,key,value);self.draw()
     def press(self,event):
-        if not self.disabled:self._mouse_focus=True;self.focus_set();self.state('focused',False);self.state('pressed',True)
+        if not self.disabled:
+            self._mouse_focus=self.focus_get() is not self;self.focus_set();self.state('focused',False);self.state('pressed',True)
     def blur(self,event):self._mouse_focus=False;self.state('focused',False)
     def release(self,event):
         pressed=self.pressed;self.state('pressed',False)
@@ -33,28 +53,42 @@ class Button(tk.Canvas):
     def configure(self,cnf=None,**kw):
         for key in ('text','image'):
             if key in kw:setattr(self,key,kw.pop(key))
-        if 'state' in kw:self.disabled=kw.pop('state')=='disabled'
+        if 'state' in kw:
+            self.disabled=kw.pop('state')=='disabled'
+            kw['takefocus']=0 if self.disabled else 1
+            if self.disabled:self.pressed=False;self.hover=False
         kw.pop('bootstyle',None)
         result=super().configure(cnf,**kw);self.draw();return result
     config=configure
     def draw(self):
         if not self.winfo_exists():return
-        from ui_surface import surface,font as text_font,photo,icon
+        from ui_surface import surface,font as text_font,photo,icon,text_on,ellipsize
         from PIL import Image,ImageDraw
         p=self.p;w=max(1,self.winfo_width() if self.winfo_width()>1 else int(self.cget('width')));h=int(self.cget('height'))
-        bg=p['accent'] if self.primary else p['selected'] if self.selected and not self.underline else p['hover'] if self.hover else self.cget('bg') if self.quiet else p['control']
-        if self.primary and self.hover:bg=p['accent_hover']
-        if self.pressed:bg=p['accent_pressed'] if self.primary else p['selected']
-        if self.disabled:bg=self.cget('bg') if self.quiet else p['disabled_bg']
-        fg=p['disabled_text'] if self.disabled else '#ffffff' if self.primary else p['accent'] if self.selected else p['text']
+        signature=(w,h,self.cget('bg'),self.text,str(self.image),self.kind,self.radius,
+                   self.selected,self.disabled,self.hover,self.pressed,self.focused,
+                   self.underline,self.side_accent,getattr(self,'status_badge',False),
+                   getattr(self,'icon_name',None),getattr(self,'segment_choice',False),tuple(sorted(p.items())))
+        if getattr(self,'_draw_signature',None)==signature:return
+        self._draw_signature=signature
+        kind=self.kind
+        solid=kind in ('primary','danger_solid')
+        bg=p['accent'] if kind=='primary' else p['danger_solid'] if kind=='danger_solid' else p['subtle'] if kind=='soft' else self.cget('bg') if kind in ('ghost','link','danger_ghost','icon') else p['control']
+        fg=p['on_accent'] if kind=='primary' else p['on_danger'] if kind=='danger_solid' else p['accent'] if kind=='link' else p['danger_fg'] if kind=='danger_ghost' else p['text_2']
+        from PIL import ImageColor
+        def mix(a,b,amount):
+            return '#'+''.join(f'{round(x*(1-amount)+y*amount):02x}' for x,y in zip(ImageColor.getrgb(a),ImageColor.getrgb(b)))
+        if self.selected and not self.underline:bg=p['accent_nav'];fg=p['accent_text']
+        if self.selected and getattr(self,'segment_choice',False):bg=p['segment_selected'];fg=p['text']
+        if self.hover:bg=mix(bg,fg,0.08) if solid else p['subtle']
+        if self.pressed:bg=mix(bg,fg,0.16) if solid else p['accent_soft']
+        if self.disabled:fg=p['muted']
         if getattr(self,'status_badge',False):
             enabled='kapalı' not in self.text
-            bg='#eaf9ee' if enabled else p['panel']
-            if p['bg'] in ('#111c2b','#17212b','#222529'):bg='#19382a' if enabled else p['panel']
-            fg='#55d67d' if p['bg'] in ('#111c2b','#17212b','#222529') else '#198849'
-        edge=p['accent'] if self.focused else p['line'] if not self.quiet and not self.primary else None
-        if getattr(self,'status_badge',False):edge='#285b3c' if p['bg'] in ('#111c2b','#17212b','#222529') else '#a6dfb3' 
-        image=surface(w,h,self.cget('bg'),bg,edge,7)
+            bg=p['success_bg'] if enabled else p['queued_bg']
+            fg=p['success_fg'] if enabled else p['queued_fg']
+        edge=p['input_border'] if kind in ('secondary','segment') else None
+        image=surface(w,h,self.cget('bg'),bg,edge,self.radius)
         d=ImageDraw.Draw(image)
         if self.selected and self.underline:d.rectangle((0,h-3,w,h),fill=p['accent'])
         elif self.selected and self.side_accent:d.rectangle((0,7,3,h-7),fill=p['accent'])
@@ -63,15 +97,28 @@ class Button(tk.Canvas):
         if name:
             image.paste(icon(name,18,fg),(x,(h-18)//2),icon(name,18,fg));x+=26
         elif self.image:x+=24
-        face=text_font(15,'Medium' if self.primary or self.selected else 'Regular')
+        face=text_font(13,'SemiBold' if solid or self.selected else 'Regular')
         dropdown=self.text.endswith(' ▾')
         display_text=self.text.lstrip('● ')[:-2] if dropdown else self.text.lstrip('● ')
         if not name and not self.image:x=round((w-face.getlength(display_text))/2)
         if getattr(self,'status_badge',False):
             d.ellipse((11,h//2-4,19,h//2+4),fill=fg);x=26
-        d.text((x,(h-15)//2-1),display_text,font=face,fill=fg,anchor='lt')
+        display_text=ellipsize(display_text,max(0,w-x-(24 if dropdown else 8)),13,'SemiBold' if solid or self.selected else 'Regular')
+        text_on(image,(x,(h-13)//2-1),display_text,13,'SemiBold' if solid or self.selected else 'Regular',fg)
         if dropdown:
             glyph=icon('chevron',12,fg);image.paste(glyph,(w-20,(h-12)//2),glyph)
+        self.display(image)
+
+    def display(self,image):
+        from PIL import Image,ImageDraw
+        from ui_surface import photo
+        p=self.p;w,h=image.size
+        if self.focused:
+            overlay=Image.new('RGBA',(w*3,h*3));focus_draw=ImageDraw.Draw(overlay)
+            inset=FOCUS_WIDTH/2
+            focus_draw.rounded_rectangle((inset*3,inset*3,(w-inset)*3-1,(h-inset)*3-1),radius=(self.radius+FOCUS_GAP)*3,outline=p['accent'],width=FOCUS_WIDTH*3)
+            overlay=overlay.resize((w,h),Image.Resampling.LANCZOS);image.paste(overlay,(0,0),overlay)
+        if self.disabled:image=Image.blend(Image.new('RGB',image.size,self.cget('bg')),image,DISABLED_OPACITY)
         self._surface=photo(image,self);self.delete('all');self.create_image(0,0,image=self._surface,anchor='nw')
 
 class Search(tk.Canvas):
