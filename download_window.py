@@ -25,7 +25,7 @@ class TransferContent(tk.Frame):
         right=AutoCard(top,self.p);right.pack_configure(side='left',fill='both',expand=True,padx=(8,24))
         label(right.content,'Aktarım hızı',palette=self.p,size=12,muted=True).pack(anchor='w')
         label(right.content,variable=self.display['speed'],palette=self.p,size=24,weight='Bold').pack(anchor='w')
-        self.chart=SpeedChart(right.content,self.p,width=380,height=130);self.chart.pack(fill='x')
+        self.chart=SpeedChart(right.content,self.p,width=380,height=130,formatter=lambda text:number(parent,text));self.chart.pack(fill='x')
         label(right.content,variable=self.display['average'],palette=self.p,size=12,muted=True).pack(anchor='w')
         top.bind('<Configure>',lambda e:self.arrange_cards(e,left,right))
         parts=AutoCard(self,self.p)
@@ -78,7 +78,7 @@ class TransferContent(tk.Frame):
             received=f'{format_bytes(received)}  ({ratio*100:.1f}%)' if ratio is not None else format_bytes(received),
             speed=format_speed(active.current_speed) if active and state=='İndiriliyor' else '—',eta=format_eta(active.eta) if active and state=='İndiriliyor' else '—',
             resume='Desteklenir' if task and task.supports_ranges else 'Video motoru' if video else 'Hayır',method=method,
-            connections=count+(' · Gözlenen en çok: '+str(peak) if peak else ''),
+            connections=count+(' aktif bağlantı' if measured else '')+(' · Gözlenen en çok: '+str(peak) if peak else ''),
             average='Ortalama '+format_speed(history.average)+' · En yüksek '+format_speed(max((v for _,v in points),default=0)) if history else 'Gerçek aktarım örnekleri bekleniyor…',
             peak=format_speed(max((v for _,v in points),default=0)),active_time=f'{history.active_seconds:.0f} sn' if history else '—')
         for key,value in texts.items():self.values[key].set(value);self.display[key].set(number(app,value) if key in ('total','received','speed','average') else value)

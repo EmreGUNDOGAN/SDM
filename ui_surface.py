@@ -101,6 +101,9 @@ def _icon(name,size,color):
         line(points,True);circle(12,12,3)
     elif name=='queue':
         for y in (6,12,18):line([(5,y),(20,y)])
+    elif name=='sliders':
+        for y,x in ((5,8),(12,16),(19,10)):
+            line([(3,y),(21,y)]);circle(x,y,2.5)
     elif name=='copy':box(8,8,13,13);line([(16,8),(16,3),(3,3),(3,16),(8,16)])
     elif name=='clipboard':box(5,4,14,17);box(9,2,6,4,1)
     elif name in ('shield','shield-check'):

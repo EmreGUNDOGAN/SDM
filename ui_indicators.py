@@ -127,8 +127,8 @@ class ProgressRing(Indicator):
 
 class SpeedChart(Indicator):
     """Timestamps/bytes-per-second only; caller supplies SpeedHistory samples."""
-    def __init__(self,master,palette,points=(),average=None,axes=True,**kwargs):
-        self.points=tuple(points);self.average=average;self.axes=axes
+    def __init__(self,master,palette,points=(),average=None,axes=True,formatter=None,**kwargs):
+        self.points=tuple(points);self.average=average;self.axes=axes;self.formatter=formatter or (lambda value:value)
         super().__init__(master,palette,height=kwargs.pop('height',160),**kwargs);self.draw()
 
     def set(self,points,average=None):
@@ -158,7 +158,8 @@ class SpeedChart(Indicator):
             for x in range(left*s,right*s,8*s):d.line((x,y,min(x+4*s,right*s),y),fill=p['muted'],width=s)
         image=image.resize((w,h),Image.Resampling.LANCZOS)
         if self.axes:
-            for step in range(4):text_on(image,(left-6,base-span_y*step/3),f'{peak*step/3/1048576:.1f}',11,fill=p['muted'],anchor='rm')
+            precision=2 if peak<1048576 else 1
+            for step in range(4):text_on(image,(left-6,base-span_y*step/3),self.formatter(f'{peak*step/3/1048576:.{precision}f}'),11,fill=p['muted'],anchor='rm')
             text_on(image,(left,h-12),'MB/sn',11,fill=p['muted'])
             text_on(image,(right,h-12),'şimdi',11,fill=p['muted'],anchor='rt')
         self.present(image)

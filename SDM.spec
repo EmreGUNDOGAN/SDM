@@ -6,7 +6,10 @@ datas += [('assets/logo.png', 'assets')]
 datas += [('assets/sdm.ico', 'assets')]
 datas += [('assets/icons', 'assets/icons')]
 datas += [('assets/fonts', 'assets/fonts')]
-datas += [('tools', 'tools')]
+from pathlib import Path
+# Runtime tools only; CI helpers, caches and local reports are never bundled.
+datas += [(str(path),'tools') for path in Path('tools').iterdir()
+          if path.is_file() and (path.suffix.lower() in ('.exe','.dll','.txt','.md') or path.name=='LICENSE')]
 binaries = []
 hiddenimports = ['plyer.platforms.win.notification']
 tmp_ret = collect_all('yt_dlp')

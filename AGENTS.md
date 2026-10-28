@@ -45,7 +45,7 @@ Bu dosya SDM deposundaki bütün çalışmalar için geçerli kural kitabıdır.
 
 ## Teslim ve raporlama
 - Son teslim kullanıcıya yapılır. Setup ve sürüm sayfası bağlantıları gönderilir. "Kuruldu" denmez; kullanıcı kurup deneyince sonucunu bildirir.
-- Uzun işlerde yaklaşık her %10 ilerlemede kısa bilgi verilir.
+- Uzun işlerde yaklaşık her %10 ilerlemede kısa bilgi verilir. Her bildirimde yaklaşık toplam ilerleme, biten iş, kalan iş ve varsa engel belirtilir; ölçülmeyen ilerleme kesin yüzde gibi sunulmaz.
 - Ölçülmemiş hız kazancı veya denenmemiş davranış başarılıymış gibi sunulmaz.
 
 ---

@@ -22,7 +22,7 @@ class SpeedGraph(AppWindow):
         self.stats={}
         for key,title in (('now','Şimdi'),('average','Ortalama'),('peak','En yüksek'),('active','Aktif süre')):
             self.stats[key]=tk.StringVar(self,'—');Summary(stats,title,self.stats[key],self.p).pack(side='left',fill='x',expand=True)
-        self.chart=SpeedChart(self.body,self.p,width=700,height=220);self.chart.pack(fill='both',expand=True,padx=24)
+        self.chart=SpeedChart(self.body,self.p,width=700,height=220,formatter=lambda text:number(parent,text));self.chart.pack(fill='both',expand=True,padx=24)
         self.canvas=self.chart
         label(self.actionbar,'Anlık hız · kesikli çizgi: gerçek aktarım ortalaması',palette=self.p,size=12,muted=True).pack(side='left')
         self.tick()

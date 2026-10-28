@@ -303,6 +303,13 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         else:self.engine.cancel_task(did)
 
     def apply_settings(self, new_settings: Dict[str, Any]) -> None:
+        # A theme/design switch replaces transient views and their timers too.
+        from modern_settings import SettingsDialog
+        for child in list(self.winfo_children()):
+            if isinstance(child,tk.Toplevel) and not isinstance(child,SettingsDialog):
+                if hasattr(child,'close'):child.close()
+                elif hasattr(child,'finish'):child.finish(None)
+                else:child.destroy()
         self.settings = new_settings
         self.engine.max_concurrent = new_settings.get("max_simultaneous_downloads", 3)
         self.engine.default_connections = new_settings.get("default_connections", 8)
@@ -477,8 +484,8 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         for did in self._get_selected_ids():self.cancel_download(did)
         self.refresh_downloads()
 
-    def delete_selected(self, delete_file: bool = False) -> None:
-        ids = self._get_selected_ids()
+    def delete_selected(self, delete_file: bool = False, ids=None) -> None:
+        ids = self._get_selected_ids() if ids is None else list(ids)
         if not ids:
             return
 
@@ -530,7 +537,13 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
             if fp.exists():
                 os.startfile(str(fp))
             else:
-                messagebox.showwarning("Bulunamadı", "Dosya belirtilen konumda bulunamadı.")
+                from ui_messages import show_error
+                show_error(self,'Dosya bulunamadı','Dosya belirtilen konumda bulunamadı.',actions=(('remove','Listeden kaldır',lambda:self.remove_missing_record(rec['id'])),))
+
+    def remove_missing_record(self,did):
+        record=self.db.get_download(did)
+        if not record:return
+        self.delete_selected(ids=[did])
 
     def open_folder(self) -> None:
         ids = self._get_selected_ids()
