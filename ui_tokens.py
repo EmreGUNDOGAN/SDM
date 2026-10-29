@@ -8,6 +8,8 @@ SPACING = (2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 28, 32)
 FONT_FAMILY = 'Inter'
 MONO_FAMILY = 'Consolas'
 SURFACE_SCALE = 3
+# 0.5.1: every UI text size is multiplied once here (12 px reads as 14).
+TEXT_SCALE = 1.15
 FOCUS_WIDTH = 2
 FOCUS_GAP = 2
 DISABLED_OPACITY = 0.55
@@ -97,7 +99,7 @@ RADII = MappingProxyType({
 })
 
 # Atlas workspace geometry, shared by the layout, renderer and native checks.
-ATLAS = MappingProxyType(dict(header=68,toolbar=56,sidebar_padding=14,
+_ATLAS = dict(header=68,toolbar=56,sidebar_padding=14,
     sidebar_top=20,nav_row=34,nav_gap=2,brand=30,brand_gap=10,group_gap=18,
     side_footer=124,header_gap=12,search_width=280,capture_width=176,
     detail_padding=20,detail_tile=44,detail_gap=18,selection_mark=3,
@@ -106,7 +108,12 @@ ATLAS = MappingProxyType(dict(header=68,toolbar=56,sidebar_padding=14,
     toolbar_cancel=80,toolbar_remove=100,toolbar_folder=122,toolbar_queue=92,
     toolbar_limit=158,empty_width=460,empty_icon=64,detail_font=14,
     footer_sparkline=60,footer_gap=16,disk_refresh_seconds=30,compact_workspace=880,
-    compact_search=220,compact_title=160,wide_title=280))
+    compact_search=220,compact_title=160,wide_title=280)
+# Widths sized to their labels grow with TEXT_SCALE so the labels keep fitting.
+_ATLAS.update({key: round(_ATLAS[key] * TEXT_SCALE) for key in (
+    'capture_width', 'toolbar_resume', 'toolbar_pause', 'toolbar_cancel',
+    'toolbar_remove', 'toolbar_folder', 'toolbar_queue', 'toolbar_limit')})
+ATLAS = MappingProxyType(_ATLAS)
 
 
 def dimensions(design='atlas'):
@@ -134,3 +141,8 @@ def status_colors(status, mode='light'):
 
 def file_tile_colors(kind, mode='light'):
     return FILE_TILES.get(kind, FILE_TILES['other'])[mode == 'dark']
+
+
+def text_px(size):
+    """Tk font size (negative = pixels) for a token size, scaled like PIL text."""
+    return -round(size * TEXT_SCALE)

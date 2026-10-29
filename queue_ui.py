@@ -47,7 +47,7 @@ class QueueEditor(tk.Frame):
         self.days=[];self.day_buttons=[];daysrow=tk.Frame(daily.content,bg=self.p['card']);daysrow.pack(fill='x')
         for name in ('Pzt','Sal','Çar','Per','Cum','Cmt','Paz'):
             var=tk.BooleanVar(self);self.days.append(var)
-            button=Button(daysrow,name,lambda v=var:v.set(not v.get()),palette=self.p,kind='soft',width=46)
+            button=Button(daysrow,name,lambda v=var:v.set(not v.get()),palette=self.p,kind='soft')
             button.pack(side='left',padx=(0,4));self.day_buttons.append(button)
         self.times={}
         for key,title in (('start','Başlangıç'),('stop','Durma')):

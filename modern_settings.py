@@ -14,6 +14,7 @@ from theme_widgets import Button
 from ui_dialog import ScrollBody,AutoCard,label,field
 from ui_controls import Switch,Select,SegmentedControl,DesignCard,ChipInput,TextInput,watch
 from ui_surface import TextLabel
+from ui_tokens import text_px
 
 SECTIONS={'Genel':('sliders','Kayıt yeri, görünüm ve aktarım tercihleri'),
  'Tarayıcı':('globe','Yakalama, dosya türleri ve site istisnaları'),
@@ -79,7 +80,7 @@ class SettingsContent(tk.Frame):
         label(card.content,title,palette=self.p,weight='SemiBold').pack(anchor='w',pady=(0,12));return card.content
     def text(self,parent,text):
         # No Tk border/padding: it indented every description 3 px from its title.
-        item=tk.Label(parent,text=text,bg=parent.cget('bg'),fg=self.p['muted'],font=('Inter',-12),justify='left',anchor='w',wraplength=540,padx=0,pady=0,bd=0,highlightthickness=0)
+        item=tk.Label(parent,text=text,bg=parent.cget('bg'),fg=self.p['muted'],font=('Inter',text_px(12)),justify='left',anchor='w',wraplength=540,padx=0,pady=0,bd=0,highlightthickness=0)
         item.pack(fill='x',pady=6);item.bind('<Configure>',lambda e:item.configure(wraplength=max(80,e.width)));return item
     def value(self,key):
         if key not in self.vars:

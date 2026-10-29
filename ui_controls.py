@@ -7,7 +7,7 @@ import tkinter as tk
 from PIL import Image, ImageDraw
 from theme_widgets import Button, background
 from ui_surface import surface, photo, icon, text_on, font, ellipsize
-from ui_tokens import SIZES, RADII, SURFACE_SCALE, FONT_FAMILY, MONO_FAMILY
+from ui_tokens import SIZES, RADII, SURFACE_SCALE, FONT_FAMILY, MONO_FAMILY, text_px
 
 
 def watch(widget, variable, callback):
@@ -261,17 +261,17 @@ class TextInput(tk.Frame):
         self.canvas=tk.Canvas(self,width=width,height=height,bg=self.cget('bg'),highlightthickness=0)
         self.canvas.pack(fill='both',expand=True)
         options=dict(bg=palette['card'],fg=palette['text'],insertbackground=palette['text'],
-                     relief='flat',borderwidth=0,font=(MONO_FAMILY if multiline else FONT_FAMILY,-13),
+                     relief='flat',borderwidth=0,font=(MONO_FAMILY if multiline else FONT_FAMILY,text_px(13)),
                      highlightthickness=0)
         self.entry=tk.Text(self.canvas,wrap='word',**options) if multiline else tk.Entry(self.canvas,textvariable=self.variable,**options)
         self.entry.place(x=12,y=10,relwidth=1,width=-24-(64 if unit else 0),relheight=1,height=-20)
         self.unit=unit
         if unit:
-            self.unit_label=tk.Label(self.canvas,text=unit,bg=palette['subtle'],fg=palette['muted'],font=(FONT_FAMILY,-12))
+            self.unit_label=tk.Label(self.canvas,text=unit,bg=palette['subtle'],fg=palette['muted'],font=(FONT_FAMILY,text_px(12)))
             self.unit_label.place(relx=1,x=-64,y=1,width=63,relheight=1,height=-2)
-        self.placeholder=tk.Label(self.canvas,text=placeholder,bg=palette['card'],fg=palette['muted'],font=(FONT_FAMILY,-13))
+        self.placeholder=tk.Label(self.canvas,text=placeholder,bg=palette['card'],fg=palette['muted'],font=(FONT_FAMILY,text_px(13)))
         self.placeholder.bind('<Button-1>',lambda e:self.entry.focus_set())
-        self.error_label=tk.Label(self,text='',bg=self.cget('bg'),fg=palette['danger_fg'],font=(FONT_FAMILY,-12),anchor='w')
+        self.error_label=tk.Label(self,text='',bg=self.cget('bg'),fg=palette['danger_fg'],font=(FONT_FAMILY,text_px(12)),anchor='w')
         self.entry.bind('<FocusIn>',lambda e:self.focus(True));self.entry.bind('<FocusOut>',lambda e:self.focus(False))
         self.canvas.bind('<Configure>',lambda e:self.draw())
         if multiline:

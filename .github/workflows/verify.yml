@@ -18,6 +18,7 @@ jobs:
     env:
       SDM_DATA_DIR: '${{ github.workspace }}/build/verify-unit-data'
       PYTHONIOENCODING: utf-8
+      NODE_USE_SYSTEM_CA: '1'
     steps:
       - uses: actions/checkout@v5
         with:

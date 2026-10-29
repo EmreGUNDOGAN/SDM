@@ -5,6 +5,7 @@ from urllib.parse import quote
 from ui_dialog import AppWindow,AutoCard,label,action
 from theme_widgets import Button
 from app_version import VERSION
+from ui_tokens import text_px
 
 
 def attach_release_notes(updater,update):
@@ -24,7 +25,7 @@ class UpdateDialog(AppWindow):
         card=AutoCard(self.body,self.p);label(card.content,'Bu sürümde',palette=self.p,weight='SemiBold').pack(anchor='w')
         notes=[line.strip().lstrip('#*- ').strip() for line in update.get('notes','').splitlines() if line.strip()][:5]
         text='\n'.join('• '+line for line in notes) if notes else 'Sürüm notları alınamadı; tüm sürüm notlarını açabilirsin.'
-        tk.Label(card.content,text=text,wraplength=450,justify='left',anchor='w',bg=self.p['card'],fg=self.p['text'],font=('Inter',-13)).pack(fill='x',pady=12)
+        tk.Label(card.content,text=text,wraplength=450,justify='left',anchor='w',bg=self.p['card'],fg=self.p['text'],font=('Inter',text_px(13))).pack(fill='x',pady=12)
         if update.get('notes_url'):Button(card.content,'Tüm sürüm notları',lambda:webbrowser.open(update['notes_url']),palette=self.p,kind='link').pack(anchor='e')
         for index,text in enumerate(('Setup indirilir ve SHA-256 özeti doğrulanır','İndirmeler duraklar, SDM kapanır','Yeni sürüm kurulur ve SDM yeniden açılır'),1):
             # Numbers in their own column: '1' and '2' differ in width and shifted the text.

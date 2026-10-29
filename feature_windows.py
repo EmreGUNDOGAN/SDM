@@ -11,7 +11,10 @@ from ui_surface import TextLabel
 from utils import format_speed,format_bytes,format_eta,save_settings,get_category_by_extension
 from atlas_view import number,file_kind
 from file_tools import AUDIO_BITRATES
-from ui_tokens import SIZES
+from ui_tokens import SIZES,TEXT_SCALE,text_px
+
+# Tool list width follows the text size so descriptions are not cut.
+SIDE=round(268*TEXT_SCALE)
 
 
 class SpeedGraph(AppWindow):
@@ -132,11 +135,11 @@ def build_tools(window,parent):
     window.mode=tk.StringVar(window,'Biçim dönüştürme');window.input=tk.StringVar(window,'');window.output=tk.StringVar(window,'')
     window.start=tk.StringVar(window,'00:00');window.end=tk.StringVar(window,'00:30');window.format=tk.StringVar(window,'mp4')
     window.bitrate=tk.StringVar(window,'192');window.duration=None
-    side=tk.Frame(window,bg=p['side'],width=268);side.pack(side='left',fill='y',before=window.header);side.pack_propagate(False)
+    side=tk.Frame(window,bg=p['side'],width=SIDE);side.pack(side='left',fill='y',before=window.header);side.pack_propagate(False)
     label(side,'Araçlar',palette=p,size=18,weight='Bold').pack(anchor='w',padx=24,pady=24)
     window.mode_buttons={}
     for name,title,description,tile in TOOLS:
-        button=ToolCard(side,name,window.mode,tile,text=title,description=description,palette=p,width=244)
+        button=ToolCard(side,name,window.mode,tile,text=title,description=description,palette=p,width=SIDE-24)
         button.pack(fill='x',padx=12,pady=2);window.mode_buttons[name]=button
     # Steps lie on the window; only the source file and the result are cards (A14).
     def section(number,title):
@@ -175,7 +178,7 @@ def build_tools(window,parent):
     times=tk.Frame(window.cut_fields,bg=p['dialog']);times.pack(fill='x')
     field(times,'Başlangıç',window.start,p,width=120,side='left');field(times,'Bitiş',window.end,p,width=120,side='left')
     window.subtitle_host=tk.Frame(output,bg=p['dialog']);window.subtitle_host.pack(fill='x')
-    window.description_label.max_width=900-268-48
+    window.description_label.max_width=900-SIDE-48
     result=section(3,'Sonuç');window.result_step=result.step
     card=AutoCard(result,p);card.pack_configure(padx=0,pady=0);content=card.content
     top=tk.Frame(content,bg=p['card']);top.pack(fill='x')
@@ -186,7 +189,7 @@ def build_tools(window,parent):
     window.job_meta=label(content,palette=p,size=12,muted=True);window.job_meta.pack(anchor='w')
     window.status=tk.StringVar(window,'');label(content,variable=window.status,palette=p,size=12).pack(anchor='w',pady=(4,0))
     # Link check types into this list, so it needs an input's visible edge.
-    window.list=tk.Text(content,height=6,bg=p['card'],fg=p['text'],insertbackground=p['text'],font=('Inter',-12),relief='flat',
+    window.list=tk.Text(content,height=6,bg=p['card'],fg=p['text'],insertbackground=p['text'],font=('Inter',text_px(12)),relief='flat',
                         highlightthickness=1,highlightbackground=p['input_border'],highlightcolor=p['accent'],padx=10,pady=8)
     window.run_button=action(window.actionbar,'Dönüştür',window.run,p,'primary')
     # Durdur only means something while a job runs (A14).
