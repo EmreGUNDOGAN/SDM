@@ -5,6 +5,9 @@ from theme_widgets import Button,Panel
 from ui_surface import TextLabel
 from ui_tokens import SIZES
 
+SCROLL_TAG='SDMScrollBody'
+OWN_WHEEL=('Text','Listbox','Treeview')
+
 
 class ScrollBody(tk.Frame):
     def __init__(self,master,palette):
@@ -15,9 +18,53 @@ class ScrollBody(tk.Frame):
         self.canvas.pack(side='left',fill='both',expand=True)
         self.content=tk.Frame(self.canvas,bg=palette['dialog'])
         self.item=self.canvas.create_window(0,0,window=self.content,anchor='nw')
-        self.content.bind('<Configure>',lambda e:self.canvas.configure(scrollregion=self.canvas.bbox('all')))
+        self.content.bind('<Configure>',self.content_changed)
         self.canvas.bind('<Configure>',lambda e:self.canvas.itemconfigure(self.item,width=e.width))
-        self.canvas.bind('<MouseWheel>',lambda e:self.canvas.yview_scroll(-3 if e.delta>0 else 3,'units'))
+        # Fields and cards cover the canvas, so wheel/middle-drag are bound on a
+        # tag every descendant carries (bind_all would be lost: ttkbootstrap's
+        # ScrolledFrame calls unbind_all). Text and lists keep their own wheel.
+        root=self._root()
+        if not getattr(root,'_sdm_scroll_bound',False):
+            root._sdm_scroll_bound=True
+            root.bind_class(SCROLL_TAG,'<MouseWheel>',ScrollBody.wheel)
+            root.bind_class(SCROLL_TAG,'<ButtonPress-2>',ScrollBody.grab)
+            root.bind_class(SCROLL_TAG,'<B2-Motion>',ScrollBody.drag)
+        self.canvas.bindtags((SCROLL_TAG,)+self.canvas.bindtags())
+        # Rows swapped in without a size change get tagged when the pointer arrives.
+        self.bind('<Enter>',lambda e:self.tag_descendants(),add='+')
+
+    def content_changed(self,event):
+        self.canvas.configure(scrollregion=self.canvas.bbox('all'));self.tag_descendants()
+
+    def tag_descendants(self):
+        stack=[self.content]
+        while stack:
+            widget=stack.pop();tags=widget.bindtags()
+            if widget.winfo_class() not in OWN_WHEEL and SCROLL_TAG not in tags:widget.bindtags((SCROLL_TAG,)+tags)
+            stack.extend(widget.winfo_children())
+
+    @staticmethod
+    def owner(widget):
+        """Nearest ScrollBody around `widget` that can actually scroll."""
+        while widget is not None:
+            if isinstance(widget,ScrollBody) and widget.bar.winfo_manager():return widget
+            widget=getattr(widget,'master',None)
+        return None
+
+    @staticmethod
+    def wheel(event):
+        body=ScrollBody.owner(event.widget)
+        if body:body.canvas.yview_scroll(-3 if event.delta>0 else 3,'units');return 'break'
+
+    @staticmethod
+    def grab(event):
+        body=ScrollBody.owner(event.widget)
+        if body:body.canvas.scan_mark(0,event.y_root);return 'break'
+
+    @staticmethod
+    def drag(event):
+        body=ScrollBody.owner(event.widget)
+        if body:body.canvas.scan_dragto(0,event.y_root,gain=1);return 'break'
 
     def scroll(self,*args):
         self.bar.set(*args)

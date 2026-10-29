@@ -85,9 +85,17 @@ def main():
             snapshot(hud,'hud',mode);hud.close();assert hud._timer is None
             completion=CompletionDialog(app,dict(app.db.get_download(did),status='Tamamlandı'))
             snapshot(completion,'completion',mode)
-            with patch('antivirus.scan_file',return_value=('Synthetic clean result',folder/'scan.log')):
+            # The real two-sentence clean verdict once ran under the scan button.
+            verdict='Taranan nesnelerde tehdit bulunmadı. Arşiv içeriğinin taranması Kaspersky ayarlarına bağlıdır.'
+            with patch('antivirus.scan_file',return_value=(verdict,folder/'scan.log')):
                 completion.scan();assert completion.scan_button.disabled
-                wait(lambda:not completion.scan_button.disabled);assert completion.scan_status.get()=='Synthetic clean result'
+                wait(lambda:not completion.scan_button.disabled);app.update()
+            assert completion.scan_status.get()=='Taranan nesnelerde tehdit bulunmadı.',completion.scan_status.get()
+            assert completion.scan_detail.text=='Arşiv içeriğinin taranması Kaspersky ayarlarına bağlıdır.',completion.scan_detail.text
+            edge=completion.scan_button.winfo_rootx()
+            for line in (completion.scan_title,completion.scan_detail):
+                assert line.winfo_rootx()+line.winfo_width()<=edge,(line.winfo_width(),edge)
+            snapshot(completion,'completion-scanned',mode)
             completion.close()
             update=UpdateDialog(app,dict(version='0.5.1',notes='- Synthetic first change\n- Synthetic second change'))
             snapshot(update,'update',mode);update.close();assert not update.result

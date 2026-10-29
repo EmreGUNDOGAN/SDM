@@ -46,8 +46,10 @@ class CompletionDialog(AppWindow):
         shield.image=photo(image,shield);shield.create_image(0,0,image=shield.image,anchor='nw');shield.pack(side='left',padx=(0,12))
         lines=tk.Frame(scan.content,bg=p['subtle']);lines.pack(side='left',fill='x',expand=True)
         self.scan_status=tk.StringVar(self,'Henüz taranmadı')
-        TextLabel(lines,textvariable=self.scan_status,size=13,weight='SemiBold',fg=p['text']).pack(anchor='w')
+        self.scan_title=TextLabel(lines,textvariable=self.scan_status,size=13,weight='SemiBold',fg=p['text']);self.scan_title.pack(anchor='w')
         self.scan_detail=TextLabel(lines,'Kaspersky ile tarama yalnız sen başlatınca yapılır.',size=12,fg=p['muted']);self.scan_detail.pack(anchor='w',pady=(2,0))
+        # Scanner messages are long; both lines end before the button instead of running under it.
+        lines.bind('<Configure>',lambda e:self.fit_scan(e.width))
         self.hide_next=tk.BooleanVar(self,False)
         CheckBox(self.actionbar,'Bu pencereyi bir daha gösterme',self.hide_next,palette=self.p,command=self.toggle_popup).pack(side='left')
         action(self.actionbar,'Kapat',self.close,self.p,'ghost')
@@ -65,8 +67,13 @@ class CompletionDialog(AppWindow):
             self.parent.post_ui(lambda:self.scan_done(result) if self.winfo_exists() else None)
         threading.Thread(target=work,daemon=True).start()
 
+    def fit_scan(self,width):
+        for line in (self.scan_title,self.scan_detail):line.max_width=width;line.draw()
+
     def scan_done(self,result):
-        self.scan_status.set(result);self.scan_detail.configure(text='');self.scan_button.configure(state='normal')
+        # First sentence is the verdict; the rest is the detail line.
+        head,_,rest=result.partition('. ')
+        self.scan_status.set(head+'.' if rest else head);self.scan_detail.configure(text=rest);self.scan_button.configure(state='normal')
 
     def open(self,path):
         if Path(path).exists():os.startfile(path)
