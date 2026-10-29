@@ -137,6 +137,7 @@ class VideoDownloadTask:
         connections: int = 8,
         output_name: Optional[str] = None,
         section=None,
+        audio=None,
     ):
         self.download_id = download_id
         self.url = url
@@ -148,6 +149,8 @@ class VideoDownloadTask:
         from video_section import validate_section
         self.section=validate_section(section)
         self.is_audio_only = is_audio_only or ("Ses" in quality)
+        from music import validate_audio
+        self.audio=validate_audio(audio)
 
         self.progress_callback = progress_callback
         self.status_callback = status_callback
@@ -209,6 +212,15 @@ class VideoDownloadTask:
                 self.status_callback(self.download_id, status, error or self.error_message)
             except Exception as e:
                 logger.debug(f"Video status callback error: {e}")
+
+    def _tag_audio(self, path: Path, info: Dict[str, Any]) -> None:
+        """ID3 tags and cover; the MP3 is complete, so a failure here is only logged."""
+        from music import fetch_cover, write_tags
+        try:cover=fetch_cover(info)
+        except Exception as error:
+            logger.warning("Kapak resmi alınamadı: %s", error);cover=None
+        try:write_tags(path,info,self.audio['track'],cover)
+        except Exception as error:logger.warning("Ses etiketleri yazılamadı: %s", error)
 
     def _progress_hook(self, d: Dict[str, Any]) -> None:
         if self._cancel_flag.is_set():
@@ -328,7 +340,7 @@ class VideoDownloadTask:
                 {
                     "key": "FFmpegExtractAudio",
                     "preferredcodec": "mp3",
-                    "preferredquality": "192",
+                    "preferredquality": str(self.audio["bitrate"]),
                 }
             ]
 
@@ -374,10 +386,15 @@ class VideoDownloadTask:
                     if self._cancel_flag.is_set():
                         raise RuntimeError('İndirme iptal edildi')
                     from utils import get_unique_filepath
-                    destination = get_unique_filepath(self.dest_folder,
+                    if self.is_audio_only and self.audio['album']:
+                        from music import album_path
+                        target=album_path(self.dest_folder,info,self.audio['track']);target.parent.mkdir(parents=True,exist_ok=True)
+                        destination=get_unique_filepath(target.parent,target.name)
+                    else:destination = get_unique_filepath(self.dest_folder,
                         (Path(self.output_name).stem + final_path.suffix) if self.output_name else final_path.name)
                     final_path.replace(destination)
                     final_path = destination
+                    if self.is_audio_only:self._tag_audio(final_path,info)
                     self.target_filepath=str(final_path)
                     final_name = final_path.name
                     if self.metadata_callback:

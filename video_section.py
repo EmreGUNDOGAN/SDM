@@ -90,7 +90,7 @@ def download_section(task,info,staging):
     _join_parts(ffmpeg,staging,parts,joined)
     task.status='Dönüştürülüyor';task._notify_status(task.status)
     args=[str(ffmpeg),'-hide_banner','-loglevel','error','-y','-ss',f'{start-parts[0]["head"]:.6f}','-i',str(joined),'-t',str(duration)]
-    args+=['-vn','-c:a','libmp3lame','-b:a','192k'] if task.is_audio_only else ['-map','0','-c:v','libx264','-preset','fast','-crf','20','-c:a','aac']
+    args+=['-vn','-c:a','libmp3lame','-b:a',f"{task.audio['bitrate']}k"] if task.is_audio_only else ['-map','0','-c:v','libx264','-preset','fast','-crf','20','-c:a','aac']
     args+=['-progress','pipe:1',str(target)]
     stopped=_run_part(task,args,staging,target,parts,0,duration,0,0,converting=True)
     joined.unlink(missing_ok=True)

@@ -281,7 +281,7 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
                     quality=options.get('quality','Yalnızca Ses (MP3)' if record['filepath'].endswith('.mp3') else 'En İyi'),
                     selected_height=options.get('height'),connections=record['num_connections'],
                     output_name=options.get('output_name'),
-                    section=options.get('section'),
+                    section=options.get('section'),audio=options.get('audio'),
                     progress_callback=self._on_download_progress,status_callback=self._on_download_status_change,
                     metadata_callback=self._on_metadata_updated)
                 self.video_tasks[did]=task
@@ -352,6 +352,7 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         from_browser: bool = False,
         expected_size: int = 0,
         section=None,
+        audio=None,
     ) -> None:
         if self.check_duplicate(url,is_video,video_quality,selected_height,section):return None
         if self.settings.get('disk_check',True):
@@ -388,7 +389,7 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
             status=status,
         )
 
-        self.db.set_options(did, {'quality':video_quality,'height':selected_height,'output_name':candidate.name if from_browser else None,'section':section})
+        self.db.set_options(did, {'quality':video_quality,'height':selected_height,'output_name':candidate.name if from_browser else None,'section':section,'audio':audio})
         self.db.set_queue(did,self.settings['queues'][0]['name'])
         self._session_baselines[did]=0
         self._session_received[did]=0
@@ -400,6 +401,7 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
                 quality=video_quality,
                 selected_height=selected_height,
                 section=section,
+                audio=audio,
                 connections=connections,
                 output_name=candidate.name if from_browser else None,
                 progress_callback=self._on_download_progress,
