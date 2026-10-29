@@ -39,6 +39,9 @@ def main():
             # Synthetic key events require a focused Tk app on a shared desktop.
             app.focus_force();app.update();assert app.focus_get() is app
             app.event_generate('<Escape>');app.update();assert w.drawer is None
+            app.tree.selection_remove(app.tree.selection());app.update()
+            app.show_download_details(ids[0]);app.update_action_states();app.update()
+            assert app.tree.selection()==('download-'+str(ids[0]),) and w.drawer and ids[0] in app.detail_windows
             app.show_selected_details();app.update();assert w.drawer and w.drawer.download_id==ids[0]
             app.tree.selection_set(app.tree.get_children()[:3]);app.update();assert w.drawer is None and w.toolbar.winfo_ismapped()
             assert all(b.winfo_ismapped() for b in app.action_buttons);shot('multi',mode)

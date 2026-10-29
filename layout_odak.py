@@ -110,6 +110,8 @@ class OdakWorkspace(AtlasWorkspace):
         if self.settings_page and not self.leave_settings():return
         if not self.alive:return self.app.show_download_details(did)
         if self.settings_page:self.settings_page.destroy();self.settings_page=None;self.main.pack(fill='both',expand=True)
+        item='download-'+str(did)
+        if self.app.tree.exists(item):self.app.tree.selection_set(item)
         if self.drawer and self.drawer.download_id==did:return self.drawer
         if self.drawer:self.drawer.close()
         self.dismissed=None

@@ -57,14 +57,17 @@ Yayın workflow'u derlemeden önce tam motor/native/tarayıcı/medya doğrulamas
 SDM güncellenmez ve gerçek HKCU eklenti kayıtlarına yazan eski installer testi
 çalıştırılmaz. Kurulumu kullanıcı dener.
 
-## Açık dış engel — başarı olarak sunulmaz
+## Verify geçmişi ve paket/yayın sınırı
 
 GitHub Verify #7/#8 ve Odak koşumu hesap ödeme/harcama limiti nedeniyle runner
 başlamadan durdu. GitHub mesajı: “recent account payments have failed or your
 spending limit needs to be increased”. Kullanıcı bilgilendirildi; hesapta
 ödeme/limit değişikliği yardımcı tarafından yapılmadı.
 
-Bu nedenle son GitHub Verify başarısı **henüz yoktur**. Windows setup/portable
+Kota engelinin ardından kullanıcı ayrı Windows self-hosted runner kurulumunu
+onayladı; yeni Verify koşumları bu runner'da gerçekten çalışır. Güncel koşum
+sonucu ve doğrulanan head commit [PR #6](https://github.com/EmreGUNDOGAN/SDM/pull/6)
+üzerinde kaydedilir; yerel testler CI başarısı yerine sayılmaz. Windows setup/portable
 derlemesi, frozen paket kapısının gerçek paket üzerinde çalıştırılması,
 birleştirme ve yayın **yapılmadı**. Hazırlanmış paket kontrolü çalışmış gibi
 sunulmaz. Engel giderildiğinde son commit Verify sonucu kontrol edilir;
@@ -116,3 +119,16 @@ Hizalama değişikliği Verify #13 çalışırken yalnız kullanıcının çalı
 checkout'unda hazırlandı; ayrı runner checkout'u ve çalışan koşum iptal
 edilmedi/değiştirilmedi. Güncel uygulama/test kodu için yeni tam Verify
 gerekir; önceki koşumlar yeni kodun başarısı sayılmaz.
+
+Verify #14'te diğer native kontroller geçtikten sonra masaüstü smoke kontrolü,
+programatik ayrıntı açılışında seçili satır olmadığında Odak çekmecesinin
+durum yenilemesinde kapanabildiğini yakaladı. Ayrıntı açılışı artık görünür
+hedef satırı seçer; bu, çekmecenin seçimle eşleşmesini sağlar. Regresyon
+seçimi temizleyip ayrıntıyı API'den açar, durum yenilemesini çalıştırır ve
+hem hedef seçimini hem açık çekmeceyi doğrular. Masaüstü/tray kontrolünün
+ayrıntı assert'i değiştirilmez.
+
+Son ayrıntı düzeltmesinden sonra GitHub'a göndermeden önce 12 betiklik tam
+yerel UI/masaüstü paketi, Node 22 ile üç tarayıcı testi ve 74 PNG'nin beş
+rapor kontrolü başarılıdır. Gerçek HTTP ve SHA-256 kontrolleri korunur;
+runtime.reload çağrısının taklit olduğu mevcut test sınırı değişmez.
