@@ -37,3 +37,9 @@ adımı ve yeni sanal ortamdan native Tk açılışı sınanmıştır. Bu kontro
 Verify başarısı sayılmaz. Tam sonuç, GitHub koşumunun head commit'i ve bütün
 adımları üzerinden ayrıca kontrol edilir. Kayıt/credential dosyaları ve
 runner günlükleri Git'e veya yayına eklenmez.
+
+İlk tam koşumda Odak Escape testi, paylaşılan masaüstünde koyu görünümün
+Tk klavye odağı olmadığı için başarısız oldu. Tanı koşumunda odaksızken
+Escape olayının iletilmediği, odak verildiğinde çekmecenin kapandığı görüldü.
+Test artık tuş göndermeden önce test penceresini odaklar ve odağı ayrıca
+doğrular; Escape sonrası çekmecenin kapanması kontrolü aynen korunur.

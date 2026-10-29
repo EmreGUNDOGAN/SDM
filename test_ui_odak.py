@@ -36,6 +36,8 @@ def main():
             app.data_view.event_generate('<Button-1>',x=100,y=box[1]+32);app.update()
             assert w.drawer and w.drawer.download_id==ids[0] and w.drawer.winfo_width()==460 and app.data_view.winfo_width()<old_width
             assert app.detail_windows[ids[0]] is w.drawer;shot('drawer',mode)
+            # Synthetic key events require a focused Tk app on a shared desktop.
+            app.focus_force();app.update();assert app.focus_get() is app
             app.event_generate('<Escape>');app.update();assert w.drawer is None
             app.show_selected_details();app.update();assert w.drawer and w.drawer.download_id==ids[0]
             app.tree.selection_set(app.tree.get_children()[:3]);app.update();assert w.drawer is None and w.toolbar.winfo_ismapped()
