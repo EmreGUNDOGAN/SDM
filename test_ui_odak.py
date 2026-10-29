@@ -32,9 +32,15 @@ def main():
             assert [int(app.tree.item(item,'values')[0]) for item in app.tree.get_children()]==ids
             app.tree.yview_moveto(.4);app.update();before=app.tree.yview();image=app.data_view._image;rows=app.tree.get_children()
             app.refresh_downloads();app.update();assert app.tree.yview()==before and app.tree.get_children()==rows and app.data_view._image is image
+            # Establish the closed-drawer baseline before comparing list widths.
+            # A pre-existing selection on the shared desktop may already open it.
+            app.tree.selection_remove(app.tree.selection());app.update()
+            assert w.drawer is None,'Selection reset must close the previous drawer'
             app.tree.yview_moveto(0);app.update();item=app.tree.get_children()[0];box=app.tree.bbox(item);old_width=app.data_view.winfo_width()
             app.data_view.event_generate('<Button-1>',x=100,y=box[1]+32);app.update()
-            assert w.drawer and w.drawer.download_id==ids[0] and w.drawer.winfo_width()==460 and app.data_view.winfo_width()<old_width
+            assert w.drawer and w.drawer.download_id==ids[0],'Click must open the first download'
+            assert w.drawer.winfo_width()==460,('Drawer width',w.drawer.winfo_width())
+            assert app.data_view.winfo_width()<old_width,('List must shrink',old_width,app.data_view.winfo_width())
             assert app.detail_windows[ids[0]] is w.drawer;shot('drawer',mode)
             # Synthetic key events require a focused Tk app on a shared desktop.
             app.focus_force();app.update();assert app.focus_get() is app
