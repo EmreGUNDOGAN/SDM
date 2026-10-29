@@ -4,11 +4,11 @@ import tkinter as tk
 import os
 from ui_dialog import AppWindow,AutoCard,label,action
 from ui_controls import CheckBox
-from ui_indicators import ProgressRing,SpeedChart,PartMap
+from ui_indicators import ProgressRing,SpeedChart,PartMap,FileTile,StatusBadge
 from theme_widgets import Button
 from ui_tokens import SIZES
 from utils import format_bytes,format_speed,format_eta
-from atlas_view import number
+from atlas_view import number,file_kind,subtitle
 
 
 class TransferContent(tk.Frame):
@@ -96,8 +96,15 @@ class TransferContent(tk.Frame):
 class DownloadDetailDialog(AppWindow):
     def __init__(self,parent,record):
         self.download_id=record['id'];self._timer=None
-        super().__init__(parent,'İndirme ayrıntıları',880,780,record['filename'])
+        super().__init__(parent,'İndirme ayrıntıları',880,780)
         self.minsize(660,min(420,self.winfo_screenheight()-100));self.transient(parent)
+        # A05 header: file tile, name over "site · quality", status badge before ×.
+        top=self.title_label.master;self.title_label.pack_forget()
+        FileTile(top,Path(record['filename']).suffix.lstrip('.') or 'FILE',file_kind(record),self.p,size=44).pack(side='left',padx=(0,14))
+        self.status_badge=StatusBadge(top,record['status'],self.p);self.status_badge.pack(side='right',padx=(0,12))
+        text=tk.Frame(top,bg=self.p['dialog']);text.pack(side='left',fill='x',expand=True)
+        name=label(text,record['filename'],palette=self.p,size=16,weight='Bold');name.max_width=560;name.pack(anchor='w')
+        label(text,subtitle(record),palette=self.p,size=12,muted=True).pack(anchor='w',pady=(2,0))
         self.content=TransferContent(self.body,parent,self.download_id);self.content.pack(fill='both',expand=True)
         self.values=self.content.values;self.auto_close=tk.BooleanVar(self,False)
         CheckBox(self.actionbar,'Bitince bu pencereyi kapat',self.auto_close,palette=self.p).pack(side='left')
@@ -113,7 +120,7 @@ class DownloadDetailDialog(AppWindow):
     def update_values(self):
         snapshot=self.content.refresh()
         if not snapshot:return self.close()
-        state=snapshot['state'];pct=snapshot['progress']
+        state=snapshot['state'];pct=snapshot['progress'];self.status_badge.set(state)
         self.title(('—' if pct is None else f'{pct:.0%}')+' · '+snapshot['record']['filename'])
         self.cancel_button.configure(text='Kapat' if state=='Tamamlandı' else 'İptal et',command=self.close if state=='Tamamlandı' else self.cancel)
         self.pause_button.configure(text='Duraklat' if state in ('İndiriliyor','Bekliyor') else 'Devam et',state='disabled' if state in ('Tamamlandı','Birleştiriliyor','Dönüştürülüyor') else 'normal')

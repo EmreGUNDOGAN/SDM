@@ -2,7 +2,7 @@
 import math
 import tkinter as tk
 from PIL import Image, ImageDraw
-from ui_surface import surface, photo, icon, text_on, ellipsize
+from ui_surface import surface, photo, icon, text_on, ellipsize, font
 from theme_widgets import background
 from ui_tokens import SIZES, RADII, SURFACE_SCALE, status_colors, file_tile_colors
 
@@ -31,11 +31,18 @@ class Indicator(tk.Canvas):
 
 class StatusBadge(Indicator):
     def __init__(self,master,status,palette,**kwargs):
-        self.status=status
-        super().__init__(master,palette,height=SIZES['badge'],**kwargs);self.draw()
+        # Without a width the badge hugs its text, so a header badge keeps its edge.
+        self.status=status;self.fit='width' not in kwargs
+        super().__init__(master,palette,height=SIZES['badge'],width=kwargs.pop('width',self.fitted(status)),**kwargs);self.draw()
+
+    @staticmethod
+    def fitted(status):return round(font(12,'Medium').getlength(status))+35
 
     def set(self,status):
-        if self.status!=status:self.status=status;self.draw()
+        if self.status!=status:
+            self.status=status
+            if self.fit:self.configure(width=self.fitted(status))
+            self.draw()
 
     def draw(self):
         w,h=self.size();p=self.p
