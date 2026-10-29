@@ -13,10 +13,13 @@ class TransferDrawer(tk.Frame):
         head=tk.Frame(self,bg=workspace.p['dialog']);head.pack(fill='x',padx=16,pady=16)
         Button(head,'×',self.close,palette=workspace.p,kind='icon',width=34).pack(side='right')
         self.title_label=label(head,'İndirme ayrıntıları',palette=workspace.p,weight='SemiBold');self.title_label.max_width=340;self.title_label.pack(side='left')
-        foot=tk.Frame(self,bg=workspace.p['footer']);foot.pack(side='bottom',fill='x',padx=12,pady=12)
+        # Full-width footer with inner padding (an outer margin left a strip and put the button on the edge).
+        bar=tk.Frame(self,bg=workspace.p['footer']);bar.pack(side='bottom',fill='x')
+        tk.Frame(bar,bg=workspace.p['line'],height=1).pack(fill='x')
+        foot=tk.Frame(bar,bg=workspace.p['footer']);foot.pack(fill='x',padx=16,pady=12)
         self.pause_button=action(foot,'Devam et',self.pause_resume,workspace.p,'primary')
         self.cancel_button=action(foot,'İptal et',self.cancel,workspace.p,'danger_ghost')
-        Button(foot,'Klasör',lambda:self.content.open_folder(),palette=workspace.p,kind='ghost').pack(side='left')
+        Button(foot,'Klasörü aç',lambda:self.content.open_folder(),palette=workspace.p,kind='ghost').pack(side='left')
         scroll=ScrollBody(self,workspace.p);scroll.pack(fill='both',expand=True)
         self.content=TransferContent(scroll.content,self.parent,did);self.content.pack(fill='both',expand=True);self.values=self.content.values
         self.bind('<Destroy>',self.dispose);self.parent.detail_windows[did]=self;self.tick()

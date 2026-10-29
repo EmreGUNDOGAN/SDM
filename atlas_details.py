@@ -56,7 +56,7 @@ class AtlasDetails(tk.Frame):
         title=f'{len(self.records)} öğe seçili' if multi else record['filename']
         from utils import format_bytes
         amount=number(app,format_bytes(received))+' / '+(number(app,format_bytes(total)) if known else 'Bilinmiyor')
-        fields=[('Hız',number(app,values[6]).replace('/s','/sn') if not multi else '—'),
+        fields=[('Hız',number(app,values[6]) if not multi else '—'),
             ('Kalan süre',values[7] if not multi else '—'),
             ('Kuyruk',record.get('queue_name','Ana kuyruk') if not multi else 'Toplu seçim'),
             ('Klasör',str(Path(record['filepath']).parent) if not multi else 'Birden fazla öğe'),

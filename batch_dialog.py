@@ -11,7 +11,7 @@ from ui_indicators import FileTile
 from ui_surface import TextLabel
 from utils import is_valid_url,clean_filename,extract_filename_from_url,format_bytes
 from video_downloader import is_video_site
-from atlas_view import domain,file_kind
+from atlas_view import domain,file_kind,number
 
 
 class BatchDialog(AppWindow):
@@ -30,8 +30,7 @@ class BatchDialog(AppWindow):
         Button(head,'Tümünü seç',self.select_all,palette=self.p,kind='link').pack(side='right')
         self.found=tk.Frame(self.body,bg=self.p['dialog']);self.found.pack(fill='x')
         save=AutoCard(self.body,self.p)
-        field(save.content,'Klasör',self.folder,self.p)
-        Button(save.content,'Değiştir',self.browse,palette=self.p,kind='soft').pack(anchor='e')
+        field(save.content,'Klasör',self.folder,self.p,actions=[('Değiştir',self.browse)])
         label(save.content,'Kuyruk',palette=self.p,muted=True).pack(anchor='w',pady=(8,4))
         Select(save.content,{q['name']:q['name'] for q in parent.settings['queues']},self.queue_name,palette=self.p,width=260).pack(fill='x')
         self.total=tk.StringVar(self,'0 öğe seçili');label(self.actionbar,variable=self.total,palette=self.p,size=12).pack(side='left')
@@ -127,7 +126,7 @@ class BatchDialog(AppWindow):
         item.update(result);item['resolved_url']=item.get('url',url);item['url']=url
         if result['kind']=='file':
             item['title']=result['filename'];item['size']=result.get('filesize',0)
-            item['info'].configure(text=('Devam ettirilebilir · en çok '+str(self.parent.settings['default_connections'])+' bağlantı' if result.get('supports_ranges') else 'Devam desteği doğrulanmadı')+' · '+(format_bytes(item['size']) if item['size'] else 'Boyut bilinmiyor'))
+            item['info'].configure(text=('Devam ettirilebilir · en çok '+str(self.parent.settings['default_connections'])+' bağlantı' if result.get('supports_ranges') else 'Devam desteği doğrulanmadı')+' · '+(number(self.parent,format_bytes(item['size'])) if item['size'] else 'Boyut bilinmiyor'))
         elif result['kind']=='video':
             from ui_thumbnail import Thumbnail
             item['tile'].destroy();item['tile']=Thumbnail(item['card'].content,self.parent,self.p,source=result.get('thumbnail'))
@@ -150,7 +149,7 @@ class BatchDialog(AppWindow):
     def item_changed(self,item):
         if item['mode'].get()=='audio':item['size']=item.get('audio_filesize',0)
         else:item['size']=next((q['filesize'] for q in item['formats'] if str(q['height'])==item['quality'].get()),0)
-        item['info'].configure(text=('~'+format_bytes(item['size']) if item['size'] else 'Boyut bilinmiyor')+' · '+domain(item))
+        item['info'].configure(text=('~'+number(self.parent,format_bytes(item['size'])) if item['size'] else 'Boyut bilinmiyor')+' · '+domain(item))
         self.update_total()
 
     def show_section(self,item):
@@ -166,7 +165,7 @@ class BatchDialog(AppWindow):
         selected=[item for item in self.items.values() if item['selected'].get()]
         pending=sum(item['kind']=='pending' for item in self.items.values())
         self.inspecting=bool(pending);self.status.set(f'Bulunanlar · {len(self.items)} bağlantı')
-        self.total.set(f'{len(selected)} öğe seçili · ~{format_bytes(sum(item.get("size",0) for item in selected))} · {pending} inceleniyor')
+        self.total.set(f'{len(selected)} öğe seçili · ~{number(self.parent,format_bytes(sum(item.get("size",0) for item in selected)))} · {pending} inceleniyor')
         valid=bool(selected) and not pending
         for item in selected:
             if 'section' in item:
