@@ -1,20 +1,60 @@
-"""Six persisted design variants; legacy settings migrate to Atlas."""
-FAMILIES=('atlas','orbit','nova')
-THEMES=tuple(f'{family}_{mode}' for family in FAMILIES for mode in ('light','dark'))
+"""Design/color-mode preferences and deterministic legacy settings migration."""
+import sys
+from ui_tokens import COLOR_MODES, DESIGNS, DESIGN_NAMES, colors
+
+FAMILIES = DESIGNS
+THEMES = tuple(f'{design}_{mode}' for design in DESIGNS for mode in ('light', 'dark'))
+LEGACY_THEMES = tuple(f'{family}_{mode}' for family in ('atlas', 'orbit', 'nova')
+                      for mode in ('light', 'dark')) + ('light', 'cosmo', 'dark', 'system')
+
+
+def migrate_settings(settings):
+    """Copy settings; explicit new keys win. Never mutate the caller's backup."""
+    result = dict(settings)
+    old = result.pop('theme', None)
+    mode = 'system' if old == 'system' else 'dark' if old in (
+        'dark', 'atlas_dark', 'orbit_dark', 'nova_dark') else 'light'
+    result['design'] = result.get('design') if result.get('design') in DESIGNS else 'atlas'
+    result['color_mode'] = (result.get('color_mode') if result.get('color_mode')
+                            in COLOR_MODES else mode)
+    return result
+
+
+def system_color_mode():
+    if sys.platform == 'win32':
+        import winreg
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                    r'Software\Microsoft\Windows\CurrentVersion\Themes\Personalize') as key:
+                return 'light' if winreg.QueryValueEx(key, 'AppsUseLightTheme')[0] else 'dark'
+        except OSError:
+            pass
+    return 'light'
+
+
+def effective_mode(settings):
+    mode = migrate_settings(settings)['color_mode']
+    return system_color_mode() if mode == 'system' else mode
+
+
 def theme_key(settings):
-    value=settings.get('theme','atlas_light')
-    return value if value in THEMES else 'atlas_dark' if value=='dark' else 'atlas_light'
-def theme_name(key,language='tr'):
-    family,mode=key.split('_')
-    suffix=('Açık Tema' if mode=='light' else 'Koyu Tema') if language=='tr' else mode.title()
-    return f'{family.title()} — {suffix}'
-def _palette(key):
-    family,mode=key.split('_');dark=mode=='dark'
-    if family=='nova':
-        return dict(bg='#222529' if dark else '#fffdfa',panel='#2b2e32' if dark else '#f7f5f1',text='#f6f4ef' if dark else '#202429',muted='#b8b6b2' if dark else '#71716c',selected='#49352d' if dark else '#fff0e5',line='#414447' if dark else '#e7e1d9',accent='#f26b2f',hover='#373b40' if dark else '#eeeae4')
-    return dict(bg=('#17212b' if family=='orbit' else '#111c2b') if dark else '#ffffff',panel=('#202c37' if family=='orbit' else '#182738') if dark else '#f7f9fc',text='#edf3fa' if dark else '#142331',muted='#adbbcd' if dark else '#637287',selected='#183e59' if dark else '#e3f2ff',line='#344456' if dark else '#e0e6ee',accent='#05c3ed' if dark else '#087dff',hover='#2a3b4d' if dark else '#edf3f9')
+    normalized = migrate_settings(settings)
+    return f"{normalized['design']}_{effective_mode(normalized)}"
+
+
+def theme_name(key, language='tr'):
+    design, mode = key.rsplit('_', 1)
+    suffix = {'light': 'Açık', 'dark': 'Koyu', 'system': 'Sistem'}[mode]
+    return f"{DESIGN_NAMES[design]} — {suffix if language == 'tr' else mode.title()}"
+
 
 def palette(key):
-    p=_palette(key);dark=key.endswith('dark');nova=key.startswith('nova')
-    p.update(control=p['panel'] if dark else '#ffffff',disabled_bg='#303844' if dark else '#e6eaf0',disabled_text='#77859a' if dark else '#9aa7b8',accent_hover='#ff7d44' if nova else '#25ceee' if dark else '#2090ff',accent_pressed='#d85724' if nova else '#049bbb' if dark else '#0064db')
+    design, mode = key.rsplit('_', 1)
+    if design not in DESIGNS or mode not in ('light', 'dark'):
+        raise ValueError(f'Unknown resolved theme: {key}')
+    p = colors(mode)
+    # Compatibility roles for old layouts, retained until phase 6.
+    p.update(panel=p['side'], selected=p['accent_soft'], hover=p['subtle'],
+             control=p['card'], disabled_bg=p['subtle'], disabled_text=p['muted'],
+             accent_hover=p['accent'], accent_pressed=p['accent_text'], design=design, mode=mode)
     return p

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SDM Browser Integration",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "Video üzerinde kalite seçimi ve SDM ile indirme.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAizFyPXdzwyOpPaXh4WKcJ+E+sf6/EHrXkipJvvYu5kfWyWMjR3b4S7ZrfQhz3D2oZ83DQYSd3M1uPT3oA1U3CX5uYZIeCMuHpc7lV0qwj3pPWX1X9Bed/HMKQ5eExVS/6xQDVygaDJDvJG8282RnU9RUnOjhs+b4tSnAAJtYDtOxt4S30nWpWnpGYTq/AmKmVOjXmL75zRjH2p0yApfZ5s8wqKg9SG7ErM+ya6VlFFNqx3r5MRYvxK5l1OeruJM6f1Wxr8aEYBKsjFnsvwiVjE4ACp7mWlt/ks3Wboxl/blRjlHqWDr96kxaW48+LX2QfhQbtXKR6r4uM9amfsom4QIDAQAB",
   "permissions": [
@@ -43,6 +43,25 @@
         "content.js"
       ],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "fonts/*.ttf"
+      ],
+      "matches": [
+        "*://*.youtube.com/*",
+        "*://*.vimeo.com/*",
+        "*://*.dailymotion.com/*",
+        "*://*.tiktok.com/*",
+        "*://*.instagram.com/*",
+        "*://*.x.com/*",
+        "*://*.twitter.com/*",
+        "*://*.facebook.com/*",
+        "*://*.twitch.tv/*",
+        "*://*.soundcloud.com/*"
+      ]
     }
   ]
 }

@@ -1,3 +1,6 @@
+#ifndef SDM_VERSION
+  #error SDM_VERSION must be supplied by build.ps1
+#endif
 [Setup]
 #ifdef SDM_TEST_BUILD
 AppId={{DA66AE91-880E-4ED8-977D-9AC2298A341B}
@@ -5,13 +8,13 @@ AppId={{DA66AE91-880E-4ED8-977D-9AC2298A341B}
 AppId={{7D41A428-758B-4932-A29D-03767B5E5587}
 #endif
 AppName=SDM
-AppVersion=0.4.3
+AppVersion={#SDM_VERSION}
 DefaultDirName={localappdata}\Programs\SDM
 DefaultGroupName=SDM
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 OutputDir=dist
-OutputBaseFilename=SDM-Setup-0.4.3
+OutputBaseFilename=SDM-Setup-{#SDM_VERSION}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

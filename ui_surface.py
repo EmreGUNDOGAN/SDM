@@ -1,9 +1,11 @@
 """Deterministic Inter typography and antialiased vector UI surfaces."""
 from functools import lru_cache
+import math
 from pathlib import Path
 import sys
 import tkinter as tk
 from PIL import Image,ImageDraw,ImageFont,ImageTk
+from ui_tokens import SURFACE_SCALE
 
 ROOT=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))
 def register_fonts():
@@ -17,13 +19,45 @@ def font(size=13,weight='Regular'):
     return ImageFont.truetype(str(ROOT/'assets/fonts'/f'Inter-{weight}.ttf'),round(size))
 
 def photo(image,master):return ImageTk.PhotoImage(image,master=master)
-def surface(w,h,bg,fill,border=None,radius=7,scale=3):
+@lru_cache(maxsize=96)
+def _surface(w,h,bg,fill,border,radius,scale):
     image=Image.new('RGB',(max(1,w)*scale,max(1,h)*scale),bg)
     draw=ImageDraw.Draw(image)
     draw.rounded_rectangle((scale/2,scale/2,w*scale-scale/2,h*scale-scale/2),radius=radius*scale,fill=fill,outline=border,width=scale if border else 1)
     return image.resize((max(1,w),max(1,h)),Image.Resampling.LANCZOS)
 
-def icon(name,size,color):
+def surface(w,h,bg,fill,border=None,radius=7,scale=SURFACE_SCALE):
+    return _surface(max(1,round(w)),max(1,round(h)),bg,fill,border,radius,scale).copy()
+
+
+def text_on(image,xy,text,size=13,weight='Regular',fill='#111827',anchor='la'):
+    """Supersample text independently of its canvas/surface (no Tk text raster).
+
+    The default anchor is the font's ascender line, not the ink top ('lt'):
+    ink-top placement moves capitals and dotted 'İ' by a few pixels per word.
+    """
+    scale=SURFACE_SCALE
+    layer=Image.new('RGBA',(image.width*scale,image.height*scale))
+    ImageDraw.Draw(layer).text(tuple(round(v*scale) for v in xy),str(text),
+                              font=font(round(size*scale),weight),fill=fill,anchor=anchor)
+    layer=layer.resize(image.size,Image.Resampling.LANCZOS)
+    image.paste(layer,(0,0),layer)
+
+
+def ellipsize(text,width,size=13,weight='Regular'):
+    face=font(size,weight)
+    if face.getlength(text)<=width:return text
+    if face.getlength('…')>width:return ''
+    low,high=0,len(text)
+    while low<high:
+        mid=(low+high+1)//2
+        if face.getlength(text[:mid]+'…')<=width:low=mid
+        else:high=mid-1
+    return text[:low]+'…'
+
+
+@lru_cache(maxsize=256)
+def _icon(name,size,color):
     """Native vector geometry, matching the reference's thin rounded strokes."""
     scale=4;image=Image.new('RGBA',(size*scale,size*scale));d=ImageDraw.Draw(image)
     unit=size*scale/24;stroke=max(1,round(unit*1.65))
@@ -72,14 +106,50 @@ def icon(name,size,color):
         line(points,True);circle(12,12,3)
     elif name=='queue':
         for y in (6,12,18):line([(5,y),(20,y)])
+    elif name=='sliders':
+        for y,x in ((5,8),(12,16),(19,10)):
+            line([(3,y),(21,y)]);circle(x,y,2.5)
+    elif name=='copy':box(8,8,13,13);line([(16,8),(16,3),(3,3),(3,16),(8,16)])
+    elif name=='clipboard':box(5,4,14,17);box(9,2,6,4,1)
+    elif name in ('shield','shield-check'):
+        line([(12,2),(21,6),(20,14),(17,19),(12,22),(7,19),(4,14),(3,6),(12,2)])
+        if name=='shield-check':line([(7,12),(10,15),(17,8)])
+    elif name=='globe':
+        circle(12,12,9);line([(3,12),(21,12)]);d.ellipse((8*unit,3*unit,16*unit,21*unit),outline=color,width=stroke)
+    elif name=='scissors':
+        circle(6,6,3);circle(6,18,3);line([(8,8),(21,21)]);line([(8,16),(21,3)])
+    elif name=='video':box(3,5,13,14);line([(16,9),(22,6),(22,18),(16,15)])
+    elif name=='refresh':
+        d.arc((3*unit,3*unit,21*unit,21*unit),-60,240,fill=color,width=stroke)
+        line([(21,3),(21,9),(15,9)])
+    elif name=='upload':
+        line([(12,17),(12,3)]);line([(7,8),(12,3),(17,8)]);line([(4,17),(4,21),(20,21),(20,17)])
+    elif name=='arrow-right':line([(3,12),(21,12)]);line([(15,6),(21,12),(15,18)])
+    elif name in ('info','alert-circle'):
+        circle(12,12,9)
+        line([(12,11),(12,17)] if name=='info' else [(12,6),(12,12)])
+        y=7 if name=='info' else 17;d.ellipse((11*unit,(y-1)*unit,13*unit,(y+1)*unit),fill=color)
+    elif name=='chevron-up':line([(6,15),(12,9),(18,15)])
+    elif name=='check-small':line([(5,12),(10,17),(19,6)])
+    elif name=='play-circle':circle(12,12,9);line([(10,8),(16,12),(10,16)],True)
     else:circle(12,12,9);line([(12,6),(12,12),(16,14)])
     return image.resize((size,size),Image.Resampling.LANCZOS)
+
+
+def icon(name,size,color):
+    return _icon(name,size,color).copy()
+
+
+NEW_ICON_NAMES=('copy','clipboard','shield','shield-check','globe','scissors','video',
+                'refresh','upload','arrow-right','info','alert-circle','chevron-up',
+                'check-small','play-circle')
 
 ICON_NAMES=['plus','play','pause','x','trash','settings','columns','folder','file','image','music','play','archive','program','clock','check','speed','database']
 
 class TextLabel(tk.Canvas):
     def __init__(self,parent,text='',textvariable=None,size=13,weight='Regular',fg='#172331',**kwargs):
         self.text=text;self.var=textvariable;self.size=size;self.weight=weight;self.fg=fg
+        self.max_width=kwargs.pop('max_width',None)
         super().__init__(parent,bg=parent.cget('bg'),highlightthickness=0,height=size+6)
         self._trace=textvariable.trace_add('write',lambda *args:self.draw()) if textvariable is not None else None
         self.bind('<Configure>',lambda e:self.draw());self.bind('<Destroy>',self.dispose);self.draw()
@@ -96,7 +166,15 @@ class TextLabel(tk.Canvas):
     config=configure
     def draw(self):
         text=self.var.get() if self.var is not None else self.text
-        face=font(self.size,self.weight);w=max(1,round(face.getlength(text))+2);h=self.size+7
+        if self.max_width is not None:text=ellipsize(text,self.max_width,self.size,self.weight)
+        signature=(text,self.size,self.weight,self.fg,self.cget('bg'))
+        if signature==getattr(self,'_text_signature',None):return
+        self._text_signature=signature
+        face=font(self.size,self.weight);ascent,descent=face.getmetrics()
+        # Text is drawn at 3x and downsampled; at 13 px hinting measures a few px
+        # narrower than that, which clipped the last letter ('…indi', '~2,44 KE').
+        drawn=max(face.getlength(text),font(self.size*3,self.weight).getlength(text)/3)
+        w=max(1,math.ceil(drawn)+3);h=ascent+descent+4
         super().configure(width=w,height=h)
-        image=Image.new('RGB',(w*3,h*3),self.cget('bg'));d=ImageDraw.Draw(image);d.text((0,2*3),text,font=font(self.size*3,self.weight),fill=self.fg,anchor='lt')
+        image=Image.new('RGB',(w*3,h*3),self.cget('bg'));d=ImageDraw.Draw(image);d.text((0,2*3),text,font=font(self.size*3,self.weight),fill=self.fg,anchor='la')
         self._image=photo(image.resize((w,h),Image.Resampling.LANCZOS),self);self.delete('all');self.create_image(0,0,image=self._image,anchor='nw')

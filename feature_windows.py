@@ -1,0 +1,249 @@
+"""A14–A16 themed UI; measurement and tool workers stay in their existing APIs."""
+from pathlib import Path
+import time
+import tkinter as tk
+import ttkbootstrap as tb
+from ui_dialog import AppWindow,AutoCard,label,action,field,step
+from ui_controls import SegmentedControl,RadioCard,ToolCard,TextInput,Select
+from ui_indicators import SpeedChart,ProgressRing,ProgressBar,Sparkline,Summary,FileTile
+from theme_widgets import Button
+from ui_surface import TextLabel
+from utils import format_speed,format_bytes,format_eta,save_settings,get_category_by_extension
+from atlas_view import number,file_kind
+from file_tools import AUDIO_BITRATES
+from ui_tokens import SIZES
+
+
+class SpeedGraph(AppWindow):
+    def __init__(self,parent,did):
+        record=parent.db.get_download(did)
+        super().__init__(parent,'Hız grafiği',760,440,record['filename'] if record else 'Gerçek aktarım ölçümleri')
+        self.did=did;self.span=tk.StringVar(self,'300')
+        # A16: the span choice sits on the file-name line, right-aligned.
+        line=tk.Frame(self.header,bg=self.p['dialog']);line.pack(fill='x',pady=(6,0))
+        # Re-packed into a later sibling, the label must be raised above it.
+        self.description_label.pack_forget();self.description_label.pack(in_=line,side='left');tk.Misc.tkraise(self.description_label,line)
+        SegmentedControl(self.header,{'60':'1 dk','300':'5 dk','all':'Tümü'},self.span,palette=self.p).pack(in_=line,side='right')
+        stats=tk.Frame(self.body,bg=self.p['dialog']);stats.pack(fill='x',padx=24,pady=(0,16))
+        self.stats={}
+        for key,title in (('now','Şimdi'),('average','Ortalama'),('peak','En yüksek'),('active','Aktif süre')):
+            self.stats[key]=tk.StringVar(self,'—');Summary(stats,title,self.stats[key],self.p).pack(side='left',fill='x',expand=True)
+        self.chart=SpeedChart(self.body,self.p,width=700,height=220,formatter=lambda text:number(parent,text));self.chart.pack(fill='both',expand=True,padx=24)
+        self.canvas=self.chart
+        label(self.actionbar,'Anlık hız · kesikli çizgi: gerçek aktarım ortalaması',palette=self.p,size=12,muted=True).pack(side='left')
+        self.tick()
+
+    def tick(self):
+        history=self.parent.speed_history.get(self.did);points=tuple(history.points) if history else ()
+        if points and self.span.get()!='all':points=tuple((t,v) for t,v in points if t>=points[-1][0]-int(self.span.get()))
+        self.chart.set(points,history.average if history else None)
+        for key,value in dict(now=format_speed(points[-1][1]) if points else '—',average=format_speed(history.average) if history else '—',peak=format_speed(max((v for _,v in points),default=0)) if points else '—',active=f'{history.active_seconds:.0f} sn' if history else '—').items():self.stats[key].set(number(self.parent,value))
+        self.later(1000,self.tick)
+
+
+class MiniHUD(tb.Toplevel):
+    def __init__(self,parent):
+        super().__init__(parent);self.parent=parent;self.withdraw();self.overrideredirect(True);self.attributes('-topmost',True);self.attributes('-alpha',.94)
+        self.p=dict(parent.palette,bg=parent.palette['hud'],card=parent.palette['hud'],text=parent.palette['toast_text'],text_2=parent.palette['toast_text'],muted=parent.palette['toast_muted'],accent=parent.palette['hud_accent'])
+        # The HUD stays dark in light mode; light-mode control fills made its
+        # white button labels unreadable ('Tümünü duraklat' as a blank box).
+        from PIL import ImageColor
+        def tint(amount):
+            return '#'+''.join(f'{round(a*(1-amount)+b*amount):02x}' for a,b in zip(ImageColor.getrgb(self.p['hud']),ImageColor.getrgb(self.p['toast_text'])))
+        self.p.update(subtle=tint(.1),control=tint(.06),accent_soft=tint(.18),input_border=tint(.2),track=tint(.14))
+        self.configure(bg=self.p['hud']);self._timer=None;self._drag=None;self.points=[]
+        head=tk.Frame(self,bg=self.p['hud']);head.pack(fill='x',padx=16,pady=(16,10))
+        self.ring=ProgressRing(head,self.p,size=48,stroke=5,value=0);self.ring.pack(side='left',padx=(0,14))
+        info=tk.Frame(head,bg=self.p['hud']);info.pack(side='left',fill='x',expand=True)
+        self.speed=label(info,'0 KB/sn',palette=self.p,size=20,weight='Bold');self.speed.pack(anchor='w')
+        self.status=label(info,'Aktif indirme yok',palette=self.p,size=12,muted=True);self.status.pack(anchor='w')
+        self.spark=Sparkline(head,self.p,width=80,height=24);self.spark.pack(side='right')
+        self.files=tk.Frame(self,bg=self.p['hud']);self.files.pack(fill='x',padx=16,pady=8)
+        self.file_rows=[]
+        for _ in range(3):
+            row=tk.Frame(self.files,bg=self.p['hud'])  # packed by tick() only while a file is active
+            text=label(row,'',palette=self.p,size=12);text.max_width=304;text.pack(fill='x')
+            bar=ProgressBar(row,self.p,width=304,height=10,thickness=3,show_text=False);bar.pack(fill='x')
+            self.file_rows.append((row,text,bar))
+        self.more=label(self.files,'',palette=self.p,size=12,muted=True)
+        foot=tk.Frame(self,bg=self.p['hud']);foot.pack(fill='x',padx=12,pady=(0,12))
+        Button(foot,'Tümünü duraklat',self.pause_all,palette=self.p,kind='soft').pack(side='left')
+        Button(foot,'SDM’yi aç',self.show_main,palette=self.p,quiet=True).pack(side='left',padx=4)
+        Button(foot,'×',self.close,palette=self.p,kind='icon',width=30).pack(side='right')
+        self.bind('<ButtonPress-1>',self.drag_start);self.bind('<B1-Motion>',self.drag_move);self.bind('<ButtonRelease-1>',self.drag_end)
+        self.bind('<Destroy>',self.dispose,add='+');self.protocol('WM_DELETE_WINDOW',self.close)
+        self.geometry('340x280');self.update_idletasks()
+        position=parent.settings.get('hud_position',[])
+        x,y=position if len(position)==2 else (self.winfo_screenwidth()-356,self.winfo_screenheight()-self.winfo_reqheight()-56)
+        self.geometry(f'340x{self.winfo_reqheight()}+{max(0,min(x,self.winfo_screenwidth()-340))}+{max(0,y)}')
+        self.deiconify();self.tick()
+
+    def tick(self):
+        app=self.parent
+        records=[r for r in app.db.get_all_downloads() if r['status'] in ('İndiriliyor','Birleştiriliyor','Dönüştürülüyor')]
+        speed=app.engine.get_total_speed()+sum(v.current_speed for v in app.video_tasks.values() if v.status=='İndiriliyor')
+        self.points=(self.points+[(time.monotonic(),speed)])[-60:];self.spark.set(self.points)
+        total=sum(r['filesize'] for r in records);received=sum(r['downloaded_bytes'] for r in records)
+        known=bool(records) and all(r['filesize']>0 for r in records)
+        self.ring.set(min(1,received/total) if known else None if records else 0)
+        self.speed.configure(text=number(app,format_speed(speed)))
+        eta=format_eta(max(0,total-received)/speed) if known and speed else 'Boyut bilinmiyor' if records and not known else '—'
+        self.status.configure(text=f'{len(records)} aktif · {eta}' if records else 'Aktif indirme yok')
+        for index,(row,text,bar) in enumerate(self.file_rows):
+            if index<len(records):
+                record=records[index];row.pack(fill='x',pady=3);text.configure(text=record['filename']);bar.set(min(1,record['downloaded_bytes']/record['filesize']) if record['filesize'] else None,record['status'])
+            else:row.pack_forget()
+        if len(records)>3:self.more.configure(text=f'+{len(records)-3} daha');self.more.pack(anchor='w')
+        else:self.more.pack_forget()
+        # Fit the shown rows; a fixed height left an empty block with no downloads.
+        self.update_idletasks();height=self.winfo_reqheight()
+        if self.winfo_ismapped() and height!=self.winfo_height():self.geometry(f'340x{height}')
+        self._timer=self.after(1000,self.tick)
+
+    def pause_all(self):
+        for record in self.parent.db.get_all_downloads():
+            if record['status'] in ('Bekliyor','İndiriliyor','Birleştiriliyor','Dönüştürülüyor'):self.parent.pause_download(record['id'])
+    def show_main(self):self.parent.deiconify();self.parent.lift()
+    def close(self):self.parent._mini_hud=None;self.destroy()
+    def dispose(self,event):
+        if event.widget is self and self._timer:self.after_cancel(self._timer);self._timer=None
+    def drag_start(self,event):
+        if not isinstance(event.widget,Button):self._drag=(event.x_root,event.y_root,self.winfo_x(),self.winfo_y())
+    def drag_move(self,event):
+        if self._drag:
+            x,y,oldx,oldy=self._drag;self.geometry(f'+{max(0,min(oldx+event.x_root-x,self.winfo_screenwidth()-340))}+{max(0,min(oldy+event.y_root-y,self.winfo_screenheight()-self.winfo_height()))}')
+    def drag_end(self,event):
+        if self._drag and tuple(self._drag[2:])!=(self.winfo_x(),self.winfo_y()):self.parent.settings['hud_position']=[self.winfo_x(),self.winfo_y()];save_settings(self.parent.settings)
+        self._drag=None
+
+
+TOOLS=(('Biçim dönüştürme','Biçim dönüştür','MP4, MKV, MP3, M4A, WAV',('MP3','program')),
+       ('Video / ses kesme','Video / ses kes','Bir aralığı ayrı dosya yap',('CUT','video')),
+       ('Bağlantı kontrolü','Bağlantı kontrolü','Listedeki adresleri sına',('URL','image')),
+       ('Klasörü düzenleme','Klasörü düzenle','Dosyaları türe göre ayır',('DIR','archive')),
+       ('Altyazı indirme','Altyazı indir','Videonun altyazı dillerini al',('CC','audio')))
+MEDIA_TOOLS=('Biçim dönüştürme','Video / ses kesme')
+
+
+def build_tools(window,parent):
+    """Create A14 fields while retaining ToolsDialog's cancellable workers."""
+    p=window.p
+    window.cancel=__import__('threading').Event();window.busy=False
+    window.mode=tk.StringVar(window,'Biçim dönüştürme');window.input=tk.StringVar(window,'');window.output=tk.StringVar(window,'')
+    window.start=tk.StringVar(window,'00:00');window.end=tk.StringVar(window,'00:30');window.format=tk.StringVar(window,'mp4')
+    window.bitrate=tk.StringVar(window,'192');window.duration=None
+    side=tk.Frame(window,bg=p['side'],width=268);side.pack(side='left',fill='y',before=window.header);side.pack_propagate(False)
+    label(side,'Araçlar',palette=p,size=18,weight='Bold').pack(anchor='w',padx=24,pady=24)
+    window.mode_buttons={}
+    for name,title,description,tile in TOOLS:
+        button=ToolCard(side,name,window.mode,tile,text=title,description=description,palette=p,width=244)
+        button.pack(fill='x',padx=12,pady=2);window.mode_buttons[name]=button
+    # Steps lie on the window; only the source file and the result are cards (A14).
+    def section(number,title):
+        frame=tk.Frame(window.body,bg=p['dialog']);frame.pack(fill='x',padx=24,pady=(0,20))
+        frame.step=step(frame,number,title,p);frame.step.pack(anchor='w',pady=(0,10));return frame
+    source=section(1,'Kaynak')
+    window.source_card=AutoCard(source,p,padding=14);window.source_card.pack_forget()
+    card=window.source_card.content
+    window.source_tile=FileTile(card,'FILE',palette=p,size=40);window.source_tile.pack(side='left')
+    Button(card,'Değiştir',window.browse_file,palette=p,kind='soft',height=SIZES['small_button']).pack(side='right')
+    text=tk.Frame(card,bg=p['card']);text.pack(side='left',fill='x',expand=True,padx=(12,8))
+    window.source_name=label(text,palette=p,size=14,weight='SemiBold');window.source_name.max_width=420;window.source_name.pack(anchor='w')
+    window.source_meta=label(text,palette=p,size=12,muted=True);window.source_meta.pack(anchor='w',pady=(2,0))
+    window.source_input=field(source,'Dosya / klasör / video bağlantısı',window.input,p,
+                              actions=[('Dosya seç',window.browse_file),('Klasör seç',window.browse_folder)])
+    window.source_box=window.source_input.master.master
+    window.source_hint=label(source,'Dosya sürükleyip bırakabilir veya bir video bağlantısı yapıştırabilirsin.',palette=p,size=12,muted=True)
+    window.source_hint.pack(anchor='w',pady=(8,0))
+    output=section(2,'Çıktı biçimi');window.output_step=output.step
+    options=tk.Frame(output,bg=p['dialog']);options.pack(fill='x',pady=(0,12))
+    window.format_host=options
+    for index,fmt in enumerate(('mp4','mkv','mp3','m4a','wav')):
+        RadioCard(options,fmt,window.format,text=fmt.upper(),description='Kayıpsız ses' if fmt=='wav' else 'Ses' if fmt in ('mp3','m4a') else 'Video',
+                  palette=p,width=82,align='center').pack(side='left',expand=True,fill='x',padx=(8 if index else 0,0))
+    window.output_row=tk.Frame(output,bg=p['dialog']);window.output_row.pack(fill='x')
+    window.quality_box=tk.Frame(window.output_row,bg=p['dialog'])
+    label(window.quality_box,'Ses kalitesi',palette=p,muted=True).pack(anchor='w',pady=(0,6))
+    Select(window.quality_box,{str(rate):f'{rate} kb/sn' for rate in AUDIO_BITRATES},window.bitrate,palette=p,
+           width=180,height=SIZES['input']).pack(anchor='w')
+    window.output_input=field(window.output_row,'Çıktı klasörü',window.output,p,actions=[('Değiştir',window.browse_output)],
+                              side='left',placeholder='Kaynakla aynı klasör')
+    window.output_box=window.output_input.master.master
+    window.cut_fields=tk.Frame(output,bg=p['dialog'])
+    window.timeline_host=tk.Frame(window.cut_fields,bg=p['dialog']);window.timeline_host.pack(fill='x')
+    window.timeline=None;window._probe_token=None;window._probe_revision=0;window._range_sync=False
+    times=tk.Frame(window.cut_fields,bg=p['dialog']);times.pack(fill='x')
+    field(times,'Başlangıç',window.start,p,width=120,side='left');field(times,'Bitiş',window.end,p,width=120,side='left')
+    window.subtitle_host=tk.Frame(output,bg=p['dialog']);window.subtitle_host.pack(fill='x')
+    window.description_label.max_width=900-268-48
+    result=section(3,'Sonuç');window.result_step=result.step
+    card=AutoCard(result,p);card.pack_configure(padx=0,pady=0);content=card.content
+    top=tk.Frame(content,bg=p['card']);top.pack(fill='x')
+    window.job_name=label(top,palette=p,size=14,weight='SemiBold');window.job_name.max_width=360;window.job_name.pack(side='left')
+    window.job_percent=label(top,palette=p,size=14,weight='Bold');window.job_percent.pack(side='right')
+    window.job_time=label(top,palette=p,size=12,muted=True);window.job_time.pack(side='right',padx=(0,12))
+    window.progress=ProgressBar(content,p,show_text=False,thickness=SIZES['detail_progress'],height=20);window.progress.pack(fill='x',pady=(8,4))
+    window.job_meta=label(content,palette=p,size=12,muted=True);window.job_meta.pack(anchor='w')
+    window.status=tk.StringVar(window,'');label(content,variable=window.status,palette=p,size=12).pack(anchor='w',pady=(4,0))
+    # Link check types into this list, so it needs an input's visible edge.
+    window.list=tk.Text(content,height=6,bg=p['card'],fg=p['text'],insertbackground=p['text'],font=('Inter',-12),relief='flat',
+                        highlightthickness=1,highlightbackground=p['input_border'],highlightcolor=p['accent'],padx=10,pady=8)
+    window.run_button=action(window.actionbar,'Dönüştür',window.run,p,'primary')
+    # Durdur only means something while a job runs (A14).
+    window.stop_button=action(window.actionbar,'Durdur',window.cancel.set,p,'danger_ghost');window.stop_button.configure(state='disabled')
+    window.footer_note=label(window.actionbar,'İşlem bitince dosya klasörde seçili olarak açılır.',palette=p,muted=True)
+    window.mode.trace_add('write',lambda *args:window.update_mode());window.update_mode()
+    def source_changed(*args):
+        window._probe_revision+=1;revision=window._probe_revision;source=window.input.get().strip()
+        for child in window.subtitle_host.winfo_children():child.destroy()
+        window.run_button.configure(command=window.run);window.duration=None
+        if window.timeline:window.timeline.destroy();window.timeline=None
+        if window._probe_token:
+            window.after_cancel(window._probe_token);window._owned_timers.discard(window._probe_token)
+        path=Path(source)
+        # A media tool shows the chosen file as a card; links and folders keep the input.
+        if source and path.is_file() and window.mode.get() in MEDIA_TOOLS:
+            window.source_tile.extension=path.suffix.lstrip('.').upper()[:4] or 'FILE'
+            window.source_tile.kind=file_kind(dict(filename=path.name,category=get_category_by_extension(path.name)))
+            window.source_tile.draw();window.source_name.configure(text=path.name)
+            window.source_meta.configure(text=number(parent,format_bytes(path.stat().st_size)))
+            window.source_box.pack_forget();window.source_card.pack(fill='x',before=window.source_hint)
+        else:
+            window.source_card.pack_forget();window.source_box.pack(fill='x',pady=6,before=window.source_hint)
+        def probe():
+            window._probe_token=None
+            if not path.is_file():return
+            def work():
+                try:
+                    from file_tools import media_duration
+                    duration=media_duration(source)
+                except Exception:return
+                def done():
+                    if revision!=window._probe_revision or not duration:return
+                    from ui_indicators import SectionTimeline
+                    from video_section import parse_time
+                    from section_fields_ui import SectionFields
+                    window.duration=duration
+                    window.source_meta.configure(text=number(parent,format_bytes(path.stat().st_size))+' · '+format_eta(duration))
+                    def choose(start,end):
+                        window._range_sync=True;window.start.set(SectionFields.clock(start));window.end.set(SectionFields.clock(end));window._range_sync=False
+                    try:start=parse_time(window.start.get());end=min(duration,parse_time(window.end.get()))
+                    except ValueError:start=0;end=min(duration,30)
+                    window.timeline=SectionTimeline(window.timeline_host,palette=p,duration=duration,start=min(start,max(0,end-1)),end=end,command=choose)
+                    window.timeline.pack(fill='x',pady=8)
+                window.deliver(done)
+            __import__('threading').Thread(target=work,daemon=True).start()
+        window._probe_token=window.later(300,probe)
+    def range_changed(*args):
+        if window.timeline and not window._range_sync:
+            from video_section import parse_time
+            try:window.timeline.set_range(parse_time(window.start.get()),parse_time(window.end.get()))
+            except ValueError:pass
+    traces=[(variable,variable.trace_add('write',callback)) for variable,callback in ((window.input,source_changed),(window.mode,source_changed),(window.start,range_changed),(window.end,range_changed),(window.format,lambda *args:window.update_mode()))]
+    def dispose(event):
+        if event.widget is window:
+            for variable,token in traces:variable.trace_remove('write',token)
+    window.bind('<Destroy>',dispose,add='+')
+    window.protocol('WM_DELETE_WINDOW',window.close)
+    from tkinterdnd2 import DND_FILES
+    window.drop_target_register(DND_FILES);window.dnd_bind('<<Drop>>',lambda e:window.input.set(window.tk.splitlist(e.data)[0]))

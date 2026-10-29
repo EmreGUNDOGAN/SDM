@@ -26,7 +26,8 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "start_minimized": False,
     "notifications_enabled": True,
     "auto_start_downloads": True,
-    "theme": "atlas_light",
+    "design": "atlas",
+    "color_mode": "light",
     "language": "tr",
     "browser_capture": True,
     "auto_open_details": True,
@@ -42,10 +43,11 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "auto_extract": False,
     "extract_dir": '',
     "mini_hud": False,
+    "hud_position": [],
     "duplicate_warning": True,
     "disk_check": True,
     "shutdown_after_queue": False,
-    "visible_columns": ['filename', 'size', 'downloaded', 'progress', 'speed', 'eta', 'status'],
+    "visible_columns": ['filename', 'size', 'progress', 'speed', 'eta', 'status'],
     "monitored_extensions": [
         "zip", "rar", "7z", "tar", "gz", "exe", "msi", "iso",
         "mp4", "mkv", "avi", "mov", "mp3", "flac", "wav",
@@ -78,12 +80,17 @@ def load_settings() -> Dict[str, Any]:
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-        # Merge with defaults in case of missing keys
-        settings = copy.deepcopy(DEFAULT_SETTINGS)
-        settings.update(data)
-        return settings
-    except Exception:
+        if not isinstance(data,dict):raise ValueError('Ayar dosyası geçersiz.')
+    except (OSError,ValueError):
         return copy.deepcopy(DEFAULT_SETTINGS)
+    # Migrate BEFORE adding defaults: defaults must not shadow old theme keys.
+    from theme_catalog import migrate_settings
+    migrated = migrate_settings(data)
+    settings = copy.deepcopy(DEFAULT_SETTINGS)
+    settings.update(migrated)
+    if migrated != data and not save_settings(settings):
+        raise OSError('Görünüm ayarı göçü kaydedilemedi.')
+    return settings
 
 
 def save_settings(settings: Dict[str, Any]) -> bool:
@@ -91,7 +98,8 @@ def save_settings(settings: Dict[str, Any]) -> bool:
     ensure_config_dir()
     try:
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(settings, f, indent=4, ensure_ascii=False)
+            from theme_catalog import migrate_settings
+            json.dump(migrate_settings(settings), f, indent=4, ensure_ascii=False)
         return True
     except Exception:
         return False

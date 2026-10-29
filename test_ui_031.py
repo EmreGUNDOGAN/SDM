@@ -46,7 +46,8 @@ def main():
     from theme_catalog import THEMES,palette
     for theme in THEMES:
         background=palette(theme)['bg']
-        settings=dict(app.settings,theme=theme);app.apply_settings(settings);app.update()
+        design,mode=theme.split('_')
+        settings=dict(app.settings,design=design,color_mode=mode);app.apply_settings(settings);app.update()
         app.geometry('1080x640');app.update()
         if theme.startswith('atlas'):
             sidebar=app.sidebar_scroll
@@ -71,8 +72,8 @@ def main():
     from modern_settings import SettingsDialog
     settings_dialog=SettingsDialog(app);app.update()
     assert len(settings_dialog.tabs)==6
-    settings_dialog.theme_choice.set('Nova — Koyu Tema');values=settings_dialog.collect()
-    assert values['excluded_sites']==['canva.com'] and values['theme']=='nova_dark'
+    settings_dialog.vars['design'].set('odak');settings_dialog.vars['color_mode'].set('dark');values=settings_dialog.collect()
+    assert values['excluded_sites']==['canva.com'] and values['design']=='odak' and values['color_mode']=='dark'
     settings_dialog.destroy()
     completion=CompletionDialog(app,dict(started,filesize=1000000));app.update()
     assert completion.winfo_exists();completion.destroy()
