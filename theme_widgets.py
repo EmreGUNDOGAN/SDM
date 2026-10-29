@@ -1,7 +1,7 @@
 """Solid, rounded controls with mouse and keyboard state feedback."""
 import tkinter as tk
 from tkinter import font
-from ui_tokens import SIZES,RADII,FOCUS_WIDTH,FOCUS_GAP,DISABLED_OPACITY
+from ui_tokens import SIZES,RADII,FOCUS_WIDTH,FOCUS_GAP,DISABLED_OPACITY,text_px
 
 def background(master,palette):
     try:return master.cget('bg')
@@ -26,7 +26,7 @@ class Button(tk.Canvas):
         self.kind=kind or ('primary' if primary else 'ghost' if quiet else 'secondary')
         self.radius=RADII[palette.get('design','atlas')]['button']
         self.underline=False;self.side_accent=False
-        self.font=font.Font(family='Inter',size=-15)
+        self.font=font.Font(family='Inter',size=text_px(15))
         self._auto_width=width is None
         from ui_surface import font as measure_font
         width=width or round(measure_font(13,'SemiBold' if primary else 'Regular').getlength(text))+(52 if image else 28)
@@ -143,7 +143,7 @@ class Search(tk.Canvas):
     def __init__(self,master,var,palette,placeholder='İndirmelerde ara…',text_size=15):
         self.p=palette;self.var=var;self.focused=False;self.placeholder_text=placeholder
         super().__init__(master,bg=master.cget('bg'),height=40,width=320,highlightthickness=0)
-        self.entry=tk.Entry(self,textvariable=var,bg=palette['control'],fg=palette['text'],insertbackground=palette['text'],relief='flat',borderwidth=0,font=('Inter',-text_size))
+        self.entry=tk.Entry(self,textvariable=var,bg=palette['control'],fg=palette['text'],insertbackground=palette['text'],relief='flat',borderwidth=0,font=('Inter',text_px(text_size)))
         self.entry.place(x=38,y=12,relwidth=1,width=-70,height=18)
         from ui_surface import TextLabel
         self.placeholder=TextLabel(self,text=placeholder,size=text_size,fg=palette['muted']);self.placeholder.configure(bg=palette['control'])

@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 import tkinter as tk
 from PIL import Image,ImageDraw,ImageFont,ImageTk
-from ui_tokens import SURFACE_SCALE
+from ui_tokens import SURFACE_SCALE,TEXT_SCALE
 
 ROOT=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))
 def register_fonts():
@@ -16,7 +16,7 @@ def register_fonts():
 
 @lru_cache(maxsize=80)
 def font(size=13,weight='Regular'):
-    return ImageFont.truetype(str(ROOT/'assets/fonts'/f'Inter-{weight}.ttf'),round(size))
+    return ImageFont.truetype(str(ROOT/'assets/fonts'/f'Inter-{weight}.ttf'),round(size*TEXT_SCALE))
 
 def photo(image,master):return ImageTk.PhotoImage(image,master=master)
 @lru_cache(maxsize=96)

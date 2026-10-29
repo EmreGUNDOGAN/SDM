@@ -3,15 +3,16 @@
   <h1>SDM</h1>
   <p><strong>Windows için kişisel indirme yöneticisi.</strong></p>
   <p>Dosyaları düzenle. Videoda kaliteyi seç. İndirmeleri tek yerden takip et.</p>
-  <p>Windows 10 / 11 · Chrome ve Opera · Sürüm 0.4.3</p>
-  <p><a href="https://github.com/EmreGUNDOGAN/SDM-Updates/releases/tag/v0.4.3">Kurulum paketini indir</a> · <a href="SECURITY-REVIEW.md">Doğrulama bilgileri</a></p>
+  <p>Windows 10 / 11 · Chrome ve Opera · Sürüm 0.5.0</p>
+  <p><a href="https://github.com/EmreGUNDOGAN/SDM-Updates/releases/tag/v0.5.0">Kurulum paketini indir</a> · <a href="SECURITY-REVIEW.md">Doğrulama bilgileri</a></p>
 </div>
 
 ---
 
-0.5.0 kaynak dalı Atlas Pro ve Odak Akışı arayüzlerini içerir. Yukarıdaki
-0.4.3 bağlantısı mevcut yayımlanmış kurulumdur; 0.5.0 kurulumu yayımlanana kadar
-bu bağlantı yeni sürüm olarak sunulmaz. [0.5.0 değişiklikleri](RELEASE-NOTES-0.5.0.md).
+0.5.1 kaynak dalı bölüm indirme düzeltmelerini ve daha büyük yazıları içerir.
+Yukarıdaki 0.5.0 bağlantısı mevcut yayımlanmış kurulumdur; 0.5.1 kurulumu
+yayımlanana kadar bu bağlantı yeni sürüm olarak sunulmaz.
+[0.5.1 değişiklikleri](RELEASE-NOTES-0.5.1.md) · [0.5.0 değişiklikleri](RELEASE-NOTES-0.5.0.md).
 
 Görünüm ve renk modu Ayarlar → Genel'de bağımsız seçilir. Atlas tablo ve
 seçim paneli, Odak kartlar ve ayrıntı çekmecesi kullanır. Odak'ta Ayarlar ana

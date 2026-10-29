@@ -12,7 +12,7 @@ from theme_widgets import Button,Search
 from ui_surface import TextLabel,surface,icon,photo,text_on,ellipsize
 from ui_indicators import Sparkline
 from ui_overlays import PopupMenu,ToastManager,Tooltip
-from ui_tokens import SIZES,ATLAS,file_tile_colors
+from ui_tokens import SIZES,ATLAS,TEXT_SCALE,file_tile_colors,text_px
 from list_display import COLUMNS
 from atlas_view import CATEGORY_TILES,DEFAULT_COLUMNS,available_actions,matches_status,number
 from atlas_details import AtlasDetails
@@ -138,13 +138,13 @@ class AtlasWorkspace:
         self.details=AtlasDetails(self.content,app)
         self.listing=tk.Frame(self.content,bg=p['bg']);self.listing.pack(side='left',fill='both',expand=True)
         app.style.configure('SDM.Treeview',rowheight=SIZES['table_row'])
-        app.style.configure('SDM.Treeview.Heading',font=('Inter',-12),padding=(8,10))
+        app.style.configure('SDM.Treeview.Heading',font=('Inter',text_px(12)),padding=(8,10))
         app.tree=tb.Treeview(self.listing,columns=tuple(c[0] for c in COLUMNS),show='headings',selectmode='extended',style='SDM.Treeview')
         widths={'filename':285,'size':94,'progress':145,'speed':100,'eta':84,'status':130}
         app.tree.column('#0',width=0,minwidth=0,stretch=False)
         for name,label,width in COLUMNS:
             app.tree.heading(name,text='Dosya' if name=='filename' else 'Kalan' if name=='eta' else label,command=app.show_column_menu)
-            app.tree.column(name,width=widths.get(name,width),minwidth=80 if name!='filename' else 200,stretch=name=='filename')
+            app.tree.column(name,width=widths.get(name,width) if name=='filename' else round(widths.get(name,width)*TEXT_SCALE),minwidth=80 if name!='filename' else 200,stretch=name=='filename')
         app.apply_visible_columns()
         self.ys=tb.Scrollbar(self.listing,orient='vertical',command=app.tree.yview)
         self.xs=tb.Scrollbar(self.listing,orient='horizontal',command=app.tree.xview)
@@ -196,7 +196,7 @@ class AtlasWorkspace:
         self.drop_zone=tk.Canvas(center,width=ATLAS['empty_width'],height=58,bg=p['bg'],highlightthickness=0)
         self.drop_zone.pack()
         self.drop_zone.create_rectangle(1,1,ATLAS['empty_width']-1,57,outline=p['input_border'],dash=(3,3))
-        self.drop_zone.create_text(ATLAS['empty_width']/2,29,text='Dosya veya bağlantıyı buraya bırak',fill=p['muted'],font=('Inter',-13))
+        self.drop_zone.create_text(ATLAS['empty_width']/2,29,text='Dosya veya bağlantıyı buraya bırak',fill=p['muted'],font=('Inter',text_px(13)))
         self.extension_button=Button(center,'Tarayıcı eklentisini kur',self.extension_help,palette=p,kind='link')
         self.extension_button.pack(pady=(12,0))
 

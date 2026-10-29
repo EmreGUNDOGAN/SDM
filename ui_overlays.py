@@ -3,7 +3,7 @@ import time
 import tkinter as tk
 from theme_widgets import Button, Panel, background
 from ui_surface import TextLabel
-from ui_tokens import SIZES, RADII, TOAST_DURATION, TOAST_ACTION_DURATION, TOAST_LIMIT
+from ui_tokens import SIZES, RADII, TOAST_DURATION, TOAST_ACTION_DURATION, TOAST_LIMIT, text_px
 
 
 class MenuButton(Button):
@@ -229,15 +229,15 @@ class MessageDialog(DialogShell):
         picture=tk.Label(self.header,image=self._glyph,bg=palette['dialog'],bd=0,padx=0,pady=0,highlightthickness=0);picture.pack(side='left',before=self.heading,padx=(0,12))
         self.body.pack_configure(padx=(24+40+12,24))  # body text starts in the title's column
         tk.Label(self.body,text=message,wraplength=480,justify='left',anchor='w',
-                 bg=palette['dialog'],fg=palette['text'],font=('Inter',-13)).pack(fill='x')
+                 bg=palette['dialog'],fg=palette['text'],font=('Inter',text_px(13))).pack(fill='x')
         if items:
             listing=tk.Text(self.body,height=min(6,len(items)),wrap='word',bg=palette['card'],
-                            fg=palette['text'],relief='flat',font=('Inter',-12))
+                            fg=palette['text'],relief='flat',font=('Inter',text_px(12)))
             listing.insert('1.0','\n'.join(items));listing.configure(state='disabled');listing.pack(fill='x',pady=12)
         self.details=None
         if technical:
             Button(self.body,'Teknik ayrıntı ▾',self.toggle_details,palette=palette,kind='ghost').pack(anchor='w',pady=(12,0))
-            self.details=tk.Text(self.body,height=4,wrap='word',bg=palette['card'],fg=palette['text'],font=('Consolas',-12))
+            self.details=tk.Text(self.body,height=4,wrap='word',bg=palette['card'],fg=palette['text'],font=('Consolas',text_px(12)))
             self.details.insert('1.0',technical);self.details.configure(state='disabled')
 
     def toggle_details(self):
@@ -349,7 +349,7 @@ class Tooltip:
 
     def show(self):
         self.timer=None;self.window=tk.Toplevel(self.widget);self.window.overrideredirect(True)
-        tk.Label(self.window,text=self.text,bg=self.p['toast'],fg=self.p['toast_text'],font=('Inter',-12),padx=8,pady=6).pack()
+        tk.Label(self.window,text=self.text,bg=self.p['toast'],fg=self.p['toast_text'],font=('Inter',text_px(12)),padx=8,pady=6).pack()
         self.window.geometry(f'+{self.widget.winfo_rootx()}+{self.widget.winfo_rooty()+self.widget.winfo_height()+4}')
 
     def hide(self,event=None):
