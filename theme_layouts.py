@@ -34,7 +34,7 @@ def build_ui(app):
     app.style.configure('SDM.Side.TFrame',background=p['panel']);app.style.configure('SDM.Side.TLabel',background=p['panel'],foreground=p['muted'])
     app.icon_images={i:photo(icon(name,18,p['text']),app) for i,name in enumerate(ICON_NAMES)}
     app.category_buttons={};app.status_buttons={};app.action_buttons=[]
-    app.hud_active=tk.StringVar(value='0');app.hud_speed=tk.StringVar(value='0 KB/s');app.hud_received=tk.StringVar(value='0 B')
+    app.hud_active=tk.StringVar(value='0');app.hud_speed=tk.StringVar(value='0 KB/sn');app.hud_received=tk.StringVar(value='0 B')
     app.filter_summary=tk.StringVar();app.page_title=tk.StringVar()
     app._atlas_workspace=None
     if design=='odak':

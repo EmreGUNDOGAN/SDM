@@ -12,7 +12,7 @@ from capture_policy import normalize_domain
 from theme_catalog import migrate_settings,theme_key
 from theme_widgets import Button
 from ui_dialog import ScrollBody,AutoCard,label,field
-from ui_controls import Switch,Select,SegmentedControl,RadioCard,ChipInput,TextInput
+from ui_controls import Switch,Select,SegmentedControl,RadioCard,ChipInput,TextInput,watch
 from ui_surface import TextLabel
 
 SECTIONS={'Genel':('sliders','Kayıt yeri, görünüm ve aktarım tercihleri'),
@@ -48,7 +48,12 @@ class SettingsContent(tk.Frame):
         self.caption=label(foot,'Görünüm anında önizlenir; Kaydet ile kalıcı olur.',palette=self.p,size=12,muted=True);self.caption.max_width=420;self.caption.pack(side='left')
         self.save_button=Button(foot,'Kaydet',self.save,palette=self.p,kind='primary');self.save_button.pack(side='right')
         Button(foot,'Geri al' if embedded else 'İptal',self.revert if embedded else self.cancel,palette=self.p,kind='ghost').pack(side='right',padx=8)
-        TextLabel(self.footer,textvariable=self.error,fg=self.p['danger_fg'],size=12,max_width=700).pack(anchor='w',padx=24,pady=(0,8))
+        # Packed only with an error: the empty line left a band under the buttons.
+        error=TextLabel(self.footer,textvariable=self.error,fg=self.p['danger_fg'],size=12,max_width=700)
+        def sync_error(*args):
+            if self.error.get():error.pack(anchor='w',padx=24,pady=(0,8))
+            else:error.pack_forget()
+        watch(self,self.error,sync_error)
         self.side=tk.Frame(self,bg=self.p['side'],width=232 if embedded else 200);self.side.pack(side='left',fill='y');self.side.pack_propagate(False)
         label(self.side,'Ayarlar',palette=self.p,size=18,weight='Bold').pack(anchor='w',padx=20,pady=24)
         label(self.side,'SDM '+VERSION,palette=self.p,size=12,muted=True).pack(side='bottom',anchor='w',padx=20,pady=20)
@@ -73,17 +78,18 @@ class SettingsContent(tk.Frame):
         card=AutoCard(self.tabs[section].content,self.p)
         label(card.content,title,palette=self.p,weight='SemiBold').pack(anchor='w',pady=(0,12));return card.content
     def text(self,parent,text):
-        item=tk.Label(parent,text=text,bg=parent.cget('bg'),fg=self.p['muted'],font=('Inter',-12),justify='left',anchor='w',wraplength=540)
+        # No Tk border/padding: it indented every description 3 px from its title.
+        item=tk.Label(parent,text=text,bg=parent.cget('bg'),fg=self.p['muted'],font=('Inter',-12),justify='left',anchor='w',wraplength=540,padx=0,pady=0,bd=0,highlightthickness=0)
         item.pack(fill='x',pady=6);item.bind('<Configure>',lambda e:item.configure(wraplength=max(80,e.width)));return item
     def value(self,key):
         if key not in self.vars:
             value=self.settings.get(key,DEFAULT_SETTINGS.get(key,''));self.vars[key]=tk.BooleanVar(self,value) if type(value) is bool else tk.StringVar(self,str(value))
         return self.vars[key]
-    def field(self,parent,key,title,choices=None):
+    def field(self,parent,key,title,choices=None,actions=(),side=None,hint=''):
         var=self.value(key)
         if choices:
             self.text(parent,title);widget=Select(parent,choices,var,palette=self.p,width=260);widget.pack(fill='x',pady=5)
-        else:widget=field(parent,title,var,self.p,width=220)
+        else:widget=field(parent,title,var,self.p,width=160 if side else 220,actions=actions,side=side,hint=hint)
         self.inputs[key]=widget;return widget
     def check(self,parent,key,title,description=''):
         row=tk.Frame(parent,bg=self.p['card']);row.pack(fill='x',pady=6)
@@ -91,13 +97,14 @@ class SettingsContent(tk.Frame):
         text=label(row,title,palette=self.p);text.max_width=440;text.pack(anchor='w')
         if description:self.text(row,description)
     def general(self):
-        c=self.card('Genel','Kayıt yeri');self.field(c,'download_dir','Kayıt klasörü');Button(c,'Klasör seç',self.browse,palette=self.p,kind='soft').pack(anchor='e')
+        c=self.card('Genel','Kayıt yeri');self.field(c,'download_dir','Kayıt klasörü',actions=[('Klasör seç',self.browse)])
         c=self.card('Genel','Görünüm');row=tk.Frame(c,bg=self.p['card']);row.pack(fill='x')
         for key,title,description in [('atlas','Atlas Pro','Kenar menü ve ayrıntılı tablo'),('odak','Odak Akışı','İkon şeridi ve indirme kartları')]:RadioCard(row,key,self.value('design'),title,description,self.p,width=230).pack(side='left',fill='x',expand=True,padx=4)
         SegmentedControl(c,{'light':'Açık','dark':'Koyu','system':'Sistem'},self.value('color_mode'),palette=self.p).pack(fill='x',pady=12)
         self.field(c,'language','Sayı biçimi · Türkçe (1,5) / English (1.5)',{'tr':'Türkçe (1,5)','en':'English (1.5)'})
         c=self.card('Genel','Aktarım')
-        for key,title in [('default_connections','Paralel bağlantı · 1–32'),('max_simultaneous_downloads','Eşzamanlı indirme · 1–10'),('speed_limit_kbs','Toplam hız sınırı · KB/sn; 0 = sınırsız')]:self.field(c,key,title)
+        row=tk.Frame(c,bg=self.p['card']);row.pack(fill='x')
+        for key,title,hint in [('default_connections','Paralel bağlantı','1–32 arası'),('max_simultaneous_downloads','Eşzamanlı indirme','1–10 arası'),('speed_limit_kbs','Toplam hız sınırı','KB/sn · 0 = sınırsız')]:self.field(row,key,title,side='left',hint=hint)
         c=self.card('Genel','Davranış')
         for key,title in [('auto_open_details','Yeni indirmede ayrıntıları aç'),('completion_popup','Tamamlandı penceresini göster'),('notifications_enabled','Masaüstü bildirimi göster'),('clipboard_monitoring','Panodaki bağlantıları izle'),('start_minimized','Simge durumunda başlat')]:self.check(c,key,title)
     def browser(self):
@@ -121,7 +128,7 @@ class SettingsContent(tk.Frame):
         for value,title in [(256,'256 KB/sn'),(512,'512 KB/sn'),(1024,'1 MB/sn'),(2048,'2 MB/sn')]:Button(row,title,lambda v=value:self.vars['relax_limit_kbs'].set(str(v)),palette=self.p,kind='soft').pack(side='left',padx=3)
         c=self.card('Araçlar','Yardımcılar')
         for key,title,description in [('mini_hud','Açılışta masaüstü HUD','Hızı ve aktif dosyaları küçük pencerede gösterir.'),('duplicate_warning','Yinelenen bağlantı uyarısı','Aynı bağlantıyı eklerken seçim sunar.'),('disk_check','Boş alanı kontrol et','İndirmeye eklemeden önce hedef diski kontrol eder.'),('auto_extract','Arşivleri otomatik çıkar','Tamamlanan ZIP/RAR dosyalarını çıkarır.')]:self.check(c,key,title,description)
-        self.field(c,'extract_dir','Arşiv çıktı klasörü · boş = dosyanın yanı');Button(c,'Klasör seç',self.pick_extract,palette=self.p,kind='soft').pack(anchor='e')
+        self.field(c,'extract_dir','Arşiv çıktı klasörü · boş = dosyanın yanı',actions=[('Klasör seç',self.pick_extract)])
         c=self.card('Araçlar','Kaspersky');self.av_status=self.text(c,'Kurulum durumu kontrol ediliyor…');self.text(c,'Tarama yalnız Tamamlandı penceresindeki Virüs tarat eylemiyle başlar. Otomatik tarama yapılmaz.')
         def work():
             try:

@@ -29,22 +29,54 @@ class AppWindow(tb.Toplevel):
     def __init__(self,parent,title,width=760,height=760,description=''):
         super().__init__(parent);self.parent=parent;self.p=parent.palette;self._owned_timers=set()
         self.title('SDM · '+title);self.configure(bg=self.p['dialog'])
-        self.geometry(f'{min(width,self.winfo_screenwidth()-80)}x{min(height,self.winfo_screenheight()-100)}')
+        self._size=(min(width,self.winfo_screenwidth()-80),min(height,self.winfo_screenheight()-100))
+        self.geometry('%dx%d'%self._size)
         self.minsize(min(560,self.winfo_screenwidth()-80),min(420,self.winfo_screenheight()-100))
         self.header=tk.Frame(self,bg=self.p['dialog']);self.header.pack(fill='x',padx=24,pady=(20,16))
-        Button(self.header,'×',self.close,palette=self.p,kind='icon',width=34).pack(side='right')
-        TextLabel(self.header,title,size=18,weight='Bold',fg=self.p['text'],max_width=width-110).pack(anchor='w')
-        if description:TextLabel(self.header,description,size=13,fg=self.p['muted'],max_width=width-100).pack(anchor='w',pady=(6,0))
+        # × shares the title's row; packed beside the whole header it slid
+        # between the title and the description line.
+        top=tk.Frame(self.header,bg=self.p['dialog']);top.pack(fill='x')
+        Button(top,'×',self.close,palette=self.p,kind='icon',width=34).pack(side='right')
+        self.title_label=TextLabel(top,title,size=18,weight='Bold',fg=self.p['text'],max_width=width-110);self.title_label.pack(side='left')
+        self.description_label=TextLabel(self.header,description,size=13,fg=self.p['muted'],max_width=width-100)
+        if description:self.description_label.pack(anchor='w',pady=(6,0))
+        self._fit_pending=None
         self.footer=tk.Frame(self,bg=self.p['footer']);self.footer.pack(side='bottom',fill='x')
         tk.Frame(self.footer,bg=self.p['line'],height=1).pack(fill='x')
         self.actionbar=tk.Frame(self.footer,bg=self.p['footer']);self.actionbar.pack(fill='x',padx=24,pady=12)
         self.scroll=ScrollBody(self,self.p);self.scroll.pack(fill='both',expand=True)
         self.body=self.scroll.content
+        # Content added later (probed qualities, found links) can grow the window too.
+        self.body.bind('<Configure>',lambda e:self.schedule_fit(),add='+');self.schedule_fit()
         self.error=tk.StringVar(self,value='')
         self.error_label=TextLabel(self.footer,textvariable=self.error,size=12,fg=self.p['danger_fg'],max_width=width-48)
         self._error_trace=self.error.trace_add('write',self.sync_error)
         self.bind('<Escape>',lambda e:self.close())
         self.bind('<Destroy>',self.dispose,add='+');self.protocol('WM_DELETE_WINDOW',self.close)
+
+    def schedule_fit(self):
+        if self._fit_pending is None:self._fit_pending=self.after_idle(self.fit_height)
+
+    def fit_height(self):
+        """Grow to the content's natural height (within the screen) so the body never scrolls needlessly."""
+        self._fit_pending=None
+        if not self.winfo_exists():return
+        self.update_idletasks()
+        needed=self.header.winfo_reqheight()+36+self.body.winfo_reqheight()+self.footer.winfo_reqheight()
+        limit=self.winfo_screenheight()-100
+        # Before the window is mapped winfo_* report 1x1; use the designed size.
+        width,height=(self.winfo_width(),self.winfo_height()) if self.winfo_ismapped() else self._size
+        # Follow the content both ways (a narrow first layout stacks cards and
+        # looks taller), never below the designed height and never after the
+        # user has resized the window.
+        target=max(self._size[1],min(needed,limit))
+        if self.winfo_ismapped() and height not in (self._size[1],getattr(self,'_fitted',None)):return
+        if height!=target:
+            height=target;self._fitted=target;top=self.winfo_y() if self.winfo_ismapped() else None
+            # Growing downwards must not push the footer below the screen.
+            if top is not None and top+height>self.winfo_screenheight()-60:
+                self.geometry(f'{width}x{height}+{self.winfo_x()}+{max(20,self.winfo_screenheight()-60-height)}')
+            else:self.geometry(f'{width}x{height}')
 
     def later(self,delay,callback):
         token=None
@@ -61,6 +93,7 @@ class AppWindow(tb.Toplevel):
         if event.widget is self:
             for token in self._owned_timers:self.after_cancel(token)
             self._owned_timers.clear()
+            if self._fit_pending is not None:self.after_cancel(self._fit_pending);self._fit_pending=None
             self.error.trace_remove('write',self._error_trace)
 
     def close(self):self.destroy()
@@ -94,9 +127,24 @@ def action(parent,text,command,palette,kind='secondary',side='right'):
     button.pack(side=side,padx=(8,0));return button
 
 
-def field(parent,title,variable,palette,width=240):
+def field(parent,title,variable,palette,width=240,actions=(),side=None,hint=''):
+    """Label above its input, with any buttons on the input's own row.
+
+    A label beside the input moved every input by its label's width, and the
+    buttons packed below it landed left or right depending on the caller.
+    `side` packs the whole field into a row of fields (Başlangıç / Bitiş).
+    """
     from ui_controls import TextInput
-    row=tk.Frame(parent,bg=parent.cget('bg'));row.pack(fill='x',pady=6)
-    label(row,title,palette=palette,muted=True).pack(side='left')
+    box=tk.Frame(parent,bg=parent.cget('bg'))
+    if side:box.pack(side=side,fill='x',expand=True,pady=6,padx=(12 if parent.pack_slaves() else 0,0))
+    else:box.pack(fill='x',pady=6)
+    label(box,title,palette=palette,muted=True).pack(anchor='w',pady=(0,6))
+    row=tk.Frame(box,bg=box.cget('bg'));row.pack(fill='x')
     widget=TextInput(row,variable=variable,palette=palette,width=width)
-    widget.pack(side='right',fill='x',expand=True,padx=(20,0));return widget
+    widget.buttons=[]
+    for text,command in reversed(actions):
+        button=Button(row,text,command,palette=palette,kind='soft',height=SIZES['input'])
+        button.pack(side='right',padx=(8,0));widget.buttons.insert(0,button)
+    widget.pack(side='left',fill='x',expand=True)
+    if hint:label(box,hint,palette=palette,size=12,muted=True).pack(anchor='w',pady=(6,0))
+    return widget

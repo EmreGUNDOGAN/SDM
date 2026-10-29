@@ -31,7 +31,7 @@ class ToolsDialog(AppWindow):
         build_tools(self,parent)
     def update_mode(self):
         for name,button in self.mode_buttons.items():button.selected=name==self.mode.get();button.draw()
-        if self.mode.get() in ('Bağlantı kontrolü','Klasörü düzenleme','Altyazı indirme'):self.list.pack(fill='both',expand=True)
+        if self.mode.get() in ('Bağlantı kontrolü','Klasörü düzenleme','Altyazı indirme'):self.list.pack(fill='both',expand=True,pady=(12,0))
         else:self.list.pack_forget()
         if self.mode.get()=='Video / ses kesme':self.cut_fields.pack(fill='x')
         else:self.cut_fields.pack_forget()
@@ -40,12 +40,15 @@ class ToolsDialog(AppWindow):
             if self.format.get() not in ('mp4','mkv','mp3','m4a','wav'):self.format.set('mp4')
         else:self.format_host.pack_forget()
         self.run_button.configure(command=self.run,text={'Biçim dönüştürme':'Dönüştür','Video / ses kesme':'Kes','Bağlantı kontrolü':'Kontrol et','Klasörü düzenleme':'Önizle ve taşı','Altyazı indirme':'Altyazıyı indir'}[self.mode.get()])
-        self.help_label.configure(text={
-            'Video / ses kesme':'İndirilmiş bir medya dosyası seçin. Başlangıç → bitiş aralığı yeni dosyaya kaydedilir; kaynak korunur.',
-            'Biçim dönüştürme':'Bir video / ses dosyası seçin ve çıktı biçimini belirleyin. Yeni dosya oluşturulur; kaynak korunur.',
-            'Bağlantı kontrolü':'Aşağıya her satıra bir http/https bağlantısı yapıştırın. Dosyalar indirilmeden erişim kontrol edilir.',
-            'Klasörü düzenleme':'Bir klasör seçin. Taşınacak dosyalar önce önizlemede gösterilir; onayınızdan sonra taşınır.',
-            'Altyazı indirme':'Üst alana video sayfasının bağlantısını girin. İnceleme sonrası altyazı dili ve biçimini seçebilirsiniz.'}[self.mode.get()])
+        titles={'Biçim dönüştürme':'Biçim dönüştür','Video / ses kesme':'Video / ses kes','Bağlantı kontrolü':'Bağlantı kontrolü','Klasörü düzenleme':'Klasörü düzenle','Altyazı indirme':'Altyazı indir'}
+        self.title_label.configure(text=titles[self.mode.get()])
+        if not self.description_label.winfo_manager():self.description_label.pack(anchor='w',pady=(6,0))
+        self.description_label.configure(text={
+            'Video / ses kesme':'Bir aralığı yeni dosyaya kaydet. Kaynak dosya değişmez.',
+            'Biçim dönüştürme':'Video veya sesi başka bir biçime çevir. Kaynak dosya değişmez.',
+            'Bağlantı kontrolü':'Her satıra bir bağlantı yapıştır; dosyalar indirilmeden sınanır.',
+            'Klasörü düzenleme':'Dosyaları türe göre ayır; taşımadan önce önizleme gösterilir.',
+            'Altyazı indirme':'Video sayfasının bağlantısını gir; dil ve biçimi sonra seç.'}[self.mode.get()])
     def close(self):
         if self.busy:self.cancel.set()
         self.destroy()
@@ -59,7 +62,7 @@ class ToolsDialog(AppWindow):
         value=filedialog.askdirectory(parent=self)
         if value:self.output.set(value)
     def deliver(self,callback):self.parent.post_ui(lambda:callback() if self.winfo_exists() else None)
-    def finished(self,text):self.busy=False;self.run_button.configure(state='normal');self.status.set(text)
+    def finished(self,text):self.busy=False;self.run_button.configure(state='normal');self.stop_button.configure(state='disabled');self.status.set(text)
     def run(self):
         if self.busy:return
         mode=self.mode.get();source=self.input.get().strip();folder=self.output.get().strip() or self.parent.settings['download_dir'];fmt=self.format.get();start=self.start.get();end=self.end.get();urls=self.list.get('1.0','end').splitlines()
@@ -67,7 +70,7 @@ class ToolsDialog(AppWindow):
             if fmt not in ('mp4','mkv','mp3','m4a','wav'):return messagebox.showerror('Biçim','Bir medya çıktı biçimi seç.',parent=self)
             target=filedialog.asksaveasfilename(parent=self,initialdir=folder,initialfile=Path(source).stem+'-SDM.'+fmt,defaultextension='.'+fmt)
             if not target:return
-        self.cancel.clear();self.busy=True;self.run_button.configure(state='disabled');self.status.set('İşleniyor…');self.progress['value']=0
+        self.cancel.clear();self.busy=True;self.run_button.configure(state='disabled');self.stop_button.configure(state='normal');self.status.set('İşleniyor…');self.progress['value']=0
         def work():
             try:
                 if mode in ('Biçim dönüştürme','Video / ses kesme'):
@@ -94,7 +97,7 @@ class ToolsDialog(AppWindow):
             # Keep the operation serialized with new download creation; only short renames.
             records=self.parent.db.get_all_downloads();active={Path(r['filepath']).resolve() for r in records if r['status']!='Tamamlandı'}
             if any(s.resolve() in active for s,_ in plan):return self.finished('Aktif dosya bulundu. Önizlemeyi yenile.')
-            self.busy=True;self.run_button.configure(state='disabled');self.cancel.clear()
+            self.busy=True;self.run_button.configure(state='disabled');self.stop_button.configure(state='normal');self.cancel.clear()
             def work():
                 from file_tools import move_plan
                 try:
@@ -122,7 +125,7 @@ class ToolsDialog(AppWindow):
         def download():
             language,automatic=labels[selected.get()];extension=output.get()
             target_folder=self.output.get().strip() or folder
-            self.busy=True;self.run_button.configure(state='disabled');self.status.set('Altyazı indiriliyor…');self.cancel.clear()
+            self.busy=True;self.run_button.configure(state='disabled');self.stop_button.configure(state='normal');self.status.set('Altyazı indiriliyor…');self.cancel.clear()
             def work():
                 try:
                     from subtitle_tools import download_subtitle

@@ -73,7 +73,7 @@ class Button(tk.Canvas):
                    self.selected,self.disabled,self.hover,self.pressed,self.focused,
                    self.underline,self.side_accent,getattr(self,'status_badge',False),
                    getattr(self,'icon_name',None),getattr(self,'segment_choice',False),tuple(sorted(p.items())))
-        signature+=(getattr(self,'icon_only',False),)
+        signature+=(getattr(self,'icon_only',False),getattr(self,'shortcut',''))
         if getattr(self,'_draw_signature',None)==signature:return
         self._draw_signature=signature
         kind=self.kind
@@ -99,6 +99,11 @@ class Button(tk.Canvas):
         elif self.selected and self.side_accent:d.rectangle((0,7,3,h-7),fill=p['accent'])
         name=getattr(self,'icon_name',None)
         x=13 if self.quiet else 14
+        shortcut=getattr(self,'shortcut','')
+        if shortcut and name and not getattr(self,'icon_only',False):
+            # Wide sidebar action: icon, label and the muted shortcut centred as one group.
+            group=26+text_font(13,'SemiBold' if solid else 'Regular').getlength(self.text)+10+text_font(11).getlength(shortcut)
+            x=max(x,round((w-group)/2))
         if name:
             glyph_x=(w-18)//2 if not self.text or getattr(self,'icon_only',False) else x
             image.paste(icon(name,18,fg),(glyph_x,(h-18)//2),icon(name,18,fg));x+=26
@@ -107,11 +112,15 @@ class Button(tk.Canvas):
         dropdown=self.text.endswith(' ▾')
         display_text=self.text.lstrip('● ')[:-2] if dropdown else self.text.lstrip('● ')
         if getattr(self,'icon_only',False):display_text=''
-        if not name and not self.image:x=round((w-face.getlength(display_text))/2)
+        # Dropdowns read like inputs: value on the left, chevron on the right.
+        if not name and not self.image and not dropdown:x=round((w-face.getlength(display_text))/2)
         if getattr(self,'status_badge',False):
             d.ellipse((11,h//2-4,19,h//2+4),fill=fg);x=26
         display_text=ellipsize(display_text,max(0,w-x-(24 if dropdown else 8)),13,'SemiBold' if solid or self.selected else 'Regular')
-        text_on(image,(x,(h-13)//2-1),display_text,13,'SemiBold' if solid or self.selected else 'Regular',fg)
+        text_on(image,(x,h/2),display_text,13,'SemiBold' if solid or self.selected else 'Regular',fg,'lm')
+        if shortcut and display_text:
+            after=x+face.getlength(display_text)+10
+            text_on(image,(after,h/2),shortcut,11,fill=mix(fg,bg,0.3),anchor='lm')
         if dropdown:
             glyph=icon('chevron',12,fg);image.paste(glyph,(w-20,(h-12)//2),glyph)
         self.display(image)

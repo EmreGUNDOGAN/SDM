@@ -27,8 +27,8 @@ class MenuButton(Button):
             elif checked:d.ellipse((14,h//2-3,20,h//2+3),fill=p['accent'])
             left=35
         shortcut='›' if spec['submenu'] else spec['shortcut'];reserved=90 if shortcut else 16
-        y=10 if spec['description'] else h//2-7
-        text_on(image,(left,y),ellipsize(self.text,w-left-reserved,13),13,fill=fg)
+        if spec['description']:text_on(image,(left,10),ellipsize(self.text,w-left-reserved,13),13,fill=fg)
+        else:text_on(image,(left,h/2),ellipsize(self.text,w-left-reserved,13),13,fill=fg,anchor='lm')
         if shortcut:text_on(image,(w-12,h/2),shortcut,11,fill=p['muted'],anchor='rm')
         if spec['description']:text_on(image,(left,31),ellipsize(spec['description'],w-left-12,12),12,fill=p['muted'])
         self.display(image)
@@ -177,22 +177,35 @@ class DialogShell(tk.Toplevel):
         super().__init__(master);self.withdraw();self.p=palette;self.result=None
         self._previous_focus=master.focus_get();self._previous_grab=self.grab_current()
         self.title('SDM · '+title);self.configure(bg=palette['dialog'])
-        self.geometry(f'{width}x{height}');self.transient(master.winfo_toplevel())
+        self.geometry(f'{width}x{height}');self.transient(master.winfo_toplevel());self._size=(width,height)
         self.header=tk.Frame(self,bg=palette['dialog']);self.header.pack(fill='x',padx=24,pady=(20,12))
         Button(self.header,'×',lambda:self.finish(None),palette=palette,kind='icon',width=34).pack(side='right')
-        TextLabel(self.header,title,size=18,weight='Bold',fg=palette['text']).pack(anchor='w')
-        if description:TextLabel(self.header,description,size=13,fg=palette['muted']).pack(anchor='w',pady=(6,0))
+        # Title and description share one column, so an icon placed before it
+        # is centred against the whole heading instead of the title's top.
+        self.heading=tk.Frame(self.header,bg=palette['dialog']);self.heading.pack(side='left',fill='x',expand=True)
+        TextLabel(self.heading,title,size=18,weight='Bold',fg=palette['text']).pack(anchor='w')
+        if description:TextLabel(self.heading,description,size=13,fg=palette['muted']).pack(anchor='w',pady=(6,0))
         self.footer=tk.Frame(self,bg=palette['footer']);self.footer.pack(side='bottom',fill='x')
+        tk.Frame(self.footer,bg=palette['line'],height=1).pack(fill='x')
+        self.actionbar=tk.Frame(self.footer,bg=palette['footer']);self.actionbar.pack(fill='x',padx=24,pady=12)
         self.body=tk.Frame(self,bg=palette['dialog']);self.body.pack(fill='both',expand=True,padx=24,pady=12)
         self.actions={};self.protocol('WM_DELETE_WINDOW',lambda:self.finish(None))
         self.bind('<Escape>',lambda e:self.finish(None))
 
     def add_action(self,key,label,kind='secondary'):
-        button=Button(self.footer,label,lambda:self.finish(key),palette=self.p,kind=kind)
-        button.pack(side='right',padx=8,pady=12);self.actions[key]=button
+        button=Button(self.actionbar,label,lambda:self.finish(key),palette=self.p,kind=kind)
+        button.pack(side='right',padx=(8,0));self.actions[key]=button
         return button
 
+    def fit(self):
+        """Height follows the content: short messages lose the empty block,
+        opened technical details get room (up to the screen)."""
+        self.update_idletasks()
+        height=max(200,min(self.winfo_reqheight(),self.winfo_screenheight()-100))
+        self.geometry(f'{self._size[0]}x{height}')
+
     def show(self):
+        self.fit()
         self.deiconify();self.update_idletasks();self.grab_set()
         if self.actions:next(iter(self.actions.values())).focus_set()
         return self
@@ -213,7 +226,8 @@ class MessageDialog(DialogShell):
         image=surface(40,40,palette['dialog'],palette.get(role+'_bg',palette['info_bg']),radius=10)
         glyph=icon('alert-circle' if role=='danger' else 'info',22,palette.get(role+'_fg',palette['info_fg']));image.paste(glyph,(9,9),glyph)
         self._glyph=photo(image,self)
-        picture=tk.Label(self.header,image=self._glyph,bg=palette['dialog']);picture.pack(side='left',before=self.header.winfo_children()[1],padx=(0,12))
+        picture=tk.Label(self.header,image=self._glyph,bg=palette['dialog'],bd=0,padx=0,pady=0,highlightthickness=0);picture.pack(side='left',before=self.heading,padx=(0,12))
+        self.body.pack_configure(padx=(24+40+12,24))  # body text starts in the title's column
         tk.Label(self.body,text=message,wraplength=480,justify='left',anchor='w',
                  bg=palette['dialog'],fg=palette['text'],font=('Inter',-13)).pack(fill='x')
         if items:
@@ -229,6 +243,7 @@ class MessageDialog(DialogShell):
     def toggle_details(self):
         if self.details.winfo_manager():self.details.pack_forget()
         else:self.details.pack(fill='both',expand=True,pady=8)
+        self.fit()
 
 
 class Drawer(tk.Frame):

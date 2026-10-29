@@ -47,6 +47,9 @@ class TableSurface(tk.Canvas):
         self.pending=None
         if not self.winfo_exists():return
         app=self.app;p=app.palette;tree=self.tree;w=max(1,self.winfo_width());h=max(1,self.winfo_height())
+        # Mid-layout the surface can be a few pixels wide; card/row boxes would invert.
+        # The next <Configure> repaints at the real size.
+        if w<32 or h<32:return
         columns=list(tree.cget('displaycolumns'));head_h=40
         visible=[(item,tree.bbox(item)) for item in tree.get_children() if tree.bbox(item)]
         if visible:head_h=visible[0][1][1] if visible[0][1][1]<70 else 40

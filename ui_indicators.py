@@ -42,7 +42,7 @@ class StatusBadge(Indicator):
         _,bg,fg=status_colors(self.status,p.get('mode','light'))
         image=surface(w,h,self.cget('bg'),bg,radius=h/2)
         d=ImageDraw.Draw(image);d.ellipse((10,h//2-3,16,h//2+3),fill=fg)
-        text_on(image,(23,(h-12)//2-1),ellipsize(self.status,w-29,12),12,'Medium',fg)
+        text_on(image,(23,h/2),ellipsize(self.status,w-29,12),12,'Medium',fg,'lm')
         self.present(image)
 
 

@@ -8,7 +8,7 @@ from ui_indicators import FileTile,Summary
 from ui_controls import CheckBox
 from theme_widgets import Button
 from utils import format_bytes,format_speed,save_settings
-from atlas_view import file_kind
+from atlas_view import file_kind,number
 
 
 class CompletionDialog(AppWindow):
@@ -19,7 +19,7 @@ class CompletionDialog(AppWindow):
         label(card.content,record['filename'],palette=self.p,size=15,weight='SemiBold').pack(anchor='w')
         history=getattr(parent,'speed_history',{}).get(record['id'])
         row=tk.Frame(self.body,bg=self.p['dialog']);row.pack(fill='x',padx=24,pady=(0,16))
-        for title,value in (('Boyut',format_bytes(record['filesize'])),('Süre',f'{history.active_seconds:.0f} sn' if history and history.active_seconds else '—'),('Ortalama hız',format_speed(history.average) if history and history.active_seconds else '—')):
+        for title,value in (('Boyut',number(parent,format_bytes(record['filesize']))),('Süre',f'{history.active_seconds:.0f} sn' if history and history.active_seconds else '—'),('Ortalama hız',number(parent,format_speed(history.average)) if history and history.active_seconds else '—')):
             Summary(row,title,tk.StringVar(self,value),self.p).pack(side='left',fill='x',expand=True)
         row=tk.Frame(self.body,bg=self.p['dialog']);row.pack(fill='x',padx=24,pady=(0,16))
         media=Path(record['filename']).suffix.lower() in ('.mp4','.mkv','.webm','.avi','.mp3','.m4a','.wav','.flac')

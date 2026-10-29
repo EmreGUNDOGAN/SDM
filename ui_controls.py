@@ -81,7 +81,7 @@ class CheckBox(Button):
         if selected:
             glyph = icon('check-small',size,p['on_accent']);mark.paste(glyph,(0,0),glyph)
         image.paste(mark,(6,(h-size)//2))
-        text_on(image,(size+14,(h-13)//2-1),ellipsize(self.text,w-size-20),fill=p['text_2'])
+        text_on(image,(size+14,h/2),ellipsize(self.text,w-size-20),fill=p['text_2'],anchor='lm')
         self.display(image)
 
 

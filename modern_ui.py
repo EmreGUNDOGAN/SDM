@@ -106,7 +106,8 @@ class ModernUI:
     def update_hud(self):
         videos=[v for v in self.video_tasks.values() if v.status in ('İndiriliyor','Dönüştürülüyor')]
         self.hud_active.set(str(self.engine.get_active_count()+len(videos)))
-        local=lambda text:text.replace('.',',') if self.settings.get('language','tr')=='tr' else text
+        from atlas_view import number
+        local=lambda text:number(self,text)  # decimal comma and 'KB/sn', as everywhere else
         self.hud_speed.set(local(format_speed(self.engine.get_total_speed()+sum(v.current_speed for v in videos))))
         self.hud_received.set(local(format_bytes(sum(self._session_received.values()))))
         enabled=capture_enabled(self.settings)

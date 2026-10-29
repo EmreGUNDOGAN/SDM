@@ -6,6 +6,7 @@ from ui_dialog import AppWindow,AutoCard,label,action
 from ui_controls import CheckBox
 from ui_indicators import ProgressRing,SpeedChart,PartMap
 from theme_widgets import Button
+from ui_tokens import SIZES
 from utils import format_bytes,format_speed,format_eta
 from atlas_view import number
 
@@ -26,19 +27,25 @@ class TransferContent(tk.Frame):
         label(right.content,'Aktarım hızı',palette=self.p,size=12,muted=True).pack(anchor='w')
         label(right.content,variable=self.display['speed'],palette=self.p,size=24,weight='Bold').pack(anchor='w')
         self.chart=SpeedChart(right.content,self.p,width=380,height=130,formatter=lambda text:number(parent,text));self.chart.pack(fill='x')
-        label(right.content,variable=self.display['average'],palette=self.p,size=12,muted=True).pack(anchor='w')
+        average=label(right.content,variable=self.display['average'],palette=self.p,size=12,muted=True);average.pack(anchor='w')
+        # Ellipsize to the card instead of running past its right edge.
+        right.content.bind('<Configure>',lambda e:(setattr(average,'max_width',max(40,e.width-4)),average.draw()),add='+')
         top.bind('<Configure>',lambda e:self.arrange_cards(e,left,right))
         parts=AutoCard(self,self.p)
         label(parts.content,'Parça haritası',palette=self.p,weight='SemiBold').pack(anchor='w')
         label(parts.content,variable=self.display['connections'],palette=self.p,size=12,muted=True).pack(anchor='w',pady=6)
         self.parts=PartMap(parts.content,self.p,rows=(),height=80);self.parts.pack(fill='x')
         technical=AutoCard(self,self.p)
-        for key,title in (('url','Adres'),('path','Kayıt yeri'),('method','Yöntem'),('resume','Sürdürme')):
-            row=tk.Frame(technical.content,bg=self.p['card']);row.pack(fill='x',pady=6)
-            label(row,title,palette=self.p,muted=True).pack(side='left')
-            if key=='url':Button(row,'Kopyala',self.copy_url,palette=self.p,kind='soft',width=76).pack(side='right')
-            if key=='path':Button(row,'Klasörü aç',self.open_folder,palette=self.p,kind='soft',width=100).pack(side='right')
-            item=label(row,variable=self.display[key],palette=self.p);item.max_width=440;item.pack(side='left',padx=16)
+        # A05: one label column, equal row heights and hairlines; values used to
+        # start right after each label, so every row began at a different x.
+        for index,(key,title) in enumerate((('url','Adres'),('path','Kayıt yeri'),('method','Yöntem'),('resume','Sürdürme'))):
+            if index:tk.Frame(technical.content,bg=self.p['line_soft'],height=1).pack(fill='x')
+            row=tk.Frame(technical.content,bg=self.p['card'],height=44);row.pack(fill='x');row.pack_propagate(False)
+            column=tk.Frame(row,bg=self.p['card'],width=140,height=44);column.pack(side='left');column.pack_propagate(False)
+            label(column,title,palette=self.p,muted=True).pack(side='left')
+            if key=='url':Button(row,'Kopyala',self.copy_url,palette=self.p,kind='soft',height=SIZES['small_button']).pack(side='right')
+            if key=='path':Button(row,'Klasörü aç',self.open_folder,palette=self.p,kind='soft',height=SIZES['small_button']).pack(side='right')
+            item=label(row,variable=self.display[key],palette=self.p);item.max_width=520;item.pack(side='left')
         self.snapshot=None
 
     def arrange_cards(self,event,left,right):

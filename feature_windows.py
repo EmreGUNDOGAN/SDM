@@ -17,7 +17,11 @@ class SpeedGraph(AppWindow):
         record=parent.db.get_download(did)
         super().__init__(parent,'Hız grafiği',760,440,record['filename'] if record else 'Gerçek aktarım ölçümleri')
         self.did=did;self.span=tk.StringVar(self,'300')
-        SegmentedControl(self.header,{'60':'1 dk','300':'5 dk','all':'Tümü'},self.span,palette=self.p).pack(anchor='e')
+        # A16: the span choice sits on the file-name line, right-aligned.
+        line=tk.Frame(self.header,bg=self.p['dialog']);line.pack(fill='x',pady=(6,0))
+        # Re-packed into a later sibling, the label must be raised above it.
+        self.description_label.pack_forget();self.description_label.pack(in_=line,side='left');tk.Misc.tkraise(self.description_label,line)
+        SegmentedControl(self.header,{'60':'1 dk','300':'5 dk','all':'Tümü'},self.span,palette=self.p).pack(in_=line,side='right')
         stats=tk.Frame(self.body,bg=self.p['dialog']);stats.pack(fill='x',padx=24,pady=(0,16))
         self.stats={}
         for key,title in (('now','Şimdi'),('average','Ortalama'),('peak','En yüksek'),('active','Aktif süre')):
@@ -39,17 +43,23 @@ class MiniHUD(tb.Toplevel):
     def __init__(self,parent):
         super().__init__(parent);self.parent=parent;self.withdraw();self.overrideredirect(True);self.attributes('-topmost',True);self.attributes('-alpha',.94)
         self.p=dict(parent.palette,bg=parent.palette['hud'],card=parent.palette['hud'],text=parent.palette['toast_text'],text_2=parent.palette['toast_text'],muted=parent.palette['toast_muted'],accent=parent.palette['hud_accent'])
+        # The HUD stays dark in light mode; light-mode control fills made its
+        # white button labels unreadable ('Tümünü duraklat' as a blank box).
+        from PIL import ImageColor
+        def tint(amount):
+            return '#'+''.join(f'{round(a*(1-amount)+b*amount):02x}' for a,b in zip(ImageColor.getrgb(self.p['hud']),ImageColor.getrgb(self.p['toast_text'])))
+        self.p.update(subtle=tint(.1),control=tint(.06),accent_soft=tint(.18),input_border=tint(.2),track=tint(.14))
         self.configure(bg=self.p['hud']);self._timer=None;self._drag=None;self.points=[]
         head=tk.Frame(self,bg=self.p['hud']);head.pack(fill='x',padx=16,pady=(16,10))
         self.ring=ProgressRing(head,self.p,size=48,stroke=5,value=0);self.ring.pack(side='left',padx=(0,14))
         info=tk.Frame(head,bg=self.p['hud']);info.pack(side='left',fill='x',expand=True)
         self.speed=label(info,'0 KB/sn',palette=self.p,size=20,weight='Bold');self.speed.pack(anchor='w')
         self.status=label(info,'Aktif indirme yok',palette=self.p,size=12,muted=True);self.status.pack(anchor='w')
-        self.spark=Sparkline(self,self.p,width=80,height=24);self.spark.pack(anchor='e',padx=16)
+        self.spark=Sparkline(head,self.p,width=80,height=24);self.spark.pack(side='right')
         self.files=tk.Frame(self,bg=self.p['hud']);self.files.pack(fill='x',padx=16,pady=8)
         self.file_rows=[]
         for _ in range(3):
-            row=tk.Frame(self.files,bg=self.p['hud']);row.pack(fill='x',pady=3)
+            row=tk.Frame(self.files,bg=self.p['hud'])  # packed by tick() only while a file is active
             text=label(row,'',palette=self.p,size=12);text.max_width=304;text.pack(fill='x')
             bar=ProgressBar(row,self.p,width=304,height=10,thickness=3,show_text=False);bar.pack(fill='x')
             self.file_rows.append((row,text,bar))
@@ -74,7 +84,7 @@ class MiniHUD(tb.Toplevel):
         total=sum(r['filesize'] for r in records);received=sum(r['downloaded_bytes'] for r in records)
         known=bool(records) and all(r['filesize']>0 for r in records)
         self.ring.set(min(1,received/total) if known else None if records else 0)
-        self.speed.configure(text=number(app,format_speed(speed)).replace('/s','/sn'))
+        self.speed.configure(text=number(app,format_speed(speed)))
         eta=format_eta(max(0,total-received)/speed) if known and speed else 'Boyut bilinmiyor' if records and not known else '—'
         self.status.configure(text=f'{len(records)} aktif · {eta}' if records else 'Aktif indirme yok')
         for index,(row,text,bar) in enumerate(self.file_rows):
@@ -83,6 +93,9 @@ class MiniHUD(tb.Toplevel):
             else:row.pack_forget()
         if len(records)>3:self.more.configure(text=f'+{len(records)-3} daha');self.more.pack(anchor='w')
         else:self.more.pack_forget()
+        # Fit the shown rows; a fixed height left an empty block with no downloads.
+        self.update_idletasks();height=self.winfo_reqheight()
+        if self.winfo_ismapped() and height!=self.winfo_height():self.geometry(f'340x{height}')
         self._timer=self.after(1000,self.tick)
 
     def pause_all(self):
@@ -114,30 +127,30 @@ def build_tools(window,parent):
         button=RadioCard(side,name,window.mode,text=title,description=description,palette=window.p,width=220)
         button.pack(fill='x',padx=12,pady=4);window.mode_buttons[name]=button
     source=AutoCard(window.body,window.p);label(source.content,'1  Kaynak',palette=window.p,weight='SemiBold').pack(anchor='w')
-    window.source_input=field(source.content,'Dosya / klasör / video bağlantısı',window.input,window.p)
-    row=tk.Frame(source.content,bg=window.p['card']);row.pack(fill='x')
-    for text,callback in (('Dosya seç',window.browse_file),('Klasör seç',window.browse_folder)):
-        Button(row,text,callback,palette=window.p,kind='soft').pack(side='left',padx=4)
+    window.source_input=field(source.content,'Dosya / klasör / video bağlantısı',window.input,window.p,
+                              actions=[('Dosya seç',window.browse_file),('Klasör seç',window.browse_folder)])
     output=AutoCard(window.body,window.p);label(output.content,'2  Çıktı',palette=window.p,weight='SemiBold').pack(anchor='w')
     options=tk.Frame(output.content,bg=window.p['card']);options.pack(fill='x',pady=12)
     window.format_host=options
     for fmt in ('mp4','mkv','mp3','m4a','wav'):
         RadioCard(options,fmt,window.format,text=fmt.upper(),description='Ses' if fmt in ('mp3','m4a','wav') else 'Video',palette=window.p,width=82).pack(side='left',expand=True,fill='x',padx=2)
-    field(output.content,'Çıktı klasörü',window.output,window.p)
-    Button(output.content,'Klasör seç',window.browse_output,palette=window.p,kind='soft').pack(anchor='e')
+    field(output.content,'Çıktı klasörü',window.output,window.p,actions=[('Klasör seç',window.browse_output)])
     window.cut_fields=tk.Frame(output.content,bg=window.p['card'])
     window.timeline_host=tk.Frame(window.cut_fields,bg=window.p['card']);window.timeline_host.pack(fill='x')
     window.timeline=None;window._probe_token=None;window._probe_revision=0;window._range_sync=False
-    field(window.cut_fields,'Başlangıç',window.start,window.p,width=120);field(window.cut_fields,'Bitiş',window.end,window.p,width=120)
+    times=tk.Frame(window.cut_fields,bg=window.p['card']);times.pack(fill='x')
+    field(times,'Başlangıç',window.start,window.p,width=120,side='left');field(times,'Bitiş',window.end,window.p,width=120,side='left')
     window.subtitle_host=tk.Frame(output.content,bg=window.p['card']);window.subtitle_host.pack(fill='x')
-    window.help_label=tk.Label(window.body,bg=window.p['dialog'],fg=window.p['muted'],font=('Inter',-12),wraplength=560,justify='left')
-    window.help_label.pack(fill='x',padx=24,pady=(0,16))
+    window.description_label.max_width=900-244-48
     result=AutoCard(window.body,window.p);label(result.content,'3  Sonuç',palette=window.p,weight='SemiBold').pack(anchor='w')
-    window.list=tk.Text(result.content,height=6,bg=window.p['card'],fg=window.p['text'],insertbackground=window.p['text'],font=('Inter',-12),relief='flat')
+    # Link check types into this list, so it needs an input's visible edge.
+    window.list=tk.Text(result.content,height=6,bg=window.p['card'],fg=window.p['text'],insertbackground=window.p['text'],font=('Inter',-12),relief='flat',
+                        highlightthickness=1,highlightbackground=window.p['input_border'],highlightcolor=window.p['accent'],padx=10,pady=8)
     window.progress=tb.Progressbar(result.content,maximum=100);window.progress.pack(fill='x',pady=12)
     window.status=tk.StringVar(window,'');label(result.content,variable=window.status,palette=window.p,size=12).pack(anchor='w')
     window.run_button=action(window.actionbar,'Dönüştür',window.run,window.p,'primary')
-    action(window.actionbar,'Durdur',window.cancel.set,window.p,'danger_ghost')
+    # Durdur only means something while a job runs (A14).
+    window.stop_button=action(window.actionbar,'Durdur',window.cancel.set,window.p,'danger_ghost');window.stop_button.configure(state='disabled')
     window.mode.trace_add('write',lambda *args:window.update_mode());window.update_mode()
     def source_changed(*args):
         window._probe_revision+=1;revision=window._probe_revision;source=window.input.get().strip()

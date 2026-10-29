@@ -8,7 +8,7 @@ from theme_widgets import Button,Panel,Search
 from ui_controls import Select
 from ui_indicators import SpeedChart
 from ui_dialog import label
-from ui_surface import TextLabel
+from ui_surface import TextLabel,font
 from ui_overlays import PopupMenu,ToastManager,Tooltip
 from atlas_view import matches_status,available_actions,number
 from list_display import COLUMNS
@@ -46,11 +46,13 @@ class OdakWorkspace(AtlasWorkspace):
             elif col==1:self.active_hint=label(card.content,'',palette=p,size=12,muted=True);self.active_hint.pack(anchor='w')
         filters=tk.Frame(self.main,bg=p['bg']);filters.pack(fill='x',padx=24,pady=(0,8))
         for name,title in [('Tümü','Tümü'),('Devam Edenler','Aktif'),('Tamamlananlar','Tamamlanan'),('Hatalı','Hatalı')]:
-            b=NavButton(filters,title,lambda n=name:app.select_status_filter(n),dict(p,side=p['bg']),color='accent');b.configure(width=156);b.pack(side='left',padx=2);app.status_buttons[name]=b
+            # Sized to its label: a fixed 156 px parked the count far from short names.
+            width=28+round(font(13,'SemiBold').getlength(title))+46
+            b=NavButton(filters,title,lambda n=name:app.select_status_filter(n),dict(p,side=p['bg']),color='accent');b.configure(width=width);b.pack(side='left',padx=(0,4));app.status_buttons[name]=b
         self.sort=tk.StringVar(app,'added');Select(filters,{'added':'Eklenme','name':'Dosya adı','size':'Boyut','status':'Durum'},self.sort,palette=p,width=150,command=app.refresh_downloads).pack(side='right')
         categories=tk.Frame(self.main,bg=p['bg']);categories.pack(fill='x',padx=24,pady=(0,16))
         for name in ('Tümü','Video','Müzik','Belgeler','Arşivler','Resimler','Programlar','Diğer'):
-            b=Button(categories,name,lambda n=name:app.select_category(n),palette=p,kind='soft',height=28);b.pack(side='left',padx=3);app.category_buttons[name]=b
+            b=Button(categories,name,lambda n=name:app.select_category(n),palette=p,kind='soft',height=28);b.pack(side='left',padx=(0,6));app.category_buttons[name]=b
         footer=tk.Frame(self.main,bg=p['footer']);footer.pack(side='bottom',fill='x')
         app.lbl_status_summary=label(footer,'Hazır',palette=p,size=12,muted=True);app.lbl_status_summary.pack(side='left',padx=24,pady=8)
         app.lbl_status_info=label(footer,'',palette=p,size=12,muted=True);app.lbl_status_info.max_width=420;app.lbl_status_info.pack(side='right',padx=24)

@@ -1,5 +1,6 @@
 """Deterministic Inter typography and antialiased vector UI surfaces."""
 from functools import lru_cache
+import math
 from pathlib import Path
 import sys
 import tkinter as tk
@@ -29,8 +30,12 @@ def surface(w,h,bg,fill,border=None,radius=7,scale=SURFACE_SCALE):
     return _surface(max(1,round(w)),max(1,round(h)),bg,fill,border,radius,scale).copy()
 
 
-def text_on(image,xy,text,size=13,weight='Regular',fill='#111827',anchor='lt'):
-    """Supersample text independently of its canvas/surface (no Tk text raster)."""
+def text_on(image,xy,text,size=13,weight='Regular',fill='#111827',anchor='la'):
+    """Supersample text independently of its canvas/surface (no Tk text raster).
+
+    The default anchor is the font's ascender line, not the ink top ('lt'):
+    ink-top placement moves capitals and dotted 'İ' by a few pixels per word.
+    """
     scale=SURFACE_SCALE
     layer=Image.new('RGBA',(image.width*scale,image.height*scale))
     ImageDraw.Draw(layer).text(tuple(round(v*scale) for v in xy),str(text),
@@ -165,7 +170,11 @@ class TextLabel(tk.Canvas):
         signature=(text,self.size,self.weight,self.fg,self.cget('bg'))
         if signature==getattr(self,'_text_signature',None):return
         self._text_signature=signature
-        face=font(self.size,self.weight);w=max(1,round(face.getlength(text))+2);h=self.size+7
+        face=font(self.size,self.weight);ascent,descent=face.getmetrics()
+        # Text is drawn at 3x and downsampled; at 13 px hinting measures a few px
+        # narrower than that, which clipped the last letter ('…indi', '~2,44 KE').
+        drawn=max(face.getlength(text),font(self.size*3,self.weight).getlength(text)/3)
+        w=max(1,math.ceil(drawn)+3);h=ascent+descent+4
         super().configure(width=w,height=h)
-        image=Image.new('RGB',(w*3,h*3),self.cget('bg'));d=ImageDraw.Draw(image);d.text((0,2*3),text,font=font(self.size*3,self.weight),fill=self.fg,anchor='lt')
+        image=Image.new('RGB',(w*3,h*3),self.cget('bg'));d=ImageDraw.Draw(image);d.text((0,2*3),text,font=font(self.size*3,self.weight),fill=self.fg,anchor='la')
         self._image=photo(image.resize((w,h),Image.Resampling.LANCZOS),self);self.delete('all');self.create_image(0,0,image=self._image,anchor='nw')

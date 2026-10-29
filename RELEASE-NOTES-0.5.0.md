@@ -7,6 +7,7 @@
 - Yeni indirme ve tarayıcı yakalama pencereleri, video/MP3 ve bölüm seçimi yenilendi.
 - Araçlar, masaüstü HUD, hız grafiği, tamamlanma ve güncelleme pencereleri ortak görünüme kavuştu.
 - Ayar doğrulama satır içinde gösterilir; başarılı kayıttan sonra bildirim verilir. Yedek tercihleri Kaydet ile kalıcılaşır; görünüm önizlemesi iptal edilebilir.
+- Hizalama: düğme, menü ve liste yazıları harflerinden bağımsız aynı çizgide ve ortada durur; form etiketleri kutunun üstünde, düğmeleri kutuyla aynı satırdadır; pencereler içeriğe göre boyutlanır, yazılar kesilmez. Hızlar her yerde "KB/sn" olarak gösterilir.
 - Türkçe/English sayı biçimi, kuyruklar, indirme motoru ve tarayıcı HTTP/SHA-256 kontrolleri korunur.
 
 Hız ve kalan süre ağ/sunucu koşullarına bağlıdır. Bilinmeyen boyut veya ölçülmemiş bağlantı sayısı gerçek değer olarak gösterilmez.
