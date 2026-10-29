@@ -15,6 +15,7 @@ jobs:
     timeout-minutes: 40
     env:
       PYTHONIOENCODING: utf-8
+      NODE_USE_SYSTEM_CA: '1'
     steps:
       - uses: actions/checkout@v5
         with:
