@@ -43,6 +43,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "auto_extract": False,
     "extract_dir": '',
     "mini_hud": False,
+    "hud_position": [],
     "duplicate_warning": True,
     "disk_check": True,
     "shutdown_after_queue": False,

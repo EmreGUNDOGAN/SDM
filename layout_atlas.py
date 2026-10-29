@@ -64,8 +64,8 @@ class AtlasWorkspace:
         app._atlas_logo=photo(logo,app)
         tk.Label(brand,image=app._atlas_logo,bg=p['side']).pack(side='left',padx=(0,ATLAS['brand_gap']))
         TextLabel(brand,'SDM',size=18,weight='Bold',fg=p['text']).pack(side='left')
-        self.new_button=Button(side,'Yeni indirme  Ctrl+N',app.open_add_dialog,palette=p,primary=True,height=40)
-        self.new_button.icon_name='plus';self.new_button.draw();self.new_button.pack(fill='x',padx=ATLAS['sidebar_padding'],pady=(0,ATLAS['group_gap']))
+        self.new_button=Button(side,'Yeni indirme',app.open_add_dialog,palette=p,primary=True,height=40)
+        self.new_button.icon_name='plus';self.new_button.shortcut='Ctrl+N';self.new_button.draw();self.new_button.pack(fill='x',padx=ATLAS['sidebar_padding'],pady=(0,ATLAS['group_gap']))
         bottom=tk.Frame(side,bg=p['side']);bottom.pack(side='bottom',fill='x',padx=ATLAS['sidebar_padding'],pady=(0,ATLAS['sidebar_top']))
         tk.Frame(bottom,bg=p['line'],height=1).pack(fill='x',pady=(0,12))
         self.bottom_buttons={}
@@ -355,7 +355,7 @@ class AtlasWorkspace:
         app.capture_label.configure(text='Tarayıcı yakalama açık' if __import__('capture_policy').capture_enabled(app.settings) else 'Tarayıcı yakalama kapalı')
         self.capture_tip.text=app.capture_label.text
         app.lbl_status_summary.configure(text=app.hud_active.get()+' aktif')
-        self.speed_label.configure(text=app.hud_speed.get().replace('/s','/sn'))
+        self.speed_label.configure(text=app.hud_speed.get())
         self.received_label.configure(text='Bu oturum '+app.hud_received.get())
         self.speed_points.append((time.monotonic(),speed));self.sparkline.set(tuple(self.speed_points))
         rate=app.settings.get('speed_limit_kbs',0)

@@ -2,20 +2,28 @@
   if (window.top !== window || document.getElementById('sdm-video-overlay')) return;
   const host = document.createElement('div');
   host.id = 'sdm-video-overlay';
-  host.style.cssText = 'position:fixed;z-index:2147483647;display:none;font:13px system-ui;';
+  host.style.cssText = 'position:fixed;z-index:2147483647;display:none;font:13px Inter,Segoe UI,sans-serif;';
   const root = host.attachShadow({mode: 'open'});
   root.innerHTML = `<style>
-    *{box-sizing:border-box}button{font:600 13px system-ui;cursor:pointer;border:0;border-radius:8px;padding:9px 12px}
-    #toggle{color:white;background:#10244d;box-shadow:0 2px 12px #0005;border:1px solid #70dfff}
-    #panel{margin-top:6px;width:250px;padding:12px;border-radius:12px;background:#fff;color:#17233b;box-shadow:0 5px 25px #0005;border:1px solid #dde5ed;max-height:380px;overflow:auto}
-    #title{font-weight:600;margin:0 0 8px;overflow-wrap:anywhere}#status{font-size:12px;white-space:pre-wrap;color:#59667b}
-    #choices button{display:block;width:100%;text-align:left;background:#edf5ff;color:#10244d;margin-top:5px}
-    #choices button:hover{background:#d9ecff}button:disabled{opacity:.6;cursor:wait}[hidden]{display:none!important}
-  </style><button id="toggle">↓ SDM ile indir</button><div id="panel" hidden><p id="title">Video kalitesi</p><div id="status"></div><div id="choices"></div></div>`;
+    @font-face{font-family:Inter;src:url('${chrome.runtime.getURL('fonts/Inter-Regular.ttf')}')}@font-face{font-family:Inter;font-weight:600;src:url('${chrome.runtime.getURL('fonts/Inter-SemiBold.ttf')}')}
+    *{box-sizing:border-box}button{font:600 13px Inter,Segoe UI,sans-serif;cursor:pointer;border:0;border-radius:10px;padding:10px 14px}
+    button:focus-visible{outline:2px solid #2156d9;outline-offset:2px}
+    #toggle{color:#fff;background:#2156d9;box-shadow:0 6px 20px #0f172a29;display:flex;align-items:center;gap:8px}
+    #panel{margin-top:8px;width:380px;padding:16px;border-radius:14px;background:#fff;color:#111827;box-shadow:0 12px 32px #0f172a29;border:1px solid #e5e8ec;max-height:70vh;overflow:auto}
+    #title{font-size:14px;font-weight:600;margin:0 0 10px;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    #status{font-size:12px;white-space:pre-wrap;color:#5b6472;margin:8px 0}
+    #tabs{display:flex;padding:3px;border-radius:10px;background:#f1f3f6;gap:3px}#tabs button{flex:1;background:transparent;color:#5b6472}#tabs button[aria-selected=true]{background:#fff;color:#111827;box-shadow:0 1px 3px #0001}
+    #choices{margin-top:10px}#choices button{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;background:#fff;color:#1f2937;margin-top:4px;font-weight:400;min-height:48px}
+    #choices button:hover{background:#eef3fe}#choices button.recommended{background:#eef3fe;color:#1a44ad}
+    #foot{margin-top:12px;padding:10px;border-radius:8px;background:#f6f7f9;color:#5b6472;font-size:11px;line-height:1.5}
+    button:disabled{opacity:.55;cursor:wait}[hidden]{display:none!important}
+  </style><button id="toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v13m-5-5 5 5 5-5M4 17v4h16v-4"/></svg>SDM ile indir</button><div id="panel" hidden><p id="title">Video kalitesi</p><div id="tabs" role="tablist"><button id="video-tab" role="tab" aria-selected="true">Video</button><button id="audio-tab" role="tab" aria-selected="false">Yalnız ses (MP3)</button></div><div id="status" aria-live="polite"></div><div id="choices"></div><div id="foot">Boyutlar tahminidir. Ses ve görüntü MKV olarak birleştirilir.</div></div>`;
   document.documentElement.append(host);
   const toggle = root.getElementById('toggle'), panel = root.getElementById('panel');
   const status = root.getElementById('status'), choices = root.getElementById('choices');
-  let previousUrl = '', busy = false;
+  let previousUrl = '', busy = false, mediaMode = 'video';
+  function setMode(mode){mediaMode=mode;for(const button of choices.children)button.hidden=button.dataset.media!==mode;root.getElementById('video-tab').setAttribute('aria-selected',String(mode==='video'));root.getElementById('audio-tab').setAttribute('aria-selected',String(mode==='audio'));root.getElementById('foot').textContent=mode==='audio'?'Boyutlar tahminidir. Ses MP3 olarak kaydedilir.':'Boyutlar tahminidir. Ses ve görüntü MKV olarak birleştirilir.';}
+  root.getElementById('video-tab').onclick=()=>setMode('video');root.getElementById('audio-tab').onclick=()=>setMode('audio');
   document.addEventListener('pointerdown', event => {
     if (!panel.hidden && !event.composedPath().includes(host)) panel.hidden = true;
   }, true);
@@ -28,9 +36,11 @@
     if (!reply || reply.error) throw new Error(reply?.error || 'SDM eklentisi yanıt vermedi');
     return reply.result;
   }
-  function choice(label, height, audio, filesize=0) {
+  function choice(label, height, audio, filesize=0, recommended=false) {
     const button = document.createElement('button');
     button.textContent = label;
+    button.dataset.media=audio?'audio':'video';button.hidden=button.dataset.media!==mediaMode;
+    if(recommended)button.className='recommended';
     button.onclick = async (event) => {
       if (!event.isTrusted) return;
       if (busy) return;
@@ -46,16 +56,18 @@
   }
   async function openPicker() {
     if (!panel.hidden) { panel.hidden = true; return; }
-    panel.hidden = false; choices.replaceChildren();
+    panel.hidden = false; choices.replaceChildren();setMode('video');
     status.textContent = 'Videodaki kullanılabilir kaliteler alınıyor…'; toggle.disabled = true;
     try {
       const info = await send({type: 'formats', url: pageUrl()});
       root.getElementById('title').textContent = info.title;
+      const preferred=info.qualities.find(q=>q.height===1080)||info.qualities.find(q=>q.height<=1080)||info.qualities[0];
       for (const quality of info.qualities) {
         const size = quality.filesize ? ' · ~'+(quality.filesize/1024/1024).toFixed(0)+' MB' : '';
-        choice(quality.label + ' · Video + ses'+size, quality.height, false,quality.filesize);
+        choice(quality.label + ' · Video + ses'+(quality===preferred?' · önerilen':'')+size, quality.height, false,quality.filesize,quality===preferred);
       }
-      if (info.audio) choice('Yalnızca ses · MP3', null, true);
+      if (info.audio) choice('Yalnızca ses · MP3'+(info.audio_filesize?' · ~'+(info.audio_filesize/1024/1024).toFixed(0)+' MB':''), null, true,info.audio_filesize||0);
+      if(!info.qualities.length&&info.audio)setMode('audio');
       status.textContent = choices.childElementCount ? 'İndirmek istediğin kaliteyi seç.' : 'İndirilebilir format bulunamadı.';
     } catch(error) { status.textContent = error.message; }
     finally { toggle.disabled = false; }
@@ -78,7 +90,7 @@
     host.style.top = Math.max(8, r.top + 12) + 'px';
     host.style.right = Math.max(8, innerWidth - r.right + 12) + 'px';
     // Keep the menu within the player viewport on smaller screens.
-    panel.style.maxWidth = Math.min(250, innerWidth - 24) + 'px';
+    panel.style.maxWidth = Math.min(380, innerWidth - 24) + 'px';
   }
   setInterval(position, 700);
   addEventListener('scroll', position, {passive:true});

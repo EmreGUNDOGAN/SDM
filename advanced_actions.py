@@ -4,7 +4,8 @@ import threading
 from datetime import datetime
 from pathlib import Path
 import tkinter as tk
-from tkinter import messagebox,filedialog
+from tkinter import filedialog
+from ui_messages import messagebox
 from utils import save_settings,format_speed,format_bytes
 from queue_rules import scheduled_active,ordered_records
 from transfer_control import GLOBAL_LIMITER

@@ -21,7 +21,8 @@ async function request(path, body) {
     try {
       response = await fetch(`http://127.0.0.1:${config.port}${path}`, {
         method: 'POST', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${config.token}`},
-        body: JSON.stringify(body), signal: AbortSignal.timeout(90000)
+        body: JSON.stringify({...body, client:{version:chrome.runtime.getManifest().version,
+          browser:navigator.userAgent.includes('OPR/')?'Opera':navigator.userAgent.includes('Edg/')?'Edge':'Chrome'}}), signal: AbortSignal.timeout(90000)
       });
       break;
     } catch (error) {
