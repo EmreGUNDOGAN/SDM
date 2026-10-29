@@ -41,7 +41,10 @@ def seconds(value):
     if not __import__('math').isfinite(total):raise ValueError('Geçersiz zaman.')
     return total
 
-def process_media(source,destination,kind,start='',end='',cancel=None,progress=lambda p:None):
+AUDIO_BITRATES=(128,192,256,320)
+
+def process_media(source,destination,kind,start='',end='',cancel=None,progress=lambda p:None,bitrate=192):
+    if bitrate not in AUDIO_BITRATES:raise ValueError('Desteklenmeyen ses kalitesi.')
     source=Path(source).resolve();destination=Path(destination).resolve()
     if source==destination or destination.exists():raise ValueError('Çıktı yeni bir dosya olmalı; mevcut dosya üzerine yazılmaz.')
     duration=media_duration(source)
@@ -56,9 +59,9 @@ def process_media(source,destination,kind,start='',end='',cancel=None,progress=l
         if not 0<=beginning<ending<=duration+.1:raise ValueError('Kesme aralığı dosya süresi içinde olmalı.')
         length=ending-beginning;args+=['-ss',str(beginning),'-t',str(length)]
     extension=destination.suffix.lower()
-    if extension=='.mp3':args+=['-vn','-c:a','libmp3lame','-b:a','192k']
+    if extension=='.mp3':args+=['-vn','-c:a','libmp3lame','-b:a',f'{bitrate}k']
     elif extension=='.wav':args+=['-vn','-c:a','pcm_s16le']
-    elif extension=='.m4a':args+=['-vn','-c:a','aac','-b:a','192k']
+    elif extension=='.m4a':args+=['-vn','-c:a','aac','-b:a',f'{bitrate}k']
     elif extension in ('.mp4','.mkv'):args+=['-c:v','libx264','-preset','fast','-crf','23','-c:a','aac']
     else:raise ValueError('Desteklenen çıktılar: MP4, MKV, MP3, M4A, WAV.')
     args+=['-progress','pipe:1',str(partial)]

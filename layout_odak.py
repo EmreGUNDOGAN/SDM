@@ -5,13 +5,14 @@ import tkinter as tk
 import ttkbootstrap as tb
 from layout_atlas import AtlasWorkspace,NavButton
 from theme_widgets import Button,Panel,Search
-from ui_controls import Select
+from ui_controls import Select,watch
 from ui_indicators import SpeedChart
 from ui_dialog import label
-from ui_surface import TextLabel
+from ui_surface import TextLabel,font
 from ui_overlays import PopupMenu,ToastManager,Tooltip
 from atlas_view import matches_status,available_actions,number
 from list_display import COLUMNS
+from ui_tokens import SIZES
 
 
 class OdakWorkspace(AtlasWorkspace):
@@ -29,27 +30,38 @@ class OdakWorkspace(AtlasWorkspace):
         self.shell=tk.Frame(self.body,bg=p['bg']);self.shell.pack(side='left',fill='both',expand=True)
         self.main=tk.Frame(self.shell,bg=p['bg']);self.main.pack(fill='both',expand=True)
         header=tk.Frame(self.main,bg=p['bg']);header.pack(fill='x',padx=24,pady=20)
-        Button(header,'Yeni indirme',app.open_add_dialog,palette=p,kind='primary').pack(side='right')
-        app.capture_label=Button(header,'Yakalama açık',app.toggle_capture,palette=p,kind='soft',width=146);app.capture_label.status_badge=True;app.capture_label.pack(side='right',padx=10)
+        Button(header,'Yeni indirme',app.open_add_dialog,palette=p,kind='primary',height=SIZES['input']).pack(side='right')
+        app.capture_label=Button(header,'Yakalama açık',app.toggle_capture,palette=p,kind='soft',width=146,height=SIZES['input']);app.capture_label.status_badge=True;app.capture_label.pack(side='right',padx=10)
         app.search_var=tk.StringVar(app,getattr(app,'search_term',''));self.search_trace=app.search_var.trace_add('write',lambda *args:app._on_search_change())
-        app.search_control=Search(header,app.search_var,p,placeholder='Dosya adı veya adres ara');app.search_control.configure(width=220);app.search_control.pack(side='right')
+        app.search_control=Search(header,app.search_var,p,placeholder='Dosya adı veya adres ara',text_size=13);app.search_control.configure(width=220);app.search_control.pack(side='right')
         label(header,'İndirmeler',palette=p,size=20,weight='Bold').pack(side='left')
         self.search_binding=app.bind('<Control-f>',self.focus_search,add='+');self.search_upper_binding=app.bind('<Control-F>',self.focus_search,add='+')
         self.escape_binding=app.bind('<Escape>',lambda e:self.drawer.close() if self.drawer else None,add='+')
         row=tk.Frame(self.main,bg=p['bg']);row.pack(fill='x',padx=20,pady=(0,16))
         self.metrics={}
         for col,title,var,weight in [(0,'Toplam hız',app.hud_speed,2),(1,'Aktif',app.hud_active,1),(2,'Bu oturum',app.hud_received,1)]:
-            row.columnconfigure(col,weight=weight,uniform='summary');card=Panel(row,dict(p,panel=p['card']),padding=16,radius=16);card.configure(height=136);card.grid(row=0,column=col,sticky='nsew',padx=4)
-            label(card.content,title,palette=p,size=12,muted=True).pack(anchor='w');label(card.content,variable=var,palette=p,size=26,weight='Bold').pack(anchor='w',pady=6)
-            if col==0:self.summary_chart=SpeedChart(card.content,p,height=46,axes=False);self.summary_chart.pack(fill='x')
-            elif col==1:self.active_hint=label(card.content,'',palette=p,size=12,muted=True);self.active_hint.pack(anchor='w')
+            row.columnconfigure(col,weight=weight,uniform='summary');card=Panel(row,dict(p,panel=p['card']),padding=16,radius=16);card.configure(height=96);card.grid(row=0,column=col,sticky='nsew',padx=4)
+            label(card.content,title,palette=p,size=12,muted=True).pack(anchor='w')
+            # B01: the number is large and its unit small on the same baseline;
+            # the speed graph sits beside the value instead of under it.
+            line=tk.Frame(card.content,bg=p['card']);line.pack(fill='x',pady=(4,0))
+            value=label(line,palette=p,size=26,weight='Bold');value.pack(side='left',anchor='s')
+            unit=label(line,palette=p,size=14,muted=True)
+            # TextLabel keeps descent+2 px under its baseline; lift the unit by the difference.
+            drop=font(26,'Bold').getmetrics()[1]-font(14).getmetrics()[1]
+            unit.pack(side='left',anchor='s',padx=(6,0),pady=(0,round(drop)))
+            watch(value,var,lambda v=var,a=value,b=unit,c=col:self.split_metric(v,a,b,c));self.split_metric(var,value,unit,col)
+            if col==0:self.summary_chart=SpeedChart(line,p,height=40,axes=False);self.summary_chart.pack(side='left',fill='x',expand=True,padx=(16,0))
+            elif col==1:self.active_hint=unit
         filters=tk.Frame(self.main,bg=p['bg']);filters.pack(fill='x',padx=24,pady=(0,8))
         for name,title in [('Tümü','Tümü'),('Devam Edenler','Aktif'),('Tamamlananlar','Tamamlanan'),('Hatalı','Hatalı')]:
-            b=NavButton(filters,title,lambda n=name:app.select_status_filter(n),dict(p,side=p['bg']),color='accent');b.configure(width=156);b.pack(side='left',padx=2);app.status_buttons[name]=b
+            # Sized to its label: a fixed 156 px parked the count far from short names.
+            width=28+round(font(13,'SemiBold').getlength(title))+46
+            b=NavButton(filters,title,lambda n=name:app.select_status_filter(n),dict(p,side=p['bg']),color='accent');b.configure(width=width);b.pack(side='left',padx=(0,4));app.status_buttons[name]=b
         self.sort=tk.StringVar(app,'added');Select(filters,{'added':'Eklenme','name':'Dosya adı','size':'Boyut','status':'Durum'},self.sort,palette=p,width=150,command=app.refresh_downloads).pack(side='right')
         categories=tk.Frame(self.main,bg=p['bg']);categories.pack(fill='x',padx=24,pady=(0,16))
         for name in ('Tümü','Video','Müzik','Belgeler','Arşivler','Resimler','Programlar','Diğer'):
-            b=Button(categories,name,lambda n=name:app.select_category(n),palette=p,kind='soft',height=28);b.pack(side='left',padx=3);app.category_buttons[name]=b
+            b=Button(categories,name,lambda n=name:app.select_category(n),palette=p,kind='soft',height=28);b.pack(side='left',padx=(0,6));app.category_buttons[name]=b
         footer=tk.Frame(self.main,bg=p['footer']);footer.pack(side='bottom',fill='x')
         app.lbl_status_summary=label(footer,'Hazır',palette=p,size=12,muted=True);app.lbl_status_summary.pack(side='left',padx=24,pady=8)
         app.lbl_status_info=label(footer,'',palette=p,size=12,muted=True);app.lbl_status_info.max_width=420;app.lbl_status_info.pack(side='right',padx=24)
@@ -60,7 +72,7 @@ class OdakWorkspace(AtlasWorkspace):
             b=Button(self.toolbar,title,command,palette=p,kind='ghost');b.pack(side='left',padx=3,pady=8);self.actions[key]=b;app.action_buttons.append(b)
         self.content=tk.Frame(self.main,bg=p['bg']);self.content.pack(fill='both',expand=True)
         self.listing=tk.Frame(self.content,bg=p['bg']);self.listing.pack(side='left',fill='both',expand=True,padx=24)
-        app.style.configure('SDM.Treeview',rowheight=112,background=p['bg'],fieldbackground=p['bg'],borderwidth=0)
+        app.style.configure('SDM.Treeview',rowheight=84,background=p['bg'],fieldbackground=p['bg'],borderwidth=0)
         app.tree=tb.Treeview(self.listing,columns=tuple(c[0] for c in COLUMNS),show='tree',selectmode='extended',style='SDM.Treeview')
         app.tree.column('#0',width=0,minwidth=0,stretch=False)
         for name,title,width in COLUMNS:app.tree.heading(name,text=title);app.tree.column(name,width=width,stretch=name=='filename')
@@ -107,7 +119,10 @@ class OdakWorkspace(AtlasWorkspace):
         return 'break'
     def open_detail(self,did):
         if self.settings_page and not self.leave_settings():return
+        if not self.alive:return self.app.show_download_details(did)
         if self.settings_page:self.settings_page.destroy();self.settings_page=None;self.main.pack(fill='both',expand=True)
+        item='download-'+str(did)
+        if self.app.tree.exists(item):self.app.tree.selection_set(item)
         if self.drawer and self.drawer.download_id==did:return self.drawer
         if self.drawer:self.drawer.close()
         self.dismissed=None
@@ -126,6 +141,7 @@ class OdakWorkspace(AtlasWorkspace):
         from ui_messages import choose
         answer=choose(self.app,'Değişiklikler kaydedilsin mi?','Kaydedilmemiş ayar değişiklikleri var.',(('save','Kaydet','primary'),('discard','Kaydetme','secondary'),('cancel','Vazgeç','ghost')))
         if answer=='save':return self.settings_page.save()
+        if answer=='discard':self.settings_page.cancel_preview();return True
         return answer=='discard'
     def navigate(self,key):
         if key=='settings' and self.settings_page:return
@@ -161,9 +177,15 @@ class OdakWorkspace(AtlasWorkspace):
             name=queue['name'];menu.add_item(name,submenu=lambda child,n=name:self.queue_items(child,n));menu.add_item(name+' · filtrele',lambda n=name:self.select_queue(n))
         menu.add_separator();menu.add_item('Kuyruk ve zamanlama ayarları',lambda:self.open_settings_section('Kuyruk'))
         return self.popup(menu,x=self.rail.winfo_rootx()+68,y=self.rail_buttons['queues'].winfo_rooty())
+    @staticmethod
+    def split_metric(variable,value,unit,column):
+        """'24,5 MB/sn' -> large '24,5' + small 'MB/sn'; the Aktif card's unit is its limit."""
+        number_text,_,unit_text=variable.get().partition(' ')
+        value.configure(text=number_text)
+        if column!=1:unit.configure(text=unit_text)
     def update_hud(self,speed):
         self.speed_points.append((time.monotonic(),speed));self.summary_chart.set(tuple(self.speed_points))
-        self.active_hint.configure(text='Eşzamanlı sınır: '+str(self.app.settings['max_simultaneous_downloads']))
+        self.active_hint.configure(text='/ '+str(self.app.settings['max_simultaneous_downloads'])+' eşzamanlı')
         self.app.relax_button.configure(text='Rahatlatıldı' if self.app.settings.get('relax_mode') else 'İnterneti rahatlat')
         self.update_selection()
     def dispose(self,event):
