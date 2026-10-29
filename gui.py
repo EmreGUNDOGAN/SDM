@@ -166,6 +166,8 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         records=[r for r in records if matches_status(r['status'],state)]
         queue=getattr(self,'current_queue_filter',None)
         if queue:records=[r for r in records if r.get('queue_name')==queue]
+        workspace=getattr(self,'_atlas_workspace',None)
+        if workspace and hasattr(workspace,'sort_records'):records=workspace.sort_records(records)
         self._visible_records={r['id']:r for r in records};self._all_records=all_records
         wanted=[f'download-{r["id"]}' for r in records]
         stale=set(self.tree.get_children())-set(wanted)
@@ -215,9 +217,14 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
 
     def open_settings_dialog(self) -> None:
         from modern_settings import SettingsDialog as ModernSettingsDialog
+        for child in self.winfo_children():
+            if isinstance(child,ModernSettingsDialog):child.lift();child.focus_set();return
+        workspace=getattr(self,'_atlas_workspace',None)
+        if self.theme_family=='odak' and workspace and workspace.alive:return workspace.navigate('settings')
         ModernSettingsDialog(self)
 
     def apply_visible_columns(self):
+        if self.theme_family=='odak':self.tree.configure(displaycolumns=('filename',));return
         valid={c[0] for c in COLUMNS}
         visible=[c for c in self.settings.get('visible_columns',[]) if c in valid]
         if 'filename' not in visible:visible.insert(0,'filename')
@@ -242,6 +249,8 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         self.apply_visible_columns()
 
     def show_download_details(self,did):
+        workspace=getattr(self,'_atlas_workspace',None)
+        if self.theme_family=='odak' and workspace and workspace.alive:return workspace.open_detail(did)
         existing=self.detail_windows.get(did)
         if existing and existing.winfo_exists():
             existing.lift()
@@ -306,11 +315,28 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
             self.clipboard_monitor.set_extensions(new_settings.get('monitored_extensions',[]))
             if new_settings.get('clipboard_monitoring',True):self.clipboard_monitor.start()
             else:self.clipboard_monitor.stop()
+        self.rebuild_appearance()
+
+    def preview_appearance(self,design,color_mode):
+        """Rebuild visual surfaces without saving or applying other preferences."""
+        saved=self.settings
+        try:
+            self.settings=dict(saved,design=design,color_mode=color_mode)
+            self.rebuild_appearance()
+        finally:self.settings=saved
+
+    def rebuild_appearance(self):
+        from modern_settings import SettingsDialog
+        for child in list(self.winfo_children()):
+            if isinstance(child,tk.Toplevel) and not isinstance(child,SettingsDialog):
+                if hasattr(child,'close'):child.close()
+                elif hasattr(child,'finish'):child.finish(None)
+                else:child.destroy()
         for child in self.winfo_children():
             if not isinstance(child, tk.Toplevel):child.destroy()
         self._build_ui()
         self.initialize_drop()
-        if new_settings.get('mini_hud'):self.show_mini_hud()
+        if self.settings.get('mini_hud'):self.show_mini_hud()
 
     def add_download_from_dialog(
         self,
@@ -470,8 +496,8 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         for did in self._get_selected_ids():self.cancel_download(did)
         self.refresh_downloads()
 
-    def delete_selected(self, delete_file: bool = False) -> None:
-        ids = self._get_selected_ids()
+    def delete_selected(self, delete_file: bool = False, ids=None) -> None:
+        ids = self._get_selected_ids() if ids is None else list(ids)
         if not ids:
             return
 
@@ -523,7 +549,13 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
             if fp.exists():
                 os.startfile(str(fp))
             else:
-                messagebox.showwarning("Bulunamadı", "Dosya belirtilen konumda bulunamadı.")
+                from ui_messages import show_error
+                show_error(self,'Dosya bulunamadı','Dosya belirtilen konumda bulunamadı.',actions=(('remove','Listeden kaldır',lambda:self.remove_missing_record(rec['id'])),))
+
+    def remove_missing_record(self,did):
+        record=self.db.get_download(did)
+        if not record:return
+        self.delete_selected(ids=[did])
 
     def open_folder(self) -> None:
         ids = self._get_selected_ids()

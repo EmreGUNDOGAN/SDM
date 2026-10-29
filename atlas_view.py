@@ -48,7 +48,10 @@ def available_actions(statuses):
 
 
 def number(app,value):
-    return str(value).replace('.',',') if app.settings.get('language','tr')=='tr' else str(value)
+    """Display form of a formatted value: Turkish decimal comma and 'KB/sn' speeds."""
+    if app.settings.get('language','tr')!='tr':return str(value)
+    import re
+    return re.sub(r'/s\b','/sn',str(value).replace('.',','))
 
 
 def observed_parts(app,record):

@@ -81,7 +81,7 @@ class CheckBox(Button):
         if selected:
             glyph = icon('check-small',size,p['on_accent']);mark.paste(glyph,(0,0),glyph)
         image.paste(mark,(6,(h-size)//2))
-        text_on(image,(size+14,(h-13)//2-1),ellipsize(self.text,w-size-20),fill=p['text_2'])
+        text_on(image,(size+14,h/2),ellipsize(self.text,w-size-20),fill=p['text_2'],anchor='lm')
         self.display(image)
 
 
@@ -124,8 +124,8 @@ class SegmentedControl(tk.Frame):
 
 
 class RadioCard(Button):
-    def __init__(self,master,value,variable,text='',description='',palette=None,command=None,**kwargs):
-        self.value=value;self.variable=variable;self.description=description;self.on_change=command
+    def __init__(self,master,value,variable,text='',description='',palette=None,command=None,align='left',**kwargs):
+        self.value=value;self.variable=variable;self.description=description;self.on_change=command;self.align=align
         super().__init__(master,text,command=self.choose,palette=palette,height=kwargs.pop('height',58),
                          width=kwargs.pop('width',160),**kwargs)
         watch(self,variable,self.refresh);self.refresh()
@@ -143,8 +143,61 @@ class RadioCard(Button):
         selected=self.variable.get()==self.value
         image=surface(w,h,self.cget('bg'),p['accent_soft'] if selected else p['subtle'] if self.hover else p['card'],
                       p['accent'] if selected else p['input_border'],self.radius)
-        text_on(image,(12,10),ellipsize(self.text,w-24,14,'SemiBold'),14,'SemiBold',p['accent_text'] if selected else p['text'])
-        text_on(image,(12,32),ellipsize(self.description,w-24,12),12,fill=p['muted'])
+        # Short choices (MP4 / Video) sit centred in their card (A14).
+        x,anchor=(w/2,'ma') if self.align=='center' else (12,'la')
+        text_on(image,(x,10),ellipsize(self.text,w-24,14,'SemiBold'),14,'SemiBold',p['accent_text'] if selected else p['text'],anchor)
+        text_on(image,(x,32),ellipsize(self.description,w-24,12),12,fill=p['muted'],anchor=anchor)
+        self.display(image)
+
+
+class ToolCard(RadioCard):
+    """A14 tool list entry: file-type tile, name and description.
+
+    Only the selected tool is raised as a card; the rest lie flat on the side panel.
+    """
+    def __init__(self,master,value,variable,tile,**kwargs):
+        self.tile=tile;super().__init__(master,value,variable,**kwargs)
+
+    def draw(self):
+        from ui_tokens import file_tile_colors
+        w=self.winfo_width() if self.winfo_width()>1 else int(self.cget('width'))
+        h=int(self.cget('height'));p=self.p;bg=self.cget('bg')
+        selected=self.variable.get()==self.value
+        fill=p['card'] if selected else p['subtle'] if self.hover else bg
+        image=surface(w,h,bg,fill,p['line'] if selected else fill,self.radius)
+        label,kind=self.tile;tile_bg,tile_fg=file_tile_colors(kind,p['mode'])
+        top=(h-32)//2
+        ImageDraw.Draw(image).rounded_rectangle((12,top,48,top+32),radius=RADII[p.get('design','atlas')]['tile'],fill=tile_bg)
+        text_on(image,(30,top+16),label,10,'Bold',tile_fg,'mm')
+        text_on(image,(60,10),ellipsize(self.text,w-72,14,'SemiBold'),14,'SemiBold',p['text'])
+        text_on(image,(60,32),ellipsize(self.description,w-72,12),12,fill=p['muted'])
+        self.display(image)
+
+
+class DesignCard(RadioCard):
+    """A08 design choice: a miniature of that design above "Name · description".
+
+    The miniature uses the design's own palette (Atlas light, Odak dark), so it
+    looks the same whichever design is currently active.
+    """
+    def __init__(self,master,value,variable,**kwargs):
+        super().__init__(master,value,variable,height=kwargs.pop('height',110),**kwargs)
+
+    def draw(self):
+        from ui_tokens import PALETTES
+        w=self.winfo_width() if self.winfo_width()>1 else int(self.cget('width'))
+        h=int(self.cget('height'));p=self.p
+        selected=self.variable.get()==self.value
+        image=surface(w,h,self.cget('bg'),p['accent_soft'] if selected else p['subtle'] if self.hover else p['card'],
+                      p['accent'] if selected else p['input_border'],self.radius)
+        mini=PALETTES['light' if self.value=='atlas' else 'dark'];right,bottom=w-12,h-42
+        rail=round((right-12)*(.3 if self.value=='atlas' else .12))
+        thumb=surface(right-12,bottom-12,p['card'],mini['card' if self.value=='atlas' else 'bg'],mini['line'],6)
+        ImageDraw.Draw(thumb).rectangle((1,1,rail,thumb.height-2),fill=mini['side'])
+        image.paste(thumb,(12,12))
+        title=ellipsize(self.text,w-24,13,'Bold');rest=ellipsize(' · '+self.description,w-24-font(13,'Bold').getlength(title),12)
+        text_on(image,(12,h-14),title,13,'Bold',p['text'],'ls')
+        text_on(image,(12+font(13,'Bold').getlength(title),h-14),rest,12,fill=p['muted'],anchor='ls')
         self.display(image)
 
 

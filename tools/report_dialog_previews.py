@@ -20,7 +20,8 @@ def validate(directory):
             data=path.read_bytes()
             with Image.open(path) as image:
                 image.load();image=image.convert('RGB');w,h=image.size
-                if w<300 or h<150:raise ValueError('Wrong dialog dimensions: '+path.name)
+                # The HUD fits its rows: exactly 340 px wide, shorter with no active download (A15).
+                if (name=='hud' and (w!=340 or h<120)) or (name!='hud' and (w<300 or h<150)):raise ValueError('Wrong dialog dimensions: '+path.name)
                 expected=p['hud'] if name=='hud' else p['side'] if name=='tools' else p['dialog']
                 if image.getpixel((10,10))!=ImageColor.getrgb(expected):raise ValueError('Wrong dialog palette: '+path.name)
                 if name=='tools' and image.getpixel((w-10,10))!=ImageColor.getrgb(p['dialog']):raise ValueError('Wrong tools content palette: '+path.name)

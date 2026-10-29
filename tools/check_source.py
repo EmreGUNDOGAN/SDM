@@ -10,7 +10,10 @@ import subprocess
 import sys
 import tempfile
 
-from source_manifest import MANIFEST,git,index_files,run
+if __package__:
+    from .source_manifest import MANIFEST,git,index_files,run
+else:
+    from source_manifest import MANIFEST,git,index_files,run
 
 SIGNATURES = (
     ('GitHub token',r'\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{50,})\b'),

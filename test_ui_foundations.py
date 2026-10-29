@@ -80,6 +80,21 @@ class MigrationTests(unittest.TestCase):
 
 
 class RenderingTokenTests(unittest.TestCase):
+    def test_focused_button_survives_transient_tiny_layout_sizes(self):
+        from types import SimpleNamespace
+        from PIL import Image
+        from theme_widgets import Button
+        for size in ((1,40),(2,40),(40,1),(40,2),(40,40)):
+            with self.subTest(size=size):
+                canvas=SimpleNamespace(focused=True,disabled=False,radius=8,p=palette('atlas_light'),
+                                       delete=lambda *a:None,create_image=lambda *a,**kw:None)
+                original=Image.new('RGB',size,'white')
+                with patch('ui_surface.photo',side_effect=lambda picture,master:picture):
+                    Button.display(canvas,original.copy())
+                self.assertTrue(canvas.focused)
+                self.assertEqual(canvas._surface.size,size)
+                if size==(40,40):self.assertNotEqual(canvas._surface.tobytes(),original.tobytes())
+
     def test_role_parity_copy_isolation_and_design_dimensions(self):
         self.assertEqual(set(PALETTES['light']),set(PALETTES['dark']))
         p=palette('atlas_light');p['accent']='changed'

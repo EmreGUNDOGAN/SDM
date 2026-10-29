@@ -10,8 +10,11 @@ concurrency:
   cancel-in-progress: true
 jobs:
   source-and-ui:
-    runs-on: windows-latest
+    runs-on: [self-hosted, Windows, X64, sdm-ui]
     timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
     env:
       SDM_DATA_DIR: '${{ github.workspace }}/build/verify-unit-data'
       PYTHONIOENCODING: utf-8
@@ -21,9 +24,16 @@ jobs:
           # The manifest describes the PR head, not GitHub's synthetic merge tree.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+      - name: Create isolated Python environment on the SDM runner
+        run: |
+          if (-not $env:SDM_RUNNER_PYTHON -or -not (Test-Path -LiteralPath $env:SDM_RUNNER_PYTHON)) {
+            throw 'Configure SDM_RUNNER_PYTHON with an existing Python 3.12 executable on the runner.'
+          }
+          & $env:SDM_RUNNER_PYTHON -c "import sys; assert sys.version_info[:2] == (3, 12), 'Python 3.12 is required'"
+          if ($LASTEXITCODE -ne 0) { throw 'Runner Python version check failed' }
+          & $env:SDM_RUNNER_PYTHON -m venv .venv
+          if ($LASTEXITCODE -ne 0) { throw 'Isolated Python environment creation failed' }
+          (Join-Path $env:GITHUB_WORKSPACE '.venv/Scripts') >> $env:GITHUB_PATH
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -42,7 +52,7 @@ jobs:
           npx playwright install chromium
           if ($LASTEXITCODE -ne 0) { throw 'Isolated browser preparation failed' }
       - name: Engine, security, preferences and manifest regressions
-        run: python -m unittest test_advanced_features test_responsiveness test_features test_download_safety test_progress_meter test_browser_files test_browser_bridge test_transfer_details test_video_access test_theme_section test_ui_foundations test_source_manifest test_preview_report test_window_capture test_atlas_view test_atlas_preview_report test_dialog_inspection
+        run: python -m unittest test_advanced_features test_responsiveness test_features test_download_safety test_progress_meter test_browser_files test_browser_bridge test_transfer_details test_video_access test_theme_section test_ui_foundations test_source_manifest test_preview_report test_window_capture test_atlas_view test_atlas_preview_report test_dialog_inspection test_package_checks
       - name: Four design-mode combinations and native UI in disposable profiles
         env:
           SDM_COMPONENT_VIEWPORT_HEIGHT: '640'
@@ -64,3 +74,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Browser SHA validation failed' }
       - name: Validate all download, tool, HUD and browser previews
         run: python tools/report_dialog_previews.py
+      - name: Validate all six settings sections in four appearances
+        run: python tools/report_settings_previews.py
+      - name: Validate Odak cards, drawer, settings and adjacent queue menu
+        run: python tools/report_odak_previews.py
