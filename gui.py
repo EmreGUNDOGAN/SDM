@@ -216,9 +216,11 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         BatchDialog(self, initial_url)
 
     def open_settings_dialog(self) -> None:
+        from modern_settings import SettingsDialog as ModernSettingsDialog
+        for child in self.winfo_children():
+            if isinstance(child,ModernSettingsDialog):child.lift();child.focus_set();return
         workspace=getattr(self,'_atlas_workspace',None)
         if self.theme_family=='odak' and workspace and workspace.alive:return workspace.navigate('settings')
-        from modern_settings import SettingsDialog as ModernSettingsDialog
         ModernSettingsDialog(self)
 
     def apply_visible_columns(self):
@@ -303,13 +305,6 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         else:self.engine.cancel_task(did)
 
     def apply_settings(self, new_settings: Dict[str, Any]) -> None:
-        # A theme/design switch replaces transient views and their timers too.
-        from modern_settings import SettingsDialog
-        for child in list(self.winfo_children()):
-            if isinstance(child,tk.Toplevel) and not isinstance(child,SettingsDialog):
-                if hasattr(child,'close'):child.close()
-                elif hasattr(child,'finish'):child.finish(None)
-                else:child.destroy()
         self.settings = new_settings
         self.engine.max_concurrent = new_settings.get("max_simultaneous_downloads", 3)
         self.engine.default_connections = new_settings.get("default_connections", 8)
@@ -320,11 +315,28 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
             self.clipboard_monitor.set_extensions(new_settings.get('monitored_extensions',[]))
             if new_settings.get('clipboard_monitoring',True):self.clipboard_monitor.start()
             else:self.clipboard_monitor.stop()
+        self.rebuild_appearance()
+
+    def preview_appearance(self,design,color_mode):
+        """Rebuild visual surfaces without saving or applying other preferences."""
+        saved=self.settings
+        try:
+            self.settings=dict(saved,design=design,color_mode=color_mode)
+            self.rebuild_appearance()
+        finally:self.settings=saved
+
+    def rebuild_appearance(self):
+        from modern_settings import SettingsDialog
+        for child in list(self.winfo_children()):
+            if isinstance(child,tk.Toplevel) and not isinstance(child,SettingsDialog):
+                if hasattr(child,'close'):child.close()
+                elif hasattr(child,'finish'):child.finish(None)
+                else:child.destroy()
         for child in self.winfo_children():
             if not isinstance(child, tk.Toplevel):child.destroy()
         self._build_ui()
         self.initialize_drop()
-        if new_settings.get('mini_hud'):self.show_mini_hud()
+        if self.settings.get('mini_hud'):self.show_mini_hud()
 
     def add_download_from_dialog(
         self,

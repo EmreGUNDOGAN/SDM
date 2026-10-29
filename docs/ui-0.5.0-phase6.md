@@ -75,3 +75,24 @@ Yayın sonrası hesabı olmayan indirme/SHA karşılaştırması, önceki sürü
 güncelleme seçimi ve kullanıcıya setup/sürüm sayfası teslimi henüz uygulanamaz;
 ortada yeni yayımlanmış setup yoktur. Kaynak/portable özel depoda kalır;
 herkese açık sürüm deposuna yalnız setup, SHA ve sürüm notu konur.
+
+## Deneme geri bildirimi: canlı görünüm önizlemesi
+
+Atlas/Odak ile Açık/Koyu/Sistem seçimi artık Kaydet beklemeden ana pencere ve
+ayar yüzeyinde önizlenir. Kaydet kalıcılaştırır; İptal/Escape/pencereyi kapatma,
+Geri al ve Odak'ta kaydetmeden ayrılma önceki görünümü geri getirir. Yeniden
+kurulan ayarlar, geçersiz sayılar/tarihler dahil ham alanları, kuyruk taslak ve
+yeniden adlandırmalarını, bölümü ve kaydırma konumunu korur. Önizleme dosyaya
+yazmaz, motor hızını veya pano ayarlarını uygulamaz. Başarılı Kaydet görünür
+bildirim verir; kayıt istisnaları uygulama günlüğüne de yazılır.
+
+test_ui_theme_preview.py gerçek Tk düğme olaylarıyla iki başlangıç yerleşimini,
+taslak korumayı, iptal yollarını, başarısız/başarılı kaydı, DB kuyruk adını,
+motor/pano yalıtımını, bekleyen önizlemeden önce Kaydet'i ve Sistem tercihini
+sınar. Varsayılan native UI koşumuna eklendi. Bütün profiller yapay/geçicidir;
+kullanıcının açık deneme uygulaması veya kurulu program değiştirilmez.
+
+Kullanıcının önceki Kaydet sonrası değişmeme bildirimi yerelde yeniden
+üretilemedi; bunu çözüldü saymak yerine canlı önizleme ve kayıt geri bildirimi
+eklendi. Uygulama/test kodu değiştiği için önceki Verify sonuçları bu yeni
+commit'in başarısı değildir; güncel commit yeniden Verify gerektirir.

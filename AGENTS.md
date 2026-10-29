@@ -67,6 +67,7 @@ Aşağıdakiler kuralların bu depoda nasıl uygulanacağını açıklar; kurall
 - Kullanıcı 0.5.0 hedefini ve altı aşamanın tamamlanmasını onayladı. Son talimat: kalan 3–6. aşamalar bitirilir ve Verify sonuçları yardımcı tarafından takip edilir. Model/çaba seçimi GPT-6.1 Sol / high olarak sürer; çaba artışı yeniden onay gerektirir.
 - Altı aşama: (1) temel/token/bileşen/göç/manifest, (2) Atlas ana pencere, (3) Atlas pencereleri, (4) ayarlar, (5) Odak Akışı, (6) temizlik ve son uyumluluk kontrolleri. Her aşama ayrı dal ve PR. Kullanıcı kalan aşamaların tümünü ayrıca onayladığından aşama geçişlerinde yeniden onay beklenmez.
 - Varsayılan yeni kurulum: design=atlas, color_mode=light. Tasarım ve renk modu bağımsızdır; system tercihi saklanır, başlangıçta Windows uygulama paleti okunur.
+- Kullanıcının son isteği: Atlas/Odak ve Açık/Koyu/Sistem seçimi Kaydet beklemeden canlı önizlenir. Kaydet kalıcılaştırır; İptal, Escape, pencereyi kapatma, Geri al veya kaydetmeden ayrılma önceki görünümü geri getirir. Önizleme motor/pano ayarlarını uygulamaz, dosyaya yazmaz; diğer geçersiz veya kaydedilmemiş alanları korur.
 - Eski atlas/orbit/nova açık ve koyu tema anahtarları Atlas'ın aynı renk moduna göç eder. Eski yedekler de aynı dönüşümü kullanır.
 - Atlas'ta Masaüstü HUD, alt menüde Araçlar ile Ayarlar arasında bulunur.
 - Odak'ta Kuyruklar ikonu şeridin hemen sağında kuyruk menüsünü açar; ayrı sayfa yapılmaz.

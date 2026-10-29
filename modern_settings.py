@@ -1,5 +1,6 @@
 """A08–A13 settings content shared with Odak's embedded settings page."""
 import copy
+import logging
 import threading
 import tkinter as tk
 from tkinter import filedialog
@@ -8,7 +9,7 @@ from app_version import VERSION
 from utils import DEFAULT_SETTINGS,save_settings
 from preferences import export_settings,import_settings,validate_settings
 from capture_policy import normalize_domain
-from theme_catalog import migrate_settings
+from theme_catalog import migrate_settings,theme_key
 from theme_widgets import Button
 from ui_dialog import ScrollBody,AutoCard,label,field
 from ui_controls import Switch,Select,SegmentedControl,RadioCard,ChipInput,TextInput
@@ -39,13 +40,14 @@ class SettingsContent(tk.Frame):
         super().__init__(master,bg=self.p['dialog'])
         self.settings=migrate_settings(copy.deepcopy(dict(DEFAULT_SETTINGS,**parent.settings)))
         self.vars={};self.inputs={};self._traces=[];self._initializing=True;self._timer=None
+        self._preview_timer=None;self._appearance_closed=False;self._preview_embedded=embedded
         self.error=tk.StringVar(self,'');self.change_count=tk.IntVar(self,0)
         self.footer=tk.Frame(self,bg=self.p['footer']);self.footer.pack(side='bottom',fill='x')
         tk.Frame(self.footer,height=1,bg=self.p['line']).pack(fill='x')
         foot=tk.Frame(self.footer,bg=self.p['footer']);foot.pack(fill='x',padx=24,pady=12)
-        self.caption=label(foot,'Değişiklikler Kaydet’e basınca uygulanır.',palette=self.p,size=12,muted=True);self.caption.max_width=420;self.caption.pack(side='left')
+        self.caption=label(foot,'Görünüm anında önizlenir; Kaydet ile kalıcı olur.',palette=self.p,size=12,muted=True);self.caption.max_width=420;self.caption.pack(side='left')
         self.save_button=Button(foot,'Kaydet',self.save,palette=self.p,kind='primary');self.save_button.pack(side='right')
-        Button(foot,'Geri al' if embedded else 'İptal',self.revert if embedded else on_cancel,palette=self.p,kind='ghost').pack(side='right',padx=8)
+        Button(foot,'Geri al' if embedded else 'İptal',self.revert if embedded else self.cancel,palette=self.p,kind='ghost').pack(side='right',padx=8)
         TextLabel(self.footer,textvariable=self.error,fg=self.p['danger_fg'],size=12,max_width=700).pack(anchor='w',padx=24,pady=(0,8))
         self.side=tk.Frame(self,bg=self.p['side'],width=232 if embedded else 200);self.side.pack(side='left',fill='y');self.side.pack_propagate(False)
         label(self.side,'Ayarlar',palette=self.p,size=18,weight='Bold').pack(anchor='w',padx=20,pady=24)
@@ -62,6 +64,8 @@ class SettingsContent(tk.Frame):
         for variable in self.vars.values():self.watch(variable,self.changed)
         self.watch(self.site_values,self.changed);self.watch(self.extensions,self.extensions_changed)
         self._initializing=False;self.baseline=self.collect();self.changed();self.show_section('Genel')
+        for key in ('design','color_mode'):self.watch(self.vars[key],self.request_preview)
+        self.app._settings_editor=self
         self.bind('<Destroy>',self.dispose,add='+');self.update_status()
 
     def watch(self,var,callback):self._traces.append((var,var.trace_add('write',callback)))
@@ -178,8 +182,63 @@ class SettingsContent(tk.Frame):
             if text:problems.append(text)
         try:values=self.collect();self.error.set('');count=sum(values.get(k)!=self.baseline.get(k) for k in values)
         except (ValueError,TypeError,KeyError) as error:self.error.set(str(error));problems.append(str(error));count=max(1,self.change_count.get())
-        self.change_count.set(count);self.caption.configure(text=f'Kaydedilmemiş {count} değişiklik' if self.embedded and count else 'Değişiklikler Kaydet’e basınca uygulanır.')
+        self.change_count.set(count);self.caption.configure(text=f'Kaydedilmemiş {count} değişiklik · Görünüm önizlemesi' if count else 'Görünüm anında önizlenir; Kaydet ile kalıcı olur.')
         self.save_button.configure(state='disabled' if problems else 'normal')
+    def request_preview(self,*args):
+        if self._initializing or self._appearance_closed:return
+        if self._preview_timer:self.after_cancel(self._preview_timer)
+        self._preview_timer=self.after_idle(self.preview)
+    def stop_preview_timer(self):
+        if self._preview_timer:self.after_cancel(self._preview_timer);self._preview_timer=None
+    def preview(self):
+        self._preview_timer=None
+        design=self.vars['design'].get();mode=self.vars['color_mode'].get();app=self.app
+        if theme_key(dict(app.settings,design=design,color_mode=mode))==app.theme_family+'_'+app.ui_theme:return
+        # Keep raw drafts, including invalid fields; preview must not validate or save them.
+        draft=self.snapshot_draft();embedded=self._preview_embedded;dialog=self.winfo_toplevel()
+        geometry=dialog.geometry() if not self.embedded else None
+        self._appearance_closed=True
+        if not self.embedded:dialog.destroy()
+        app.preview_appearance(design,mode)
+        if embedded and app.theme_family=='odak':
+            app.open_settings_dialog();editor=app._atlas_workspace.settings_page
+        else:
+            dialog=SettingsDialog(app)
+            if geometry:dialog.geometry(geometry)
+            editor=dialog.content
+        editor.restore_draft(draft);editor._preview_embedded=embedded
+    def snapshot_draft(self):
+        queue=self.queue_editor
+        names=('name','limit','enabled','once_enabled','date_text','once_hour','once_minute')
+        return dict(settings=copy.deepcopy(self.settings),baseline=copy.deepcopy(self.baseline),
+                    values={key:var.get() for key,var in self.vars.items()},sites=self.site_values.get(),
+                    extensions=self.extensions.get(),new_site=self.new_site.get(),
+                    queues=copy.deepcopy(queue.queues),renames=queue.renames.copy(),index=queue.index,
+                    queue_values={key:getattr(queue,key).get() for key in names},
+                    days=[var.get() for var in queue.days],times={key:[v.get() for v in pair] for key,pair in queue.times.items()},
+                    section=next(name for name,tab in self.tabs.items() if tab is self.deck.current),
+                    scroll={name:tab.canvas.yview()[0] for name,tab in self.tabs.items()})
+    def restore_draft(self,draft):
+        self._initializing=True;self.settings=draft['settings'];self.baseline=draft['baseline']
+        for key,value in draft['values'].items():self.vars[key].set(value)
+        self.site_values.set(draft['sites']);self.extensions.set(draft['extensions']);self.new_site.set(draft['new_site'])
+        queue=self.queue_editor;queue._loading=True;queue.queues=draft['queues'];queue.renames=draft['renames'];queue.index=draft['index']
+        queue.names.configure(values=[q['name'] for q in queue.queues]);queue.names.current(queue.index)
+        for key,value in draft['queue_values'].items():getattr(queue,key).set(value)
+        for var,value in zip(queue.days,draft['days']):var.set(value)
+        for key,values in draft['times'].items():
+            for var,value in zip(queue.times[key],values):var.set(value)
+        queue._loading=False;queue.update_summary();self._initializing=False;self.extensions_changed();self.changed()
+        self.show_section(draft['section'])
+        self.update_idletasks()
+        for name,position in draft['scroll'].items():self.tabs[name].canvas.yview_moveto(position)
+    def cancel_preview(self):
+        self.stop_preview_timer();self._appearance_closed=True
+        if theme_key(self.app.settings)!=self.app.theme_family+'_'+self.app.ui_theme:
+            self.app.preview_appearance(self.app.settings['design'],self.app.settings['color_mode'])
+    def cancel(self):
+        self.cancel_preview()
+        if self.on_cancel:self.on_cancel()
     def save(self):
         try:
             values=self.collect()
@@ -188,17 +247,20 @@ class SettingsContent(tk.Frame):
                 if record['queue_name'] in self.queue_editor.renames:self.app.db.set_queue(record['id'],self.queue_editor.renames[record['queue_name']])
             for key in ('_running_queues','_scheduled_queues'):setattr(self.app,key,{self.queue_editor.renames.get(name,name) for name in getattr(self.app,key)})
             self.baseline=copy.deepcopy(values);self.change_count.set(0);callback=self.on_saved;app=self.app
+            self.stop_preview_timer();self._appearance_closed=True
             app.apply_settings(values)
             if callback:callback()
+            app.notify('Ayarlar','Değişiklikler kaydedildi.',tone='success')
             return True
         except Exception as error:
-            if self.winfo_exists():self.error.set(str(error))
+            logging.getLogger('SDM.GUI').exception('Ayarlar kaydedilemedi')
+            if self.winfo_exists():self._appearance_closed=False;self.error.set(str(error))
             return False
     def replace_values(self,values):
         self._initializing=True;self.settings=migrate_settings(copy.deepcopy(values))
         for key,var in self.vars.items():var.set(self.settings.get(key,DEFAULT_SETTINGS[key]))
         self.site_values.set('\n'.join(self.settings['excluded_sites']));self.extensions.set(', '.join(self.settings['capture_extensions']))
-        self.queue_editor.replace(self.settings['queues']);self._initializing=False;self.extensions_changed();self.changed()
+        self.queue_editor.replace(self.settings['queues']);self._initializing=False;self.extensions_changed();self.changed();self.request_preview()
     def revert(self):self.replace_values(self.baseline)
     def export(self):
         path=filedialog.asksaveasfilename(parent=self.winfo_toplevel(),defaultextension='.json',initialfile='SDM-ayarlar.json')
@@ -225,6 +287,11 @@ class SettingsContent(tk.Frame):
         self._timer=self.after(1000,self.update_status)
     def dispose(self,event):
         if event.widget is self:
+            self.stop_preview_timer()
+            if not self._appearance_closed and getattr(self.app,'_settings_editor',None) is self:
+                def rollback():
+                    if getattr(self.app,'_settings_editor',None) is self:self.cancel_preview()
+                self.app.after_idle(rollback)
             if self._timer:self.after_cancel(self._timer)
             for var,token in self._traces:var.trace_remove('write',token)
 
@@ -235,7 +302,7 @@ class SettingsDialog(tb.Toplevel):
         self.geometry(f'{min(960,self.winfo_screenwidth()-80)}x{min(760,self.winfo_screenheight()-100)}');self.minsize(760,520)
         self.content=SettingsContent(self,parent,on_saved=self.destroy,on_cancel=self.destroy);self.content.pack(fill='both',expand=True)
         self.tabs=self.content.tabs;self.vars=self.content.vars;self.queue_editor=self.content.queue_editor
-        self.bind('<Escape>',lambda e:self.destroy())
+        self.bind('<Escape>',lambda e:self.content.cancel());self.protocol('WM_DELETE_WINDOW',self.content.cancel)
     def collect(self):return self.content.collect()
     def save(self):return self.content.save()
     def show_section(self,name):self.content.show_section(name)

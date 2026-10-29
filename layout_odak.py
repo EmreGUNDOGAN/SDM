@@ -107,6 +107,7 @@ class OdakWorkspace(AtlasWorkspace):
         return 'break'
     def open_detail(self,did):
         if self.settings_page and not self.leave_settings():return
+        if not self.alive:return self.app.show_download_details(did)
         if self.settings_page:self.settings_page.destroy();self.settings_page=None;self.main.pack(fill='both',expand=True)
         if self.drawer and self.drawer.download_id==did:return self.drawer
         if self.drawer:self.drawer.close()
@@ -126,6 +127,7 @@ class OdakWorkspace(AtlasWorkspace):
         from ui_messages import choose
         answer=choose(self.app,'Değişiklikler kaydedilsin mi?','Kaydedilmemiş ayar değişiklikleri var.',(('save','Kaydet','primary'),('discard','Kaydetme','secondary'),('cancel','Vazgeç','ghost')))
         if answer=='save':return self.settings_page.save()
+        if answer=='discard':self.settings_page.cancel_preview();return True
         return answer=='discard'
     def navigate(self,key):
         if key=='settings' and self.settings_page:return
