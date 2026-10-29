@@ -12,7 +12,7 @@ class SectionFields:
         self.enabled=tk.BooleanVar(parent,False);self.start=tk.StringVar(parent,'00:00:00')
         self.end=tk.StringVar(parent,'00:00:30');self.exact=tk.BooleanVar(parent,False)
         self.duration=duration;self.command=command;self._syncing=False;self._traces=[]
-        self.box=tk.Frame(parent,bg=self.p['card']);self.box.pack(fill='x',pady=8)
+        self.box=tk.Frame(parent,bg=self.p['card']);self.box.pack(fill='x')
         head=tk.Frame(self.box,bg=self.p['card']);head.pack(fill='x')
         TextLabel(head,'Yalnız bir bölümü indir',weight='SemiBold',fg=self.p['text']).pack(side='left')
         Switch(head,variable=self.enabled,palette=self.p).pack(side='right')
@@ -24,11 +24,24 @@ class SectionFields:
         for text,var in (('Başlangıç',self.start),('Bitiş',self.end)):
             TextLabel(row,text,fg=self.p['muted']).pack(side='left',padx=(0,8))
             field=TextInput(row,variable=var,palette=self.p,width=112);field.pack(side='left',padx=(0,12));self.inputs.append(field)
-        SegmentedControl(self.content,{False:'Hızlı kesim',True:'Hassas kesim'},self.exact,palette=self.p).pack(anchor='e')
-        self.hint=TextLabel(self.content,'',size=12,fg=self.p['muted']);self.hint.pack(anchor='w',pady=8)
-        self.problem=TextLabel(self.content,'',size=12,fg=self.p['danger_fg']);self.problem.pack(anchor='w')
+        self.cut_choice=SegmentedControl(self.content,{False:'Hızlı kesim',True:'Hassas kesim'},self.exact,palette=self.p)
+        self.cut_choice.pack(in_=row,side='right');tk.Misc.tkraise(self.cut_choice,row)
+        # Beside the clock fields when they fit (A04), on its own line in narrow cards (A03).
+        row.bind('<Configure>',lambda e:self.place_cut_choice(row),add='+')
+        self.hint=TextLabel(self.content,'',size=12,fg=self.p['muted']);self.hint.pack(anchor='w',pady=(4,0))
+        # Shown only with an error, so an empty line does not pad the card.
+        self.problem=TextLabel(self.content,'',size=12,fg=self.p['danger_fg'])
         for var in (self.enabled,self.start,self.end,self.exact):self._traces.append((var,var.trace_add('write',self.changed)))
         self.box.bind('<Destroy>',self.dispose);self.set_duration(duration);self.changed()
+
+    def place_cut_choice(self,row):
+        times=sum(child.winfo_reqwidth()+12 for child in row.pack_slaves() if child is not self.cut_choice)
+        beside=row.winfo_width()>=times+self.cut_choice.winfo_reqwidth()+12
+        current=self.cut_choice.pack_info().get('in') if self.cut_choice.winfo_manager() else None
+        if current is (row if beside else self.content):return
+        self.cut_choice.pack_forget()
+        if beside:self.cut_choice.pack(in_=row,side='right')
+        else:self.cut_choice.pack(in_=self.content,anchor='e',pady=(4,0),after=row)
 
     @staticmethod
     def clock(value):
@@ -51,14 +64,14 @@ class SectionFields:
 
     def changed(self,*args):
         if self._syncing:return
-        if self.enabled.get():self.content.pack(fill='x',pady=12)
+        if self.enabled.get():self.content.pack(fill='x',pady=(8,0))
         else:self.content.pack_forget()
         try:
-            result=self.collect();self.problem.configure(text='')
+            result=self.collect();self.problem.configure(text='');self.problem.pack_forget()
             for field in self.inputs:field.set_error('')
             if result and self.timeline:self.timeline.set_range(result['start'],result['end'])
         except ValueError as error:
-            self.problem.configure(text=str(error));result=None
+            self.problem.configure(text=str(error));self.problem.pack(anchor='w',pady=(4,0));result=None
             for field in self.inputs:field.set_error(str(error))
         self.hint.configure(text='Hassas kesim yeniden kodlar ve daha fazla işlemci kullanır.' if self.exact.get() else 'Hızlı kesim birkaç saniye sapabilir.')
         if self.command:self.command()

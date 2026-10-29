@@ -11,7 +11,7 @@ def render(app,width,height,visible,head_height):
     image=Image.new('RGB',(width*s,height*s),p['bg']);d=ImageDraw.Draw(image)
     def rect(box,fill,radius=0):
         d.rounded_rectangle(tuple(round(v*s) for v in box),radius=round(radius*s),fill=fill)
-    def text(x,y,value,size=13,weight='Regular',color=None,limit=None,anchor='lt'):
+    def text(x,y,value,size=13,weight='Regular',color=None,limit=None,anchor='ls'):
         value=str(value)
         if limit is not None:value=ellipsize(value,max(0,limit),size,weight)
         d.text((round(x*s),round(y*s)),value,font=font(size*s,weight),fill=color or p['text'],anchor=anchor)
@@ -43,10 +43,11 @@ def render(app,width,height,visible,head_height):
                 rect((tx,ty,tx+size,ty+size),bg,8)
                 extension=Path(str(values[1])).suffix.lstrip('.').upper()[:4] or 'FILE'
                 text(tx+size/2,ty+size/2,extension,10,'Bold',fg,anchor='mm')
-                text(x+ATLAS['file_text_offset'],y+ATLAS['row_title_y'],values[1],13,'Medium',limit=cw-ATLAS['file_text_offset']-pad)
-                text(x+ATLAS['file_text_offset'],y+ATLAS['row_subtitle_y'],subtitle(record),12,color=p['muted'],limit=cw-ATLAS['file_text_offset']-pad)
+                text(x+ATLAS['file_text_offset'],y+ATLAS['row_title_baseline'],values[1],13,'Medium',limit=cw-ATLAS['file_text_offset']-pad)
+                text(x+ATLAS['file_text_offset'],y+ATLAS['row_subtitle_baseline'],subtitle(record),12,color=p['muted'],limit=cw-ATLAS['file_text_offset']-pad)
             elif column=='progress':
-                value=min(1,max(0,float(str(values[5]).rstrip('%'))/100));bar=max(1,cw-58)
+                # Leave room for '100%' and a 12 px gap; a fixed 58 px let them touch.
+                value=min(1,max(0,float(str(values[5]).rstrip('%'))/100));bar=max(1,cw-2*pad-round(font(12).getlength('100%'))-12)
                 yy=y+rh/2;thick=SIZES['progress']
                 rect((x+pad,yy-thick/2,x+pad+bar,yy+thick/2),p['track'],thick/2)
                 if value:rect((x+pad,yy-thick/2,x+pad+bar*value,yy+thick/2),status_colors(values[8],app.ui_theme)[0],min(thick/2,bar*value/2))
@@ -60,7 +61,7 @@ def render(app,width,height,visible,head_height):
             else:
                 index=tuple(tree.cget('columns')).index(column);value=values[index]
                 right=column in ('size','downloaded','remaining','speed','eta')
-                if column in ('size','downloaded','remaining','speed'):value=number(app,value).replace('/s','/sn')
+                if column in ('size','downloaded','remaining','speed'):value=number(app,value)
                 text(x+cw-pad if right else x+pad,y+rh/2,value,13,limit=cw-2*pad,anchor='rm' if right else 'lm')
     if app.data_view._keyboard_focus and tree.focus_get() is tree:
         d.rectangle((s,s,(width-1)*s,(height-1)*s),outline=p['accent'],width=2*s)

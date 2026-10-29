@@ -9,6 +9,15 @@
 
 ---
 
+0.5.0 kaynak dalı Atlas Pro ve Odak Akışı arayüzlerini içerir. Yukarıdaki
+0.4.3 bağlantısı mevcut yayımlanmış kurulumdur; 0.5.0 kurulumu yayımlanana kadar
+bu bağlantı yeni sürüm olarak sunulmaz. [0.5.0 değişiklikleri](RELEASE-NOTES-0.5.0.md).
+
+Görünüm ve renk modu Ayarlar → Genel'de bağımsız seçilir. Atlas tablo ve
+seçim paneli, Odak kartlar ve ayrıntı çekmecesi kullanır. Odak'ta Ayarlar ana
+alana açılır; kaydedilmemiş değişiklikte Kaydet/Kaydetme/Vazgeç seçimi sunulur.
+Yedekten geri yükleme Kaydet'e basmadan uygulanmaz. Sayı biçimi tercihi korunur.
+
 SDM; paralel dosya indirmeyi, tarayıcı entegrasyonunu ve video/MP3 indirmeyi
 açık veya koyu temalı modern bir masaüstü arayüzünde birleştirir. Bu depo kişisel kullanım için
 geliştirilen sürümün kaynak kodunu ve kurulum tarifini içerir.

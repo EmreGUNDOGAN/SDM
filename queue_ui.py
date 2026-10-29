@@ -2,10 +2,11 @@
 import copy
 from datetime import datetime,timedelta
 import tkinter as tk
-from ttkbootstrap.widgets import DateEntry
+from ttkbootstrap.dialogs import Querybox
 from queue_rules import default_queue,validate_queues
 from theme_widgets import Button
-from ui_controls import Switch,CheckBox,Select
+from ui_controls import Switch,CheckBox,Select,TextInput
+from ui_tokens import SIZES
 from ui_dialog import AutoCard,label,field
 
 
@@ -41,23 +42,28 @@ class QueueEditor(tk.Frame):
         self.problem=tk.StringVar(self,'')
         info=AutoCard(body,self.p,padding=12);field(info.content,'Kuyruk adı',self.name,self.p,width=180)
         row=tk.Frame(info.content,bg=self.p['card']);row.pack(fill='x',pady=8);label(row,'Aynı anda',palette=self.p).pack(side='left');Select(row,{str(n):str(n) for n in range(1,11)},self.limit,palette=self.p,width=80).pack(side='right')
-        daily=AutoCard(body,self.p,padding=12);label(daily.content,'Seçilen günlerde tekrarla',palette=self.p,weight='SemiBold').pack(anchor='w');Switch(daily.content,self.enabled,palette=self.p).pack(anchor='e')
+        daily=AutoCard(body,self.p,padding=12);head=tk.Frame(daily.content,bg=self.p['card']);head.pack(fill='x',pady=(0,8))
+        label(head,'Seçilen günlerde tekrarla',palette=self.p,weight='SemiBold').pack(side='left');Switch(head,self.enabled,palette=self.p).pack(side='right')
         self.days=[];self.day_buttons=[];daysrow=tk.Frame(daily.content,bg=self.p['card']);daysrow.pack(fill='x')
         for name in ('Pzt','Sal','Çar','Per','Cum','Cmt','Paz'):
             var=tk.BooleanVar(self);self.days.append(var)
             button=Button(daysrow,name,lambda v=var:v.set(not v.get()),palette=self.p,kind='soft',width=46)
-            button.pack(side='left',padx=1);self.day_buttons.append(button)
+            button.pack(side='left',padx=(0,4));self.day_buttons.append(button)
         self.times={}
         for key,title in (('start','Başlangıç'),('stop','Durma')):
             row=tk.Frame(daily.content,bg=self.p['card']);row.pack(fill='x',pady=6);label(row,title,palette=self.p).pack(side='left')
             pair=(tk.StringVar(self),tk.StringVar(self));self.times[key]=pair
             self.time_controls(row,*pair)
-        once=AutoCard(body,self.p,padding=12);label(once.content,'Bir defa, seçilen tarihte başlat',palette=self.p,weight='SemiBold').pack(anchor='w');Switch(once.content,self.once_enabled,palette=self.p).pack(anchor='e')
-        self.date=DateEntry(once.content,dateformat='%d.%m.%Y',firstweekday=0,width=14);self.date.pack(anchor='w',pady=8)
-        self.date_text=tk.StringVar(self,self.date.entry.get());self.date.entry.configure(textvariable=self.date_text)
-        self.once_hour=tk.StringVar(self,'22');self.once_minute=tk.StringVar(self,'00');row=tk.Frame(once.content,bg=self.p['card']);row.pack(fill='x');self.time_controls(row,self.once_hour,self.once_minute)
+        once=AutoCard(body,self.p,padding=12);head=tk.Frame(once.content,bg=self.p['card']);head.pack(fill='x')
+        label(head,'Bir defa, seçilen tarihte başlat',palette=self.p,weight='SemiBold').pack(side='left');Switch(head,self.once_enabled,palette=self.p).pack(side='right')
+        # A10: date and time share one row of themed inputs; the calendar stays one click away.
+        self.date_text=tk.StringVar(self,datetime.now().strftime('%d.%m.%Y'))
+        self.once_hour=tk.StringVar(self,'22');self.once_minute=tk.StringVar(self,'00');row=tk.Frame(once.content,bg=self.p['card']);row.pack(fill='x',pady=(8,0))
+        TextInput(row,variable=self.date_text,palette=self.p,width=120).pack(side='left')
+        Button(row,'Takvim',self.pick_date,palette=self.p,kind='soft',height=SIZES['input']).pack(side='left',padx=(8,0))
+        self.time_controls(row,self.once_hour,self.once_minute)
         row=tk.Frame(once.content,bg=self.p['card']);row.pack(fill='x',pady=8)
-        for title,days in [('Bugün',0),('Yarın',1)]:Button(row,title,lambda d=days:self.quick_date(d),palette=self.p,kind='soft').pack(side='left',padx=4)
+        for title,days in [('Bugün',0),('Yarın',1)]:Button(row,title,lambda d=days:self.quick_date(d),palette=self.p,kind='soft').pack(side='left',padx=(0,8))
         footer=AutoCard(body,self.p,padding=12);self.summary=label(footer.content,'',palette=self.p,size=12,muted=True);self.summary.max_width=420;self.summary.pack(anchor='w')
         problem=label(footer.content,variable=self.problem,palette=self.p,size=12);problem.fg=self.p['danger_fg'];problem.pack(anchor='w')
         Button(footer.content,'Zamanlamayı temizle',lambda:(self.enabled.set(False),self.once_enabled.set(False)),palette=self.p,kind='ghost').pack(anchor='w',pady=8)
@@ -71,6 +77,11 @@ class QueueEditor(tk.Frame):
         if self._loading:return
         self.update_summary()
         if self.command:self.command()
+    def pick_date(self):
+        try:start=datetime.strptime(self.date_text.get(),'%d.%m.%Y').date()
+        except ValueError:start=None
+        chosen=Querybox.get_date(self,'Tarih seç',first_weekday=0,start_date=start)
+        if chosen:self.date_text.set(chosen.strftime('%d.%m.%Y'));self.once_enabled.set(True)
     def quick_date(self,days):self.date_text.set((datetime.now()+timedelta(days=days)).strftime('%d.%m.%Y'));self.once_enabled.set(True)
     def update_summary(self):
         for var,button in zip(self.days,self.day_buttons):button.selected=var.get();button.configure(state='normal' if self.enabled.get() else 'disabled')
