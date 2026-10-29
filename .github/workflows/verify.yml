@@ -10,8 +10,11 @@ concurrency:
   cancel-in-progress: true
 jobs:
   source-and-ui:
-    runs-on: windows-latest
+    runs-on: [self-hosted, Windows, X64, sdm-ui]
     timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
     env:
       SDM_DATA_DIR: '${{ github.workspace }}/build/verify-unit-data'
       PYTHONIOENCODING: utf-8
@@ -21,9 +24,16 @@ jobs:
           # The manifest describes the PR head, not GitHub's synthetic merge tree.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+      - name: Create isolated Python environment on the SDM runner
+        run: |
+          if (-not $env:SDM_RUNNER_PYTHON -or -not (Test-Path -LiteralPath $env:SDM_RUNNER_PYTHON)) {
+            throw 'Configure SDM_RUNNER_PYTHON with an existing Python 3.12 executable on the runner.'
+          }
+          & $env:SDM_RUNNER_PYTHON -c "import sys; assert sys.version_info[:2] == (3, 12), 'Python 3.12 is required'"
+          if ($LASTEXITCODE -ne 0) { throw 'Runner Python version check failed' }
+          & $env:SDM_RUNNER_PYTHON -m venv .venv
+          if ($LASTEXITCODE -ne 0) { throw 'Isolated Python environment creation failed' }
+          (Join-Path $env:GITHUB_WORKSPACE '.venv/Scripts') >> $env:GITHUB_PATH
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
