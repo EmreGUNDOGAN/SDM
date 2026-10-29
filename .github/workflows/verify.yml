@@ -57,6 +57,8 @@ jobs:
         env:
           SDM_COMPONENT_VIEWPORT_HEIGHT: '640'
         run: python tools/run_ui_checks.py
+      - name: Real media section and updater handoff checks in disposable profiles
+        run: python tools/run_ui_checks.py test_section_live.py test_update_handoff_live.py
       - name: Validate all eight previews and write job summary
         run: python tools/report_component_previews.py
       - name: Validate Atlas workspace and menu previews

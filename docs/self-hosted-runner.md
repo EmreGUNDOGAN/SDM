@@ -1,8 +1,9 @@
 # SDM Windows Verify runner
 
 Verify, özel SDM deposuna kayıtlı `SDM-Windows` runner'ında çalışır.
-Etiketler: `self-hosted`, `Windows`, `X64`, `sdm-ui`. Yayın workflow'u bu
-değişiklikle taşınmaz; main'e push ve birleştirme yapılmaz.
+Etiketler: `self-hosted`, `Windows`, `X64`, `sdm-ui`. Verify ve Windows
+paketleme workflow'ları aynı runner'ı kullanır. Main'e push ve birleştirme
+yardımcı tarafından yapılmaz.
 
 Runner, proje checkout'undan ayrı `C:\actions-runner` klasöründedir.
 İlk kurulan sürüm 2.338.2; resmi GitHub release varlığının SHA-256 değeri
@@ -26,6 +27,20 @@ içinde ayrı `.venv` oluşturur; bağımlılıkları yalnız bu ortama kurar.
 Windows MSI Python kurulumu çalıştırılmaz. Node 22 `setup-node` aracılığıyla
 runner'ın ayrı araç önbelleğine hazırlanır; sistemdeki Node değiştirilmez.
 Pip/npm önbellekleri de runner klasörü altındadır.
+
+Paketleme, Inno Setup 6.7.4'ün resmî, SHA-256 ile sabitlenmiş kurulum
+dosyasını `/PORTABLE=1` ile `build-tools/inno` içine açar. Kurulu derleyici
+güncellenmez; kısayol ve dosya ilişkilendirmesi oluşturulmaz. Taşınabilir
+modun kaynağı: https://github.com/jrsoftware/issrc/blob/is-6_7_4/isportable.iss.
+7-Zip mevcut runner kurulumundan lisansıyla kopyalanır; FFmpeg/Deno için
+mevcut SHA kontrolleri korunur. Verify ayrıca gerçek HTTP/FFmpeg bölüm ve
+PowerShell güncelleyici devir testlerini geçici profillerde çalıştırır.
+
+Actions artifact kotasına bağımlı ikinci yükleme kaldırılmıştır. Başarılı
+paketleme varlıkları yalnız `main` koşumunda mevcut özel depo sürümüne
+yüklenir; dal üzerinde elle başlatılan paketleme yayın yapmaz. Herkese açık
+sürüm deposuna gönderim ayrı adımdır; yalnız setup, SHA ve sürüm açıklaması
+gönderilebilir. Paket doğrulaması başarısızsa özel sürüm de oluşturulmaz.
 
 Runner'ın checkout'u `C:\actions-runner\_work` altındadır; kullanıcının
 çalışma deposu değildir. Gerçek SDM profili okunmaz/yazılmaz. UI ve tarayıcı

@@ -11,22 +11,30 @@ concurrency:
   cancel-in-progress: false
 jobs:
   windows:
-    runs-on: windows-latest
+    runs-on: [self-hosted, Windows, X64, sdm-ui]
     timeout-minutes: 40
+    env:
+      PYTHONIOENCODING: utf-8
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+      - name: Create isolated Python environment on the SDM runner
+        shell: pwsh
+        run: |
+          if (-not $env:SDM_RUNNER_PYTHON -or -not (Test-Path -LiteralPath $env:SDM_RUNNER_PYTHON)) {
+            throw 'Configure SDM_RUNNER_PYTHON with an existing Python 3.12 executable on the runner.'
+          }
+          & $env:SDM_RUNNER_PYTHON -c "import sys; assert sys.version_info[:2] == (3, 12), 'Python 3.12 is required'"
+          if ($LASTEXITCODE -ne 0) { throw 'Runner Python version check failed' }
+          & $env:SDM_RUNNER_PYTHON -m venv .venv
+          if ($LASTEXITCODE -ne 0) { throw 'Isolated Python environment creation failed' }
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Install locked dependencies
         shell: pwsh
         run: |
-          python -m venv .venv
           .venv/Scripts/python.exe -m pip install -r requirements-lock.txt
       - name: Read version
         id: version
@@ -73,15 +81,10 @@ jobs:
           }
           .venv/Scripts/python.exe tools/run_ui_checks.py test_section_live.py test_update_handoff_live.py
           if ($LASTEXITCODE -ne 0) { throw 'Media/handoff checks failed' }
-      - name: Build installer on GitHub runner
+      - name: Build and validate installer on the SDM runner
         shell: pwsh
         run: |
-          $sdmCompiler = 'C:/Program Files (x86)/Inno Setup 6/ISCC.exe'
-          if (-not (Test-Path -LiteralPath $sdmCompiler)) {
-            choco install innosetup --yes --no-progress
-            if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed' }
-          }
-          ./build.ps1 -InnoCompiler $sdmCompiler
+          ./build.ps1
       - name: Prepare release assets
         shell: pwsh
         env:
@@ -92,16 +95,8 @@ jobs:
           "$sdmDigest  $sdmName" | Set-Content -LiteralPath "dist/SDM-Setup-$env:SDM_VERSION.sha256" -Encoding ascii
           Compress-Archive -Path extension/* -DestinationPath "dist/SDM-Extension-$env:SDM_VERSION.zip"
           .venv/Scripts/python.exe -c "import json,os; from pathlib import Path; v=os.environ['SDM_VERSION']; p=Path('dist/SDM-Setup-'+v+'.exe'); import hashlib; Path('dist/latest.json').write_text(json.dumps({'version':v,'url':'https://github.com/EmreGUNDOGAN/SDM-Updates/releases/download/v'+v+'/'+p.name,'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'size':p.stat().st_size},indent=2),encoding='utf-8')"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: SDM-Windows-${{ steps.version.outputs.value }}
-          path: |
-            dist/SDM-Setup-*.exe
-            dist/SDM-Setup-*.sha256
-            dist/SDM-Extension-*.zip
-            dist/latest.json
-          retention-days: 14
       - name: Publish private source repository release
+        if: github.ref == 'refs/heads/main'
         shell: pwsh
         env:
           GH_TOKEN: '${{ github.token }}'

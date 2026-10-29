@@ -20,6 +20,37 @@ REQUIRED=('gui','utils','database','download_engine','video_downloader','browser
  'odak_cards','odak_drawer','batch_dialog','capture_dialog','completion_dialog','feature_ui',
  'feature_windows','ui_dialog','ui_controls','ui_indicators','ui_overlays','ui_surface','ui_thumbnail','package_smoke')
 
+# Derived from the independently SHA-pinned ffmpeg.zip in prepare_ci_tools.
+# These exact vendor blobs contain NUL-terminated PEM delimiter strings, not
+# key payloads. No other binary/hash or nonterminated key header is exempt.
+PEM_LITERAL_BINARIES={
+    'ffmpeg.exe':'3256173f3f8bffd7df12227c68adf68025edb1832273a9530688a7bb1ed8edec',
+    'ffprobe.exe':'f0d36ecbbdd3bcfac3efa078c96c7271c2e68b3810595552ac3b7f17e9a65c52',
+}
+# This exact upstream module includes a public shared client identifier. Keep
+# site support without treating it as a local/user credential. Any byte change
+# is rejected and all other credential signatures remain checked.
+# https://github.com/yt-dlp/yt-dlp/blob/2026.08.19/yt_dlp/extractor/shahid.py
+PUBLIC_VENDOR_FILES={
+    'yt_dlp/extractor/shahid.py':'f82c1f065f6aa3dd5ce8ee3491d4c49f245d1e7ba921b8cc0cc9c8658a634fbd',
+}
+
+
+def scan_packaged_credentials(path,content):
+    expected=PEM_LITERAL_BINARIES.get(path.name.lower())
+    public_expected=PUBLIC_VENDOR_FILES.get('/'.join(path.parts[-3:]))
+    if expected and hashlib.sha256(content).hexdigest()!=expected:
+        raise ValueError('Packaged vendor binary mismatch: '+path.name)
+    if public_expected and hashlib.sha256(content).hexdigest()!=public_expected:
+        raise ValueError('Packaged vendor source mismatch: '+path.name)
+    for label,pattern in SIGNATURES:
+        for match in re.finditer(pattern.encode('ascii'),content):
+            if label=='private key' and expected and content[match.end():match.end()+1]==b'\0':
+                continue
+            if label=='AWS access key' and public_expected:
+                continue
+            raise ValueError('Packaged credential signature: '+label+' in '+path.name)
+
 
 def normalized(code):
     if not isinstance(code,types.CodeType):raise ValueError('Expected compiled module code')
@@ -54,8 +85,7 @@ def main():
             if not path.is_file():continue
             if path.suffix.lower() in ('.db','.sqlite','.sqlite3','.key') or path.name.lower() in ('.env','browser-token.txt','github-update-token.bin','config.json'):raise ValueError('Forbidden packaged user-data/credential file: '+path.name)
             content=path.read_bytes()
-            for label,pattern in SIGNATURES:
-                if re.search(pattern.encode('ascii'),content):raise ValueError('Packaged credential signature: '+label+' in '+path.name)
+            scan_packaged_credentials(path,content)
     static=[]
     for path in files:
         if path.startswith('assets/') and not path.endswith('.py'):
