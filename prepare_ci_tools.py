@@ -1,6 +1,7 @@
 """Fetch verified vendor binaries only during CI packaging, never at app runtime."""
 import hashlib
 import shutil
+import subprocess
 from pathlib import Path
 import zipfile
 import requests
@@ -8,6 +9,8 @@ import requests
 ROOT=Path(__file__).resolve().parent
 TOOLS=ROOT/'tools'
 CACHE=ROOT/'build-tools'
+INNO_VERSION='6.7.4'
+INNO_SHA256='a549929319f9120716677c685535ca4671e4b937b5fdc87e2585f32d8eb30e8c'
 
 def fetch(url,name,digest):
     target=CACHE/name
@@ -18,6 +21,18 @@ def fetch(url,name,digest):
             for chunk in response.iter_content(1024*1024):stream.write(chunk)
     if hashlib.sha256(target.read_bytes()).hexdigest()!=digest:raise RuntimeError('Vendor binary SHA-256 mismatch: '+name)
     return target
+
+
+def prepare_inno():
+    """Use the vendor's portable mode: no installed compiler, registry or icons."""
+    installer=fetch(f'https://github.com/jrsoftware/issrc/releases/download/is-6_7_4/innosetup-{INNO_VERSION}.exe',
+                    f'innosetup-{INNO_VERSION}.exe',INNO_SHA256)
+    folder=CACHE/'inno'
+    subprocess.run([str(installer),'/PORTABLE=1','/CURRENTUSER','/VERYSILENT',
+                    '/SUPPRESSMSGBOXES','/NORESTART','/NOICONS','/TASKS=',
+                    '/DIR='+str(folder)],check=True,timeout=120)
+    if not (folder/'ISCC.exe').is_file():raise RuntimeError('Portable Inno Setup compiler is missing.')
+    return folder/'ISCC.exe'
 
 def main():
     TOOLS.mkdir(exist_ok=True);CACHE.mkdir(exist_ok=True)
@@ -33,6 +48,7 @@ def main():
         if not (seven/name).is_file():raise RuntimeError('Runner 7-Zip installation is missing.')
         shutil.copyfile(seven/name,TOOLS/name)
     shutil.copyfile(seven/'License.txt',TOOLS/'7ZIP-LICENSE.txt')
-    print('Verified FFmpeg and Deno; runner 7-Zip copied with license.')
+    prepare_inno()
+    print('Verified FFmpeg, Deno and portable Inno Setup; runner 7-Zip copied with license.')
 
 if __name__=='__main__':main()
