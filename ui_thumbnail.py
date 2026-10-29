@@ -35,6 +35,7 @@ def _worker():
     while True:
         url,reference,app=_jobs.get();widget=reference()
         if widget is None or widget._closed:continue
+        del widget
         try:image=fetch_image(url)
         except Exception:continue
         def done(ref=reference,data=image,source=url):

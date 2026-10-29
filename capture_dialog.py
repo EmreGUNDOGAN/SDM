@@ -8,7 +8,7 @@ from ui_controls import RadioCard
 from ui_indicators import FileTile
 from theme_widgets import Button
 from utils import clean_filename,format_bytes,get_unique_filepath
-from atlas_view import domain
+from atlas_view import domain,number
 
 
 class CapturePrompt(AppWindow):
@@ -33,7 +33,8 @@ class CapturePrompt(AppWindow):
         label(info,variable=self.estimate,palette=self.p,size=12,muted=True).pack(anchor='w')
         self.quality_host=None;self.section_fields=None
         if video:
-            quality=AutoCard(self.body,self.p);label(quality.content,'Kalite · Boyutlar tahminidir',palette=self.p,weight='SemiBold').pack(anchor='w',pady=(0,12))
+            quality=AutoCard(self.body,self.p);heading=tk.Frame(quality.content,bg=self.p['card']);heading.pack(fill='x',pady=(0,12))
+            label(heading,'Kalite',palette=self.p,weight='SemiBold').pack(side='left');label(heading,'Boyutlar tahminidir',palette=self.p,size=12,muted=True).pack(side='right')
             self.quality_host=tk.Frame(quality.content,bg=self.p['card']);self.quality_host.pack(fill='x')
             self.render_qualities()
             section=AutoCard(self.body,self.p)
@@ -41,8 +42,7 @@ class CapturePrompt(AppWindow):
             self.section_fields=SectionFields(section.content,duration=self.duration,palette=self.p,command=self.validate)
         save=AutoCard(self.body,self.p);label(save.content,'Kaydet',palette=self.p,weight='SemiBold').pack(anchor='w')
         self.name_input=field(save.content,'Dosya adı',self.name,self.p)
-        field(save.content,'Klasör',self.folder,self.p)
-        Button(save.content,'Değiştir',self.browse,palette=self.p,kind='soft').pack(anchor='e')
+        field(save.content,'Klasör',self.folder,self.p,actions=[('Değiştir',self.browse)])
         self.buttons['start']=action(self.actionbar,'Şimdi indir',lambda:self.choose('start'),self.p,'primary')
         self.buttons['queue']=action(self.actionbar,'Kuyruğa ekle',lambda:self.choose('queue'),self.p)
         self.buttons['cancel']=action(self.actionbar,'İptal',lambda:self.choose('cancel'),self.p,'ghost')
@@ -69,9 +69,10 @@ class CapturePrompt(AppWindow):
         values.append(('audio','MP3',self.request.get('audio_filesize',0)))
         self.quality_cards=[]
         for index,(key,text,size) in enumerate(values):
-            button=RadioCard(self.quality_host,key,self.quality,text=text,description='~'+format_bytes(size) if size else 'Boyut bilinmiyor',palette=self.p,width=145)
-            button.grid(row=index//4,column=index%4,sticky='ew',padx=3,pady=4);self.quality_cards.append(button)
-        for column in range(4):self.quality_host.columnconfigure(column,weight=1)
+            button=RadioCard(self.quality_host,key,self.quality,text=text,description='~'+number(self.parent,format_bytes(size)) if size else 'Boyut bilinmiyor',palette=self.p,width=145)
+            # Outer edges flush with the card text; 8 px between cards, equal widths.
+            button.grid(row=index//4,column=index%4,sticky='ew',padx=((0,6),(2,4),(4,2),(6,0))[index%4],pady=4);self.quality_cards.append(button)
+        for column in range(4):self.quality_host.columnconfigure(column,weight=1,uniform='quality')
 
     def got_formats(self,result):
         if result.get('kind')!='video':return
@@ -91,10 +92,10 @@ class CapturePrompt(AppWindow):
         if self.quality.get()=='audio':size=self.request.get('audio_filesize',0)
         else:size=next((q.get('filesize',0) for q in self.formats if str(q['height'])==self.quality.get()),size)
         self.selected_size=size
-        text=('~' if self.request['kind']=='video' else '')+format_bytes(size) if size else 'Boyut bilinmiyor'
+        text=('~' if self.request['kind']=='video' else '')+number(self.parent,format_bytes(size)) if size else 'Boyut bilinmiyor'
         try:
             section=self.section_fields.collect() if self.section_fields else None
-            if section and self.duration and size:text+=' · seçilen bölüm ~'+format_bytes(size*(section['end']-section['start'])/self.duration)
+            if section and self.duration and size:text+=' · seçilen bölüm ~'+number(self.parent,format_bytes(size*(section['end']-section['start'])/self.duration))
         except ValueError:pass
         self.estimate.set(text)
 
