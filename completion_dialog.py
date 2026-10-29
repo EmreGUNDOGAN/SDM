@@ -4,8 +4,10 @@ import threading
 import tkinter as tk
 from pathlib import Path
 from ui_dialog import AppWindow,AutoCard,label,action
-from ui_indicators import FileTile,Summary
+from ui_indicators import FileTile
 from ui_controls import CheckBox
+from ui_surface import TextLabel,surface,photo,icon
+from ui_tokens import SIZES
 from theme_widgets import Button
 from utils import format_bytes,format_speed,save_settings
 from atlas_view import file_kind,number
@@ -13,21 +15,39 @@ from atlas_view import file_kind,number
 
 class CompletionDialog(AppWindow):
     def __init__(self,parent,record):
-        super().__init__(parent,'İndirme tamamlandı',560,440);self.record=record
-        card=AutoCard(self.body,self.p)
-        FileTile(card.content,Path(record['filename']).suffix.lstrip('.') or 'FILE',file_kind(record),self.p,size=54).pack(side='left',padx=(0,16))
-        label(card.content,record['filename'],palette=self.p,size=15,weight='SemiBold').pack(anchor='w')
+        super().__init__(parent,'İndirme tamamlandı',560,440);self.record=record;p=self.p
+        # A06 header: tile with a success mark, a green caption and the file name.
+        top=self.title_label.master;self.title_label.pack_forget()
+        tile=FileTile(top,Path(record['filename']).suffix.lstrip('.') or 'FILE',file_kind(record),p,size=54);tile.pack(side='left',padx=(0,18),pady=(0,4))
+        mark=tk.Canvas(top,width=22,height=22,bg=p['dialog'],highlightthickness=0)
+        image=surface(22,22,p['dialog'],p['success'],p['dialog'],7);glyph=icon('check-small',14,p['on_accent']);image.paste(glyph,(4,4),glyph)
+        mark.image=photo(image,mark);mark.create_image(0,0,image=mark.image,anchor='nw');mark.place(in_=tile,relx=1,rely=1,x=6,y=6,anchor='se')
+        text=tk.Frame(top,bg=p['dialog']);text.pack(side='left',fill='x',expand=True)
+        TextLabel(text,'İndirme tamamlandı',size=12,weight='SemiBold',fg=p['success_fg']).pack(anchor='w')
+        name=label(text,record['filename'],palette=p,size=16,weight='Bold');name.max_width=380;name.pack(anchor='w',pady=(2,0))
         history=getattr(parent,'speed_history',{}).get(record['id'])
-        row=tk.Frame(self.body,bg=self.p['dialog']);row.pack(fill='x',padx=24,pady=(0,16))
-        for title,value in (('Boyut',number(parent,format_bytes(record['filesize']))),('Süre',f'{history.active_seconds:.0f} sn' if history and history.active_seconds else '—'),('Ortalama hız',number(parent,format_speed(history.average)) if history and history.active_seconds else '—')):
-            Summary(row,title,tk.StringVar(self,value),self.p).pack(side='left',fill='x',expand=True)
-        row=tk.Frame(self.body,bg=self.p['dialog']);row.pack(fill='x',padx=24,pady=(0,16))
+        # One card split into equal cells by hairlines, like the mockup's stat boxes.
+        stats=AutoCard(self.body,p,padding=12);cells=stats.content
+        for index,(title,value) in enumerate((('Boyut',number(parent,format_bytes(record['filesize']))),('Süre',f'{history.active_seconds:.0f} sn' if history and history.active_seconds else '—'),('Ortalama hız',number(parent,format_speed(history.average)) if history and history.active_seconds else '—'))):
+            if index:tk.Frame(cells,bg=p['line'],width=1).pack(side='left',fill='y')
+            cell=tk.Frame(cells,bg=p['card']);cell.pack(side='left',fill='x',expand=True,padx=(14 if index else 4,14))
+            label(cell,title,palette=p,size=12,muted=True).pack(anchor='w')
+            label(cell,value,palette=p,size=15,weight='Bold').pack(anchor='w',pady=(4,0))
+        row=tk.Frame(self.body,bg=p['dialog']);row.pack(fill='x',padx=24,pady=(0,16))
         media=Path(record['filename']).suffix.lower() in ('.mp4','.mkv','.webm','.avi','.mp3','.m4a','.wav','.flac')
-        Button(row,'Oynat' if media else 'Aç',lambda:self.open(record['filepath']),palette=self.p,primary=True).pack(side='left',fill='x',expand=True,padx=(0,8))
-        Button(row,'Klasörde göster',lambda:self.open(str(Path(record['filepath']).parent)),palette=self.p).pack(side='left',fill='x',expand=True)
-        scan=AutoCard(self.body,self.p);self.scan_status=tk.StringVar(self,'Henüz taranmadı · tarama yalnız sen başlatınca yapılır.')
-        self.scan_button=Button(scan.content,'Virüs tarat',self.scan,palette=self.p,kind='soft');self.scan_button.pack(side='right')
-        label(scan.content,variable=self.scan_status,palette=self.p,size=12,muted=True).pack(side='left')
+        for index,(text,glyph,command,kind) in enumerate(((('Oynat' if media else 'Aç'),'play' if media else 'file',lambda:self.open(record['filepath']),'primary'),
+                                                           ('Klasörde göster','folder',lambda:self.open(str(Path(record['filepath']).parent)),'secondary'))):
+            button=Button(row,text,command,palette=p,kind=kind,height=44);button.icon_name=glyph;button.centered=True;button.draw()
+            button.pack(side='left',fill='x',expand=True,padx=(8 if index else 0,0))
+        scan=AutoCard(self.body,dict(p,card=p['subtle'],line=p['subtle']),padding=14)
+        self.scan_button=Button(scan.content,'Virüs tarat',self.scan,palette=p,kind='secondary',height=SIZES['small_button']+2);self.scan_button.pack(side='right')
+        shield=tk.Canvas(scan.content,width=32,height=32,bg=p['subtle'],highlightthickness=0)
+        image=surface(32,32,p['subtle'],p['card'],p['line'],8);glyph=icon('shield',16,p['text_2']);image.paste(glyph,(8,8),glyph)
+        shield.image=photo(image,shield);shield.create_image(0,0,image=shield.image,anchor='nw');shield.pack(side='left',padx=(0,12))
+        lines=tk.Frame(scan.content,bg=p['subtle']);lines.pack(side='left',fill='x',expand=True)
+        self.scan_status=tk.StringVar(self,'Henüz taranmadı')
+        TextLabel(lines,textvariable=self.scan_status,size=13,weight='SemiBold',fg=p['text']).pack(anchor='w')
+        self.scan_detail=TextLabel(lines,'Kaspersky ile tarama yalnız sen başlatınca yapılır.',size=12,fg=p['muted']);self.scan_detail.pack(anchor='w',pady=(2,0))
         self.hide_next=tk.BooleanVar(self,False)
         CheckBox(self.actionbar,'Bu pencereyi bir daha gösterme',self.hide_next,palette=self.p,command=self.toggle_popup).pack(side='left')
         action(self.actionbar,'Kapat',self.close,self.p,'ghost')
@@ -45,7 +65,8 @@ class CompletionDialog(AppWindow):
             self.parent.post_ui(lambda:self.scan_done(result) if self.winfo_exists() else None)
         threading.Thread(target=work,daemon=True).start()
 
-    def scan_done(self,result):self.scan_status.set(result);self.scan_button.configure(state='normal')
+    def scan_done(self,result):
+        self.scan_status.set(result);self.scan_detail.configure(text='');self.scan_button.configure(state='normal')
 
     def open(self,path):
         if Path(path).exists():os.startfile(path)

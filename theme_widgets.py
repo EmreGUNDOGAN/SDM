@@ -73,7 +73,7 @@ class Button(tk.Canvas):
                    self.selected,self.disabled,self.hover,self.pressed,self.focused,
                    self.underline,self.side_accent,getattr(self,'status_badge',False),
                    getattr(self,'icon_name',None),getattr(self,'segment_choice',False),tuple(sorted(p.items())))
-        signature+=(getattr(self,'icon_only',False),getattr(self,'shortcut',''))
+        signature+=(getattr(self,'icon_only',False),getattr(self,'shortcut',''),getattr(self,'centered',False))
         if getattr(self,'_draw_signature',None)==signature:return
         self._draw_signature=signature
         kind=self.kind
@@ -100,9 +100,9 @@ class Button(tk.Canvas):
         name=getattr(self,'icon_name',None)
         x=13 if self.quiet else 14
         shortcut=getattr(self,'shortcut','')
-        if shortcut and name and not getattr(self,'icon_only',False):
-            # Wide sidebar action: icon, label and the muted shortcut centred as one group.
-            group=26+text_font(13,'SemiBold' if solid else 'Regular').getlength(self.text)+10+text_font(11).getlength(shortcut)
+        if (shortcut or getattr(self,'centered',False)) and name and not getattr(self,'icon_only',False):
+            # Wide action: icon, label and any muted shortcut centred as one group.
+            group=26+text_font(13,'SemiBold' if solid else 'Regular').getlength(self.text)+(10+text_font(11).getlength(shortcut) if shortcut else 0)
             x=max(x,round((w-group)/2))
         if name:
             glyph_x=(w-18)//2 if not self.text or getattr(self,'icon_only',False) else x

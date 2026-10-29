@@ -127,7 +127,21 @@ def action(parent,text,command,palette,kind='secondary',side='right'):
     button.pack(side=side,padx=(8,0));return button
 
 
-def field(parent,title,variable,palette,width=240,actions=(),side=None,hint=''):
+def step(parent,number,text,palette):
+    """A14 numbered step heading: accent disc with the step number, then its title."""
+    from ui_surface import surface,photo,text_on,font
+    row=tk.Frame(parent,bg=parent.cget('bg'))
+    disc=tk.Canvas(row,width=20,height=20,bg=row.cget('bg'),highlightthickness=0)
+    image=surface(20,20,row.cget('bg'),palette['accent'],radius=10)
+    # Centre the digit's ink; digits have no descender, so 'mm' sits high.
+    _,top,_,bottom=font(11,'Bold').getbbox(str(number),anchor='ls')
+    text_on(image,(10,10-(top+bottom)/2),str(number),11,'Bold',palette['on_accent'],'ms')
+    disc.image=photo(image,disc);disc.create_image(0,0,image=disc.image,anchor='nw');disc.pack(side='left')
+    row.title=label(row,text,palette=palette,size=14,weight='Bold');row.title.pack(side='left',padx=(8,0))
+    return row
+
+
+def field(parent,title,variable,palette,width=240,actions=(),side=None,hint='',placeholder=''):
     """Label above its input, with any buttons on the input's own row.
 
     A label beside the input moved every input by its label's width, and the
@@ -140,7 +154,7 @@ def field(parent,title,variable,palette,width=240,actions=(),side=None,hint=''):
     else:box.pack(fill='x',pady=6)
     label(box,title,palette=palette,muted=True).pack(anchor='w',pady=(0,6))
     row=tk.Frame(box,bg=box.cget('bg'));row.pack(fill='x')
-    widget=TextInput(row,variable=variable,palette=palette,width=width)
+    widget=TextInput(row,variable=variable,palette=palette,width=width,placeholder=placeholder)
     widget.buttons=[]
     for text,command in reversed(actions):
         button=Button(row,text,command,palette=palette,kind='soft',height=SIZES['input'])

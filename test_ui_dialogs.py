@@ -108,9 +108,17 @@ def main():
         subprocess.run([tool_path('ffmpeg'),'-v','error','-f','lavfi','-i','sine=frequency=440:duration=1',str(source)],check=True,creationflags=NO_WINDOW)
         tool=ToolsDialog(app);tool.input.set(str(source));tool.format.set('mp3')
         wait(lambda:tool.timeline is not None,15);assert tool.timeline.duration>.9
-        with patch('feature_ui.filedialog.asksaveasfilename',return_value=str(target)):
+        assert tool.source_card.winfo_ismapped() and not tool.source_box.winfo_ismapped()
+        assert tool.quality_box.winfo_ismapped();tool.bitrate.set('128')
+        with patch('feature_ui.filedialog.asksaveasfilename',return_value=str(target)),patch('feature_ui.reveal_file') as reveal:
             tool.run();wait(lambda:not tool.busy,15)
-        assert target.is_file() and source.is_file() and .8<media_duration(target)<1.3
+        assert target.is_file() and source.is_file() and .8<media_duration(target)<1.3,tool.status.get()
+        # The footer promises the finished file opens selected in its folder.
+        reveal.assert_called_once_with(target.resolve())
+        assert tool.job_percent.text=='100%',tool.job_percent.text
+        probe=subprocess.run([tool_path('ffprobe'),'-v','error','-select_streams','a:0','-show_entries','stream=bit_rate','-of','csv=p=0',str(target)],
+                             capture_output=True,text=True,creationflags=NO_WINDOW)
+        assert probe.stdout.strip()=='128000',probe.stdout  # the chosen Ses kalitesi reached FFmpeg
         tool.close();assert not errors,errors
         print('A03-A06/A14-A17/A19: automatic cards, decision safety, timeline validation, real task data, media worker, graph/HUD timers, explicit scan UI and light/dark previews: OK')
     finally:

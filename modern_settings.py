@@ -12,7 +12,7 @@ from capture_policy import normalize_domain
 from theme_catalog import migrate_settings,theme_key
 from theme_widgets import Button
 from ui_dialog import ScrollBody,AutoCard,label,field
-from ui_controls import Switch,Select,SegmentedControl,RadioCard,ChipInput,TextInput,watch
+from ui_controls import Switch,Select,SegmentedControl,DesignCard,ChipInput,TextInput,watch
 from ui_surface import TextLabel
 
 SECTIONS={'Genel':('sliders','Kayıt yeri, görünüm ve aktarım tercihleri'),
@@ -99,7 +99,7 @@ class SettingsContent(tk.Frame):
     def general(self):
         c=self.card('Genel','Kayıt yeri');self.field(c,'download_dir','Kayıt klasörü',actions=[('Klasör seç',self.browse)])
         c=self.card('Genel','Görünüm');row=tk.Frame(c,bg=self.p['card']);row.pack(fill='x')
-        for key,title,description in [('atlas','Atlas Pro','Kenar menü ve ayrıntılı tablo'),('odak','Odak Akışı','İkon şeridi ve indirme kartları')]:RadioCard(row,key,self.value('design'),title,description,self.p,width=230).pack(side='left',fill='x',expand=True,padx=4)
+        for index,(key,title,description) in enumerate([('atlas','Atlas Pro','kenar menü, ayrıntı paneli'),('odak','Odak Akışı','kart satırlar')]):DesignCard(row,key,self.value('design'),text=title,description=description,palette=self.p,width=230).pack(side='left',fill='x',expand=True,padx=(12 if index else 0,0))
         SegmentedControl(c,{'light':'Açık','dark':'Koyu','system':'Sistem'},self.value('color_mode'),palette=self.p).pack(fill='x',pady=12)
         self.field(c,'language','Sayı biçimi · Türkçe (1,5) / English (1.5)',{'tr':'Türkçe (1,5)','en':'English (1.5)'})
         c=self.card('Genel','Aktarım')
