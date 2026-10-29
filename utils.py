@@ -43,10 +43,11 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "auto_extract": False,
     "extract_dir": '',
     "mini_hud": False,
+    "hud_position": [],
     "duplicate_warning": True,
     "disk_check": True,
     "shutdown_after_queue": False,
-    "visible_columns": ['filename', 'size', 'downloaded', 'progress', 'speed', 'eta', 'status'],
+    "visible_columns": ['filename', 'size', 'progress', 'speed', 'eta', 'status'],
     "monitored_extensions": [
         "zip", "rar", "7z", "tar", "gz", "exe", "msi", "iso",
         "mp4", "mkv", "avi", "mov", "mp3", "flac", "wav",

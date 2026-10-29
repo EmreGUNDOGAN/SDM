@@ -21,9 +21,15 @@ def main():
         assert all(b.disabled for b in app.action_buttons)
         app.empty_clear.invoke();app.update();assert app.tree.get_children()
         app.tree.selection_set(app.tree.get_children()[0]);app.update();assert all(not b.disabled for b in app.action_buttons)
-        assert all(b.winfo_ismapped() for b in app.action_buttons)
-        assert all(b.winfo_rooty()+b.winfo_height()<=app.winfo_rooty()+app.winfo_height() for b in app.action_buttons)
-        button=app.action_buttons[0];calls=[];original=button.command;button.command=lambda:calls.append(True)
+        if theme.startswith('odak'):
+            drawer=app._atlas_workspace.drawer;assert drawer and drawer.winfo_ismapped() and drawer.pause_button.winfo_ismapped()
+            assert not app._atlas_workspace.toolbar.winfo_ismapped()
+            button=drawer.pause_button
+        else:
+            assert all(b.winfo_ismapped() for b in app.action_buttons)
+            assert all(b.winfo_rooty()+b.winfo_height()<=app.winfo_rooty()+app.winfo_height() for b in app.action_buttons)
+            button=app.action_buttons[0]
+        calls=[];original=button.command;button.command=lambda:calls.append(True)
         button.event_generate('<Enter>');app.update();assert button.hover
         button.event_generate('<ButtonPress-1>',x=10,y=10);app.update();assert button.pressed
         button.event_generate('<ButtonRelease-1>',x=10,y=10);app.update();assert not button.pressed and len(calls)==1

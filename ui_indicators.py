@@ -2,7 +2,7 @@
 import math
 import tkinter as tk
 from PIL import Image, ImageDraw
-from ui_surface import surface, photo, icon, text_on, ellipsize
+from ui_surface import surface, photo, icon, text_on, ellipsize, font
 from theme_widgets import background
 from ui_tokens import SIZES, RADII, SURFACE_SCALE, status_colors, file_tile_colors
 
@@ -31,18 +31,25 @@ class Indicator(tk.Canvas):
 
 class StatusBadge(Indicator):
     def __init__(self,master,status,palette,**kwargs):
-        self.status=status
-        super().__init__(master,palette,height=SIZES['badge'],**kwargs);self.draw()
+        # Without a width the badge hugs its text, so a header badge keeps its edge.
+        self.status=status;self.fit='width' not in kwargs
+        super().__init__(master,palette,height=SIZES['badge'],width=kwargs.pop('width',self.fitted(status)),**kwargs);self.draw()
+
+    @staticmethod
+    def fitted(status):return round(font(12,'Medium').getlength(status))+35
 
     def set(self,status):
-        if self.status!=status:self.status=status;self.draw()
+        if self.status!=status:
+            self.status=status
+            if self.fit:self.configure(width=self.fitted(status))
+            self.draw()
 
     def draw(self):
         w,h=self.size();p=self.p
         _,bg,fg=status_colors(self.status,p.get('mode','light'))
         image=surface(w,h,self.cget('bg'),bg,radius=h/2)
         d=ImageDraw.Draw(image);d.ellipse((10,h//2-3,16,h//2+3),fill=fg)
-        text_on(image,(23,(h-12)//2-1),ellipsize(self.status,w-29,12),12,'Medium',fg)
+        text_on(image,(23,h/2),ellipsize(self.status,w-29,12),12,'Medium',fg,'lm')
         self.present(image)
 
 
@@ -127,8 +134,8 @@ class ProgressRing(Indicator):
 
 class SpeedChart(Indicator):
     """Timestamps/bytes-per-second only; caller supplies SpeedHistory samples."""
-    def __init__(self,master,palette,points=(),average=None,axes=True,**kwargs):
-        self.points=tuple(points);self.average=average;self.axes=axes
+    def __init__(self,master,palette,points=(),average=None,axes=True,formatter=None,**kwargs):
+        self.points=tuple(points);self.average=average;self.axes=axes;self.formatter=formatter or (lambda value:value)
         super().__init__(master,palette,height=kwargs.pop('height',160),**kwargs);self.draw()
 
     def set(self,points,average=None):
@@ -148,16 +155,18 @@ class SpeedChart(Indicator):
         if len(self.points)>1:
             first=self.points[0][0];duration=max(1,self.points[-1][0]-first)
             coords=[((left+(stamp-first)/duration*(right-left))*s,(base-max(0,value)/peak*span_y)*s) for stamp,value in self.points]
-            tint=Image.new('RGBA',image.size);td=ImageDraw.Draw(tint)
-            td.polygon([(left*s,base*s),*coords,(right*s,base*s)],fill=p['accent']+'20')
-            image.paste(tint,(0,0),tint);d=ImageDraw.Draw(image)
+            if self.axes:
+                tint=Image.new('RGBA',image.size);td=ImageDraw.Draw(tint)
+                td.polygon([(left*s,base*s),*coords,(right*s,base*s)],fill=p['accent']+'20')
+                image.paste(tint,(0,0),tint);d=ImageDraw.Draw(image)
             d.line(coords,fill=p['accent'],width=2*s,joint='curve')
         if self.average is not None and self.axes:
             y=(base-max(0,self.average)/peak*span_y)*s
             for x in range(left*s,right*s,8*s):d.line((x,y,min(x+4*s,right*s),y),fill=p['muted'],width=s)
         image=image.resize((w,h),Image.Resampling.LANCZOS)
         if self.axes:
-            for step in range(4):text_on(image,(left-6,base-span_y*step/3),f'{peak*step/3/1048576:.1f}',11,fill=p['muted'],anchor='rm')
+            precision=2 if peak<1048576 else 1
+            for step in range(4):text_on(image,(left-6,base-span_y*step/3),self.formatter(f'{peak*step/3/1048576:.{precision}f}'),11,fill=p['muted'],anchor='rm')
             text_on(image,(left,h-12),'MB/sn',11,fill=p['muted'])
             text_on(image,(right,h-12),'şimdi',11,fill=p['muted'],anchor='rt')
         self.present(image)
@@ -189,7 +198,7 @@ class PartMap(Indicator):
                 value=fraction(value) or 0;x=left+j*cell;cw=max(1,cell-gap)
                 d.rounded_rectangle((x*s,y*s,(x+cw)*s,(y+22)*s),radius=3*s,fill=p['track'])
                 if value:d.rounded_rectangle((x*s,y*s,(x+cw*value)*s,(y+22)*s),radius=min(3,cw*value/2)*s,fill=p['accent'])
-            labels.append((y,label,metadata,sum(parts)/len(parts) if parts else None))
+            labels.append((y,label,metadata,sum(parts)/len(parts) if parts and all(value is not None for value in parts) else None))
         image=image.resize((w,h),Image.Resampling.LANCZOS)
         for y,label,metadata,value in labels:
             text_on(image,(0,y),ellipsize(label,min(124,w//3-8)),fill=p['text'])

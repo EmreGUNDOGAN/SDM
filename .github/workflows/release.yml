@@ -20,6 +20,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Install locked dependencies
         shell: pwsh
         run: |
@@ -34,7 +37,7 @@ jobs:
       - name: Verify exact source manifest
         shell: pwsh
         run: |
-          .venv/Scripts/python.exe tools/source_manifest.py check
+          .venv/Scripts/python.exe tools/check_source.py
           if ($LASTEXITCODE -ne 0) { throw 'Source integrity check failed' }
       - name: Download verified build tools
         shell: pwsh
@@ -43,26 +46,33 @@ jobs:
         shell: pwsh
         env:
           SDM_DATA_DIR: '${{ github.workspace }}/build/unit-data'
-        run: .venv/Scripts/python.exe -m unittest test_advanced_features test_responsiveness test_features test_download_safety test_progress_meter test_browser_files test_browser_bridge test_transfer_details test_video_access test_theme_section test_ui_foundations test_source_manifest
-      - name: UI and real transfer checks
+        run: .venv/Scripts/python.exe -m unittest test_advanced_features test_responsiveness test_features test_download_safety test_progress_meter test_browser_files test_browser_bridge test_transfer_details test_video_access test_theme_section test_ui_foundations test_source_manifest test_preview_report test_window_capture test_atlas_view test_atlas_preview_report test_dialog_inspection test_package_checks
+      - name: Full native UI, real browser and media checks before packaging
         shell: pwsh
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: '${{ github.workspace }}/build/pw-browsers'
+          SDM_TEST_PYTHON: '${{ github.workspace }}/.venv/Scripts/python.exe'
+          SDM_COMPONENT_VIEWPORT_HEIGHT: '640'
+          PYTHONIOENCODING: utf-8
         run: |
-          $env:SDM_DATA_DIR = "$env:GITHUB_WORKSPACE/build/ui-data"
-          .venv/Scripts/python.exe test_ui_031.py
-          if ($LASTEXITCODE -ne 0) { throw 'UI checks failed' }
-          $env:SDM_DATA_DIR = "$env:GITHUB_WORKSPACE/build/theme-ui-data"
-          .venv/Scripts/python.exe test_ui_themes.py
-          if ($LASTEXITCODE -ne 0) { throw 'Four design/mode checks failed' }
-          $env:SDM_DATA_DIR = "$env:GITHUB_WORKSPACE/build/transfer-data"
-          .venv/Scripts/python.exe test_gui_transfer.py
-          if ($LASTEXITCODE -ne 0) { throw 'Transfer checks failed' }
-          $env:SDM_DATA_DIR = "$env:GITHUB_WORKSPACE/build/remove-data"
-          .venv/Scripts/python.exe test_cancel_remove_ui.py
-          if ($LASTEXITCODE -ne 0) { throw 'Remove responsiveness checks failed' }
-          .venv/Scripts/python.exe test_section_live.py
-          if ($LASTEXITCODE -ne 0) { throw 'Section media checks failed' }
-          .venv/Scripts/python.exe test_update_handoff_live.py
-          if ($LASTEXITCODE -ne 0) { throw 'Update handoff checks failed' }
+          npm ci --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { throw 'Browser dependencies failed' }
+          npx playwright install chromium
+          if ($LASTEXITCODE -ne 0) { throw 'Browser preparation failed' }
+          .venv/Scripts/python.exe tools/run_ui_checks.py
+          if ($LASTEXITCODE -ne 0) { throw 'Native UI checks failed' }
+          node test_extension.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Extension checks failed' }
+          node test_capture.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Real HTTP checks failed' }
+          node test_extension_refresh.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'SHA-256 checks failed' }
+          foreach ($report in @('component','atlas','dialog','settings','odak')) {
+            .venv/Scripts/python.exe "tools/report_${report}_previews.py"
+            if ($LASTEXITCODE -ne 0) { throw "Preview report failed: $report" }
+          }
+          .venv/Scripts/python.exe tools/run_ui_checks.py test_section_live.py test_update_handoff_live.py
+          if ($LASTEXITCODE -ne 0) { throw 'Media/handoff checks failed' }
       - name: Build installer on GitHub runner
         shell: pwsh
         run: |

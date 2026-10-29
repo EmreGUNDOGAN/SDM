@@ -7,12 +7,13 @@ const assert = require('assert/strict');
 
 (async () => {
   const root = __dirname;
-  const extension=path.join(root,'build/extension-test-031');
+  const temporary=fs.mkdtempSync(path.join(root,'build/extension-phase3-'));
+  const extension=path.join(temporary,'extension');
   fs.cpSync(path.join(root,'extension'),extension,{recursive:true});
   const bg=path.join(extension,'background.js');
   fs.writeFileSync(bg,fs.readFileSync(bg,'utf8').replaceAll('49282','49382'));
-  const fixture = spawn(path.join(root, '.venv/Scripts/python.exe'), ['browser_fixture.py'], {
-    cwd: root, env: {...process.env, SDM_DATA_DIR: path.join(root, 'build/browser-fixture-data-031'), SDM_BRIDGE_PORT:'49382'},
+  const fixture = spawn(process.env.SDM_TEST_PYTHON || path.join(root, '.venv/Scripts/python.exe'), ['browser_fixture.py'], {
+    cwd: root, env: {...process.env, SDM_DATA_DIR: path.join(temporary,'data'), SDM_BRIDGE_PORT:'49382'},
     windowsHide: true
   });
   const lines = readline.createInterface({input: fixture.stdout});
@@ -27,7 +28,7 @@ const assert = require('assert/strict');
   let context;
   try {
     const config = await Promise.race([configPromise, new Promise((_,reject)=>setTimeout(()=>reject(new Error('fixture timeout')),15000))]);
-    context = await chromium.launchPersistentContext(path.join(root, 'build/extension-test-profile-031'), {
+    context = await chromium.launchPersistentContext(path.join(temporary,'profile'), {
       channel: 'chromium', headless: true,
       args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`]
     });
@@ -45,13 +46,16 @@ const assert = require('assert/strict');
     await page.goto('https://www.youtube.com/watch?v=sdm-test');
     const button = page.locator('#sdm-video-overlay').getByRole('button', {name:'SDM ile indir'});
     await button.click();
-    await page.getByRole('button', {name:'1080p · Video + ses', exact:true}).waitFor().catch(async error=>{console.error(await page.locator('#sdm-video-overlay #status').textContent());throw error});
+    await page.getByRole('button', {name:/^1080p · Video \+ ses · önerilen/}).waitFor().catch(async error=>{console.error(await page.locator('#sdm-video-overlay #status').textContent());throw error});
     assert.equal(await page.getByRole('button', {name:'720p · Video + ses', exact:true}).count(), 1);
-    await page.getByRole('button', {name:'1080p · Video + ses', exact:true}).click();
+    await page.screenshot({path:path.join(root,'build/phase3-extension-video.png')});
+    await page.getByRole('button', {name:/^1080p · Video \+ ses · önerilen/}).click();
     await page.waitForTimeout(500);
     assert.equal(await page.locator('#sdm-video-overlay #panel').isVisible(),false);
     assert.equal(messages[0].height, 1080);
     await button.click();
+    await page.getByRole('tab', {name:'Yalnız ses (MP3)', exact:true}).click();
+    await page.screenshot({path:path.join(root,'build/phase3-extension-audio.png')});
     await page.getByRole('button', {name:'Yalnızca ses · MP3', exact:true}).click();
     await page.waitForTimeout(500);
     assert.equal(messages[1].audio, true);

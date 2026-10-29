@@ -8,8 +8,8 @@ import sys
 import tempfile
 
 ROOT=Path(__file__).resolve().parent.parent
-DEFAULT=('test_ui_components.py','test_ui_031.py','test_ui_themes.py',
-         'test_gui_transfer.py','test_cancel_remove_ui.py')
+DEFAULT=('test_ui_components.py','test_ui_alignment.py','test_ui_031.py','test_ui_themes.py','test_ui_theme_preview.py','test_ui_atlas.py','test_ui_dialogs.py','test_ui_settings.py','test_ui_odak.py',
+         'test_gui_transfer.py','test_cancel_remove_ui.py','test_ui_compatibility.py','test_source_desktop.py')
 
 
 def main():
@@ -20,7 +20,7 @@ def main():
         script=ROOT/name
         if script.parent!=ROOT or not script.name.startswith('test_') or script.suffix!='.py':
             raise ValueError('Only root-level Python test scripts are allowed')
-        with tempfile.TemporaryDirectory(prefix='phase1-ui-',dir=ROOT/'build') as folder:
+        with tempfile.TemporaryDirectory(prefix='sdm-ui-',dir=ROOT/'build') as folder:
             data=Path(folder);downloads=data/'downloads';downloads.mkdir()
             (data/'config.json').write_text(json.dumps(dict(
                 download_dir=str(downloads),clipboard_monitoring=False,

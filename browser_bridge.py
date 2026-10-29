@@ -3,6 +3,7 @@ import hmac
 import json
 import os
 import queue
+import re
 import secrets
 import threading
 import time
@@ -50,6 +51,7 @@ class BrowserBridge:
         self.pending = queue.Queue(maxsize=32)
         self.decisions = {}
         self.decision_lock = threading.Lock()
+        self.client_lock=threading.Lock();self.clients={}
         self.token = get_token()
         bridge = self
 
@@ -91,6 +93,8 @@ class BrowserBridge:
                         raise ValueError('Geçersiz istek boyutu')
                     self.connection.settimeout(10)
                     data = json.loads(self.rfile.read(size))
+                    if not isinstance(data,dict):raise ValueError('Geçersiz istek')
+                    bridge.record_client(data.get('client'))
                     if self.path == '/ping':
                         return self.send_json(200, {'ok': True, 'version': VERSION})
                     if self.path == '/settings':
@@ -147,6 +151,15 @@ class BrowserBridge:
 
         self.server = ThreadingHTTPServer(('127.0.0.1', PORT), Handler)
         self.server.daemon_threads = True
+
+    def record_client(self,client):
+        if not isinstance(client,dict):return
+        browser=client.get('browser');version=client.get('version')
+        if browser not in ('Chrome','Opera','Edge') or not isinstance(version,str) or len(version)>32 or not re.fullmatch(r'[0-9]+(?:\.[0-9]+){1,3}',version):return
+        with self.client_lock:self.clients[browser]=dict(version=version,seen=time.monotonic())
+
+    def client_snapshot(self):
+        with self.client_lock:return {name:dict(value) for name,value in self.clients.items()}
 
     def enqueue(self, request):
         with self.decision_lock:

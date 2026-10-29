@@ -172,7 +172,9 @@ def main():
         menu.activate(0);assert actions==[]
         menu.activate(1);root.update();assert actions==['run'] and not menu.winfo_exists()
         menu=PopupMenu(root,p);menu.add_item('More',submenu=lambda child:child.add_item('Child',lambda:actions.append('child')))
-        menu.popup(50,50);root.update();assert menu.child_menu.winfo_exists()
+        menu.popup(50,50);root.update()
+        assert menu.child_menu is None
+        menu.event_generate('<Right>');root.update();assert menu.child_menu.winfo_exists()
         menu.child_menu.activate(0);root.update();assert actions[-1]=='child' and not menu.winfo_exists()
         dialog=MessageDialog(root,'Hata','İşlem tamamlanamadı',p,technical='Synthetic HTTP error')
         dialog.add_action('retry','Tekrar dene','primary');dialog.show();root.update()

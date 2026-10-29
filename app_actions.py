@@ -6,7 +6,8 @@ import threading
 import time
 from datetime import datetime
 import tkinter as tk
-from tkinter import messagebox, filedialog
+from tkinter import filedialog
+from ui_messages import messagebox
 import webbrowser
 import ttkbootstrap as tb
 from utils import load_settings,save_settings,get_unique_filepath
@@ -22,6 +23,11 @@ class AppActions:
         if hasattr(self,'data_view'):
             self.data_view.drop_target_register(DND_TEXT,DND_FILES)
             self.data_view.dnd_bind('<<Drop>>',self.on_drop)
+        workspace=getattr(self,'_atlas_workspace',None)
+        if workspace and workspace.alive:
+            for widget in (workspace.empty,workspace.drop_zone):
+                widget.drop_target_register(DND_TEXT,DND_FILES)
+                widget.dnd_bind('<<Drop>>',self.on_drop)
 
     def on_drop(self,event):
         from utils import is_valid_url
@@ -34,7 +40,7 @@ class AppActions:
                     line=line.removeprefix('URL=').strip()
                     if is_valid_url(line):urls.append(line)
         if urls:self.open_add_dialog('\n'.join(urls))
-        else:messagebox.showinfo('Sürükle-bırak','Bir indirme bağlantısı veya bağlantılar içeren .url / .txt dosyası bırakın.')
+        else:self.notify('Sürükle-bırak','Bir indirme bağlantısı veya bağlantılar içeren .url / .txt dosyası bırakın.')
         return event.action
 
     def initialize_actions(self):
@@ -138,7 +144,7 @@ class AppActions:
         ids=self._get_selected_ids()
         if not ids:return
         record=self.db.get_download(ids[0])
-        if not record or record['status']!='Tamamlandı':return messagebox.showinfo('SHA-256','Önce indirme tamamlanmalı.')
+        if not record or record['status']!='Tamamlandı':return self.notify('SHA-256','Önce indirme tamamlanmalı.')
         self.lbl_status_info.configure(text='SHA-256 hesaplanıyor…')
         def work():
             try:
@@ -154,7 +160,8 @@ class AppActions:
         expected=askstring('SHA-256',f'{name}\n\nHesaplanan değer:\n{value}\n\nKarşılaştırmak için beklenen SHA-256 değerini gir:',parent=self)
         if expected:
             match=expected.strip().lower()==value
-            messagebox.showinfo('SHA-256','Dosya özeti eşleşiyor.' if match else 'Dosya özeti EŞLEŞMİYOR.',parent=self)
+            if match:self.notify('SHA-256','Dosya özeti eşleşiyor.')
+            else:messagebox.showerror('SHA-256','Dosya özeti EŞLEŞMİYOR.',parent=self)
         self.lbl_status_info.configure(text='SHA-256 kontrolü tamamlandı')
 
     def completed_popup(self,did):
@@ -166,10 +173,8 @@ class AppActions:
     def show_download_error(self,did,error):
         from error_messages import explain_error
         title,description,action=explain_error(error)
-        window=tb.Toplevel(self);window.title('SDM · '+title);window.geometry('550x280')
-        frame=tb.Frame(window,padding=22);frame.pack(fill='both',expand=True)
-        tb.Label(frame,text=title,font=('Segoe UI',15,'bold'),wraplength=500).pack(anchor='w')
-        tb.Label(frame,text=description,wraplength=500).pack(anchor='w',pady=18)
+        from ui_overlays import MessageDialog
+        window=MessageDialog(self,title,description,self.palette,technical=str(error),tone='error')
         def resolve():
             record=self.db.get_download(did)
             if not record:return window.destroy()
@@ -186,8 +191,9 @@ class AppActions:
                 self.add_download_from_dialog(record['url'],dest.name,str(dest))
             else:self.resume_download(did)
             window.destroy()
-        tb.Button(frame,text=action,command=resolve).pack(side='left')
-        tb.Button(frame,text='Kapat',bootstyle='secondary-outline',command=window.destroy).pack(side='right')
+        window.add_action('resolve',action,'primary')
+        window.actions['resolve'].configure(command=resolve)
+        window.add_action('close','Kapat','ghost');window.show()
 
     def shutdown_countdown(self):
         if self._shutdown_window:return
@@ -213,6 +219,9 @@ class AppActions:
             try:
                 from updater import GitHubUpdater
                 updater=GitHubUpdater();update=updater.check()
+                if update:
+                    from update_dialog import attach_release_notes
+                    update=attach_release_notes(updater,update)
                 self.post_ui(lambda:self.update_checked(updater,update,quiet))
             except Exception as error:
                 message=str(error)
@@ -220,6 +229,7 @@ class AppActions:
         threading.Thread(target=work,daemon=True).start()
 
     def update_failed(self,message,quiet=False):
+        self._update_result_text='Denetim tamamlanamadı. Sonuç doğrulanmadı.'
         if getattr(self,'_update_panel',None) and self._update_panel.winfo_exists():self._update_panel.destroy()
         if getattr(self,'_install_waiting',False):
             self._install_waiting=False;self.engine.start_engine()
@@ -228,11 +238,14 @@ class AppActions:
 
     def update_checked(self,updater,update,quiet):
         self._update_busy=False
+        from datetime import datetime
+        self._update_result_text=('Yeni sürüm var: '+update['version'] if update else 'Güncel')+' · Son denetim: '+datetime.now().strftime('%d.%m.%Y %H:%M')
         if not update:
             self.lbl_status_info.configure(text='SDM güncel')
-            if not quiet:messagebox.showinfo('GitHub güncellemesi','Son kararlı sürümü kullanıyorsun.',parent=self)
+            if not quiet:self.notify('GitHub güncellemesi','Son kararlı sürümü kullanıyorsun.')
             return
-        if not messagebox.askyesno('SDM güncellemesi',f'{update["version"]} sürümü bulundu. Güncelleme indirilecek, indirmeler duraklatılacak ve SDM yeniden açılacak. Güncellensin mi?',parent=self):return
+        from update_dialog import confirm_update
+        if not confirm_update(self,update):return
         self._update_busy=True
         def work():
             try:

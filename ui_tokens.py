@@ -96,6 +96,18 @@ RADII = MappingProxyType({
     'odak': MappingProxyType(dict(button=10, input=10, card=16, dialog=16, menu=12, tile=10)),
 })
 
+# Atlas workspace geometry, shared by the layout, renderer and native checks.
+ATLAS = MappingProxyType(dict(header=68,toolbar=56,sidebar_padding=14,
+    sidebar_top=20,nav_row=34,nav_gap=2,brand=30,brand_gap=10,group_gap=18,
+    side_footer=124,header_gap=12,search_width=280,capture_width=176,
+    detail_padding=20,detail_tile=44,detail_gap=18,selection_mark=3,
+    cell_padding=12,file_padding=24,file_text_offset=70,row_title_baseline=22,
+    row_subtitle_baseline=41,toolbar_gap=8,toolbar_resume=90,toolbar_pause=100,
+    toolbar_cancel=80,toolbar_remove=100,toolbar_folder=122,toolbar_queue=92,
+    toolbar_limit=158,empty_width=460,empty_icon=64,detail_font=14,
+    footer_sparkline=60,footer_gap=16,disk_refresh_seconds=30,compact_workspace=880,
+    compact_search=220,compact_title=160,wide_title=280))
+
 
 def dimensions(design='atlas'):
     if design not in DESIGNS:

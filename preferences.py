@@ -31,6 +31,7 @@ def validate_settings(data):
     if 'design' in result and result['design'] not in DESIGNS:raise ValueError('Geçersiz tasarım.')
     if 'color_mode' in result and result['color_mode'] not in COLOR_MODES:raise ValueError('Geçersiz renk modu.')
     if 'language' in result and result['language'] not in ('tr','en'):raise ValueError('Geçersiz dil.')
+    if 'hud_position' in result and result['hud_position'] and (len(result['hud_position'])!=2 or any(type(value) is not int or abs(value)>32768 for value in result['hud_position'])):raise ValueError('Geçersiz HUD konumu.')
     if 'queues' in result:
         from queue_rules import validate_queues
         validate_queues(result['queues'])

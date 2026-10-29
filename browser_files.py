@@ -2,6 +2,7 @@
 import ipaddress
 import os
 import socket
+import re
 from urllib.parse import urlparse, urljoin
 import requests
 from utils import extract_filename_from_url
@@ -33,5 +34,6 @@ def prepare_transfer(url):
                 raise ValueError('Login or HTML page; keep browser download')
             filename=extract_filename_from_url(url,response.headers.get('Content-Disposition'))
             size = response.headers.get('Content-Range', '').rsplit('/', 1)[-1] if response.status_code == 206 else response.headers.get('Content-Length', '0')
-            return {'kind':'file','url':url,'filename':filename,'filesize':int(size) if size.isdigit() else 0}
+            supports_ranges=response.status_code==206 and bool(re.fullmatch(r'bytes 0-0/[1-9][0-9]*',response.headers.get('Content-Range','')))
+            return {'kind':'file','url':url,'filename':filename,'filesize':int(size) if size.isdigit() else 0,'supports_ranges':supports_ranges}
     raise ValueError('Too many redirects')

@@ -25,6 +25,8 @@ from browser_bridge import BrowserBridge
 from utils import clean_filename, get_unique_filepath
 
 # Setup Logging
+if '--package-self-test' in sys.argv and not os.environ.get('SDM_DATA_DIR'):
+    raise RuntimeError('Package checks require an isolated SDM_DATA_DIR')
 log_dir = ensure_config_dir()
 log_file = log_dir / "sdm.log"
 
@@ -114,6 +116,9 @@ class TrayManager:
 
 
 def main() -> None:
+    if '--package-self-test' in sys.argv:
+        from package_smoke import run
+        run();return
     if sys.platform == 'win32':
         import ctypes
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('SDM.DownloadManager')
@@ -141,6 +146,7 @@ def main() -> None:
         and bool(os.environ.get('SDM_DATA_DIR')))
 
     bridge = BrowserBridge()
+    app._browser_bridge=bridge
     bridge.start()
 
     def process_browser_queue():

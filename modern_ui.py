@@ -21,6 +21,9 @@ class ModernUI:
         build_ui(self)
 
     def update_action_states(self):
+        workspace=getattr(self,'_atlas_workspace',None)
+        if workspace and workspace.alive:
+            workspace.update_selection();self.paint_progress();return
         selected=bool(self.tree.selection())
         for button in self.action_buttons:button.configure(state='normal' if selected else 'disabled')
         self.paint_progress()
@@ -36,6 +39,8 @@ class ModernUI:
         if save_settings(settings):self.apply_settings(settings)
 
     def show_remove_menu(self):
+        workspace=getattr(self,'_atlas_workspace',None)
+        if workspace and workspace.alive:return workspace.remove_menu()
         if not self._get_selected_ids():return
         p=self.palette
         menu=tk.Menu(self,tearoff=0,bg=p['panel'],fg=p['text'],activebackground=p['selected'],activeforeground=p['text'])
@@ -101,7 +106,8 @@ class ModernUI:
     def update_hud(self):
         videos=[v for v in self.video_tasks.values() if v.status in ('İndiriliyor','Dönüştürülüyor')]
         self.hud_active.set(str(self.engine.get_active_count()+len(videos)))
-        local=lambda text:text.replace('.',',') if self.settings.get('language','tr')=='tr' else text
+        from atlas_view import number
+        local=lambda text:number(self,text)  # decimal comma and 'KB/sn', as everywhere else
         self.hud_speed.set(local(format_speed(self.engine.get_total_speed()+sum(v.current_speed for v in videos))))
         self.hud_received.set(local(format_bytes(sum(self._session_received.values()))))
         enabled=capture_enabled(self.settings)
@@ -110,3 +116,10 @@ class ModernUI:
         for item in self.tree.get_children():
             values=self.tree.item(item,'values');self.tree.item(item,image=self.icon_images[mapping.get(values[9],7)])
         self.paint_progress()
+        workspace=getattr(self,'_atlas_workspace',None)
+        if workspace and workspace.alive:workspace.update_hud(self.engine.get_total_speed()+sum(v.current_speed for v in videos))
+
+    def notify(self,title,message,action=None,tone='info'):
+        workspace=getattr(self,'_atlas_workspace',None)
+        if workspace and workspace.alive:return workspace.toast_manager.show(title,message,action,tone=tone)
+        return __import__('tkinter').messagebox.showinfo(title,message,parent=self)
