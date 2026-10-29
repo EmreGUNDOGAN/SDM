@@ -96,3 +96,23 @@ Kullanıcının önceki Kaydet sonrası değişmeme bildirimi yerelde yeniden
 üretilemedi; bunu çözüldü saymak yerine canlı önizleme ve kayıt geri bildirimi
 eklendi. Uygulama/test kodu değiştiği için önceki Verify sonuçları bu yeni
 commit'in başarısı değildir; güncel commit yeniden Verify gerektirir.
+
+## Odak başlık hizalaması ve daralan odak yüzeyi
+
+Kullanıcının işaretlediği Odak başlığında arama kutusu 40 px iken düğmeler
+38 px idi. Bu üç kontrol artık 40 px yüksekliğinde, aynı üst/alt kenarda ve
+10 px aralıklarla durur. Odak arama yazısı düğmelerle aynı 13 px ölçüdedir;
+placeholder tam görünür. Atlas'ın varsayılan arama yazısı değiştirilmez.
+1080/1440 px ve açık/koyu görünümde native ekran görüntüleri ile sınanır.
+
+Self-hosted Verify #13 ayrıca tema önizlemesinde bir çizim ValueError'ı
+yakaladı. Odaklı düğmenin 1–2 px'e daraltılması aynı Pillow koordinat hatasını
+yeniden üretir. Odak çerçevesi sığamayacağı kadar küçük yüzeyde çizilmez;
+odak durumu korunur ve normal boyuttaki çizimde çerçeve yeniden görünür.
+Regresyon gerçek Pillow çizimini sınar; Tk hata kontrolü kaldırılmaz.
+Tema önizleme testi artık callback hatalarının tam çağrı izini raporlar.
+
+Hizalama değişikliği Verify #13 çalışırken yalnız kullanıcının çalışma
+checkout'unda hazırlandı; ayrı runner checkout'u ve çalışan koşum iptal
+edilmedi/değiştirilmedi. Güncel uygulama/test kodu için yeni tam Verify
+gerekir; önceki koşumlar yeni kodun başarısı sayılmaz.

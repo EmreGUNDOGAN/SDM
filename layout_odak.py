@@ -12,6 +12,7 @@ from ui_surface import TextLabel
 from ui_overlays import PopupMenu,ToastManager,Tooltip
 from atlas_view import matches_status,available_actions,number
 from list_display import COLUMNS
+from ui_tokens import SIZES
 
 
 class OdakWorkspace(AtlasWorkspace):
@@ -29,10 +30,10 @@ class OdakWorkspace(AtlasWorkspace):
         self.shell=tk.Frame(self.body,bg=p['bg']);self.shell.pack(side='left',fill='both',expand=True)
         self.main=tk.Frame(self.shell,bg=p['bg']);self.main.pack(fill='both',expand=True)
         header=tk.Frame(self.main,bg=p['bg']);header.pack(fill='x',padx=24,pady=20)
-        Button(header,'Yeni indirme',app.open_add_dialog,palette=p,kind='primary').pack(side='right')
-        app.capture_label=Button(header,'Yakalama açık',app.toggle_capture,palette=p,kind='soft',width=146);app.capture_label.status_badge=True;app.capture_label.pack(side='right',padx=10)
+        Button(header,'Yeni indirme',app.open_add_dialog,palette=p,kind='primary',height=SIZES['input']).pack(side='right')
+        app.capture_label=Button(header,'Yakalama açık',app.toggle_capture,palette=p,kind='soft',width=146,height=SIZES['input']);app.capture_label.status_badge=True;app.capture_label.pack(side='right',padx=10)
         app.search_var=tk.StringVar(app,getattr(app,'search_term',''));self.search_trace=app.search_var.trace_add('write',lambda *args:app._on_search_change())
-        app.search_control=Search(header,app.search_var,p,placeholder='Dosya adı veya adres ara');app.search_control.configure(width=220);app.search_control.pack(side='right')
+        app.search_control=Search(header,app.search_var,p,placeholder='Dosya adı veya adres ara',text_size=13);app.search_control.configure(width=220);app.search_control.pack(side='right')
         label(header,'İndirmeler',palette=p,size=20,weight='Bold').pack(side='left')
         self.search_binding=app.bind('<Control-f>',self.focus_search,add='+');self.search_upper_binding=app.bind('<Control-F>',self.focus_search,add='+')
         self.escape_binding=app.bind('<Escape>',lambda e:self.drawer.close() if self.drawer else None,add='+')

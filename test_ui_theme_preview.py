@@ -1,6 +1,6 @@
 """Live appearance selection, rollback and persistence in a disposable profile."""
 def main():
-    import copy,json
+    import copy,json,traceback
     from pathlib import Path
     from unittest.mock import Mock,patch
     from gui import MainWindow
@@ -11,7 +11,7 @@ def main():
     from tools.window_capture import capture_client
 
     app=MainWindow();app.engine.stop_engine();errors=[]
-    app.report_callback_exception=lambda *args:errors.append(args)
+    app.report_callback_exception=lambda *args:errors.append(''.join(traceback.format_exception(*args)))
     app.clipboard_monitor=Mock()
     def descendants(widget):
         for child in widget.winfo_children():

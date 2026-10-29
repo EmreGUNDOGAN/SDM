@@ -120,7 +120,9 @@ class Button(tk.Canvas):
         from PIL import Image,ImageDraw
         from ui_surface import photo
         p=self.p;w,h=image.size
-        if self.focused:
+        # Layout can briefly shrink a focused control below the ring's width.
+        # Keep its focus state; the next Configure redraws the ring at full size.
+        if self.focused and min(w,h)>FOCUS_WIDTH:
             overlay=Image.new('RGBA',(w*3,h*3));focus_draw=ImageDraw.Draw(overlay)
             inset=FOCUS_WIDTH/2
             focus_draw.rounded_rectangle((inset*3,inset*3,(w-inset)*3-1,(h-inset)*3-1),radius=(self.radius+FOCUS_GAP)*3,outline=p['accent'],width=FOCUS_WIDTH*3)
@@ -129,13 +131,13 @@ class Button(tk.Canvas):
         self._surface=photo(image,self);self.delete('all');self.create_image(0,0,image=self._surface,anchor='nw')
 
 class Search(tk.Canvas):
-    def __init__(self,master,var,palette,placeholder='İndirmelerde ara…'):
+    def __init__(self,master,var,palette,placeholder='İndirmelerde ara…',text_size=15):
         self.p=palette;self.var=var;self.focused=False;self.placeholder_text=placeholder
         super().__init__(master,bg=master.cget('bg'),height=40,width=320,highlightthickness=0)
-        self.entry=tk.Entry(self,textvariable=var,bg=palette['control'],fg=palette['text'],insertbackground=palette['text'],relief='flat',borderwidth=0,font=('Inter',-15))
+        self.entry=tk.Entry(self,textvariable=var,bg=palette['control'],fg=palette['text'],insertbackground=palette['text'],relief='flat',borderwidth=0,font=('Inter',-text_size))
         self.entry.place(x=38,y=12,relwidth=1,width=-70,height=18)
         from ui_surface import TextLabel
-        self.placeholder=TextLabel(self,text=placeholder,size=15,fg=palette['muted']);self.placeholder.configure(bg=palette['control'])
+        self.placeholder=TextLabel(self,text=placeholder,size=text_size,fg=palette['muted']);self.placeholder.configure(bg=palette['control'])
         self.placeholder.bind('<Button-1>',lambda e:self.entry.focus_set())
         self.bind('<Configure>',lambda e:self.draw());self.bind('<Button-1>',self.click)
         self.entry.bind('<FocusIn>',lambda e:self.focus(True));self.entry.bind('<FocusOut>',lambda e:self.focus(False))
