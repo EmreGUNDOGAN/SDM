@@ -11,8 +11,13 @@ def helper_script(installer,app_path,old_pid,state,log):
     return f'''$ErrorActionPreference = 'Stop'
 $sdmResult = @{{ok=$false; message='Güncelleme tamamlanamadı'}}
 try {{
-  $sdmOld = Get-Process -Id {int(old_pid)} -ErrorAction SilentlyContinue
-  if ($sdmOld) {{ Wait-Process -Id {int(old_pid)} -Timeout 90 -ErrorAction Stop }}
+  # Poll instead of Get-Process + Wait-Process: SDM exiting between the two made
+  # Wait-Process fail with "Cannot find a process" and the update was skipped.
+  $sdmDeadline = (Get-Date).AddSeconds(90)
+  while (Get-Process -Id {int(old_pid)} -ErrorAction SilentlyContinue) {{
+    if ((Get-Date) -gt $sdmDeadline) {{ throw 'SDM 90 saniye içinde kapanmadı' }}
+    Start-Sleep -Milliseconds 200
+  }}
   $sdmProcess = Start-Process -FilePath {quote(installer)} -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/SDMNOOPEN=1','/CLOSEAPPLICATIONS',{quote('/LOG="'+str(log)+'"')}) -WindowStyle Hidden -PassThru -Wait
   if ($sdmProcess.ExitCode -notin @(0,3010)) {{throw "Kurulum hata kodu: $($sdmProcess.ExitCode)"}}
   $sdmResult.ok = $true
