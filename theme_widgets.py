@@ -95,7 +95,9 @@ class Button(tk.Canvas):
         from PIL import ImageColor
         def mix(a,b,amount):
             return '#'+''.join(f'{round(x*(1-amount)+y*amount):02x}' for x,y in zip(ImageColor.getrgb(a),ImageColor.getrgb(b)))
-        if self.selected and not self.underline:bg=p['accent_nav'];fg=p['accent_text']
+        if self.selected and not self.underline:
+            bg=p['accent'] if design=='pano' and kind=='primary' else p['accent_nav']
+            fg=p['on_accent'] if design=='pano' and kind=='primary' else p['accent_text']
         if self.selected and getattr(self,'segment_choice',False):bg=p['segment_selected'];fg=p['text']
         if self.hover:bg=mix(bg,fg,0.08) if solid else p['subtle']
         if self.pressed:bg=mix(bg,fg,0.16) if solid else p['accent_soft']

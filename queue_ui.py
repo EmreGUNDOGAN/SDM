@@ -5,7 +5,7 @@ import tkinter as tk
 from ttkbootstrap.dialogs import Querybox
 from queue_rules import default_queue,validate_queues
 from theme_widgets import Button
-from ui_controls import Switch,CheckBox,Select,TextInput
+from ui_controls import Switch,CheckBox,Select,TextInput,NumberStepper
 from ui_tokens import SIZES
 from ui_dialog import AutoCard,label,field
 
@@ -26,7 +26,10 @@ class QueueList(tk.Frame):
     def current(self,index=None):
         if index is None:return self.index
         self.index=index
-        for n,button in enumerate(self.buttons):button.selected=n==index;button.draw()
+        for n,button in enumerate(self.buttons):
+            button.selected=n==index
+            if self.p.get('design')=='pano':button.kind='primary' if button.selected else 'ghost'
+            button.draw()
     def choose(self,index):self.current(index);self.command()
 
 
@@ -34,14 +37,26 @@ class QueueEditor(tk.Frame):
     def __init__(self,parent,queues,palette=None,command=None):
         self.p=palette or parent.winfo_toplevel().p
         super().__init__(parent,bg=self.p['dialog']);self.queues=copy.deepcopy(queues);self.index=0;self.renames={};self.command=command;self._loading=True;self._traces=[]
-        side=tk.Frame(self,bg=self.p['dialog'],width=176);side.pack(side='left',fill='y',padx=(0,8))
-        self.names=QueueList(side,[q['name'] for q in self.queues],self.p,self.select);self.names.pack(fill='x')
+        pano=self.p.get('design')=='pano'
+        if pano:
+            catalog=AutoCard(self,self.p,padding=12);catalog.radius=22;catalog.configure(width=176);catalog.pack_configure(side='left',fill='y',padx=(0,8),pady=0);side=catalog.content
+        else:side=tk.Frame(self,bg=self.p['dialog'],width=176);side.pack(side='left',fill='y',padx=(0,8))
+        self.names=QueueList(side,[q['name'] for q in self.queues],dict(self.p,dialog=self.p['card']) if pano else self.p,self.select);self.names.pack(fill='x')
         Button(side,'+ Yeni kuyruk',self.add,palette=self.p,kind='soft',width=160).pack(fill='x',pady=8)
         body=tk.Frame(self,bg=self.p['dialog']);body.pack(side='left',fill='both',expand=True)
+        if pano:
+            def arrange(event):
+                if event.widget is not self:return
+                narrow=event.width<650
+                catalog.pack_configure(side='top' if narrow else 'left',fill='x' if narrow else 'y',padx=0 if narrow else (0,8),pady=(0,12) if narrow else 0)
+                body.pack_configure(side='top' if narrow else 'left',fill='both',expand=True)
+            self.bind('<Configure>',arrange)
         self.name=tk.StringVar(self);self.limit=tk.StringVar(self);self.enabled=tk.BooleanVar(self);self.once_enabled=tk.BooleanVar(self)
         self.problem=tk.StringVar(self,'')
         info=AutoCard(body,self.p,padding=12);field(info.content,'Kuyruk adı',self.name,self.p,width=180)
-        row=tk.Frame(info.content,bg=self.p['card']);row.pack(fill='x',pady=8);label(row,'Aynı anda',palette=self.p).pack(side='left');Select(row,{str(n):str(n) for n in range(1,11)},self.limit,palette=self.p,width=80).pack(side='right')
+        row=tk.Frame(info.content,bg=self.p['card']);row.pack(fill='x',pady=8);label(row,'Aynı anda',palette=self.p).pack(side='left')
+        if pano:self.limit_stepper=NumberStepper(row,self.limit,self.p,1,10);self.limit_stepper.pack(side='right')
+        else:Select(row,{str(n):str(n) for n in range(1,11)},self.limit,palette=self.p,width=80).pack(side='right')
         daily=AutoCard(body,self.p,padding=12);head=tk.Frame(daily.content,bg=self.p['card']);head.pack(fill='x',pady=(0,8))
         label(head,'Seçilen günlerde tekrarla',palette=self.p,weight='SemiBold').pack(side='left');Switch(head,self.enabled,palette=self.p).pack(side='right')
         self.days=[];self.day_buttons=[];daysrow=tk.Frame(daily.content,bg=self.p['card']);daysrow.pack(fill='x')
@@ -65,6 +80,8 @@ class QueueEditor(tk.Frame):
         row=tk.Frame(once.content,bg=self.p['card']);row.pack(fill='x',pady=8)
         for title,days in [('Bugün',0),('Yarın',1)]:Button(row,title,lambda d=days:self.quick_date(d),palette=self.p,kind='soft').pack(side='left',padx=(0,8))
         footer=AutoCard(body,self.p,padding=12);self.summary=label(footer.content,'',palette=self.p,size=12,muted=True);self.summary.max_width=420;self.summary.pack(anchor='w')
+        if pano:
+            for card in (info,daily,once,footer):card.radius=22
         problem=label(footer.content,variable=self.problem,palette=self.p,size=12);problem.fg=self.p['danger_fg'];problem.pack(anchor='w')
         Button(footer.content,'Zamanlamayı temizle',lambda:(self.enabled.set(False),self.once_enabled.set(False)),palette=self.p,kind='ghost').pack(anchor='w',pady=8)
         Button(footer.content,'Kuyruğu kaldır',self.remove,palette=self.p,kind='danger_ghost').pack(anchor='w')
@@ -75,6 +92,10 @@ class QueueEditor(tk.Frame):
         for var,maximum in ((minute,60),(hour,24)):Select(parent,{f'{i:02}':f'{i:02}' for i in range(maximum)},var,palette=self.p,width=70).pack(side='right',padx=3)
     def changed(self,*args):
         if self._loading:return
+        if hasattr(self,'limit_stepper'):
+            try:valid=1<=int(self.limit.get())<=10
+            except ValueError:valid=False
+            self.limit_stepper.set_error('1–10 arasında bir sayı gir.' if not valid else '')
         self.update_summary()
         if self.command:self.command()
     def pick_date(self):
@@ -84,7 +105,10 @@ class QueueEditor(tk.Frame):
         if chosen:self.date_text.set(chosen.strftime('%d.%m.%Y'));self.once_enabled.set(True)
     def quick_date(self,days):self.date_text.set((datetime.now()+timedelta(days=days)).strftime('%d.%m.%Y'));self.once_enabled.set(True)
     def update_summary(self):
-        for var,button in zip(self.days,self.day_buttons):button.selected=var.get();button.configure(state='normal' if self.enabled.get() else 'disabled')
+        for var,button in zip(self.days,self.day_buttons):
+            button.selected=var.get()
+            if self.p.get('design')=='pano':button.kind='primary' if var.get() else 'soft'
+            button.configure(state='normal' if self.enabled.get() else 'disabled')
         text=f"{self.name.get()} · {self.times['start'][0].get()}:{self.times['start'][1].get()} → {self.times['stop'][0].get()}:{self.times['stop'][1].get()}" if self.enabled.get() else 'Tekrarlayan zamanlama kapalı.'
         if self.once_enabled.get():text+=f' · Bir defa: {self.date_text.get()} {self.once_hour.get()}:{self.once_minute.get()}'
         self.summary.configure(text=text+' · Durma saatinde duraklar. Zamanlama için SDM açık olmalı.')
