@@ -55,7 +55,7 @@ jobs:
         shell: pwsh
         env:
           SDM_DATA_DIR: '${{ github.workspace }}/build/unit-data'
-        run: .venv/Scripts/python.exe -m unittest test_advanced_features test_responsiveness test_features test_download_safety test_progress_meter test_browser_files test_browser_bridge test_transfer_details test_video_access test_theme_section test_ui_foundations test_source_manifest test_preview_report test_window_capture test_atlas_view test_atlas_preview_report test_dialog_inspection test_package_checks test_music test_stats
+        run: .venv/Scripts/python.exe -m unittest test_advanced_features test_responsiveness test_features test_download_safety test_progress_meter test_browser_files test_browser_bridge test_transfer_details test_video_access test_theme_section test_ui_foundations test_source_manifest test_preview_report test_window_capture test_atlas_view test_atlas_preview_report test_dialog_inspection test_package_checks test_music test_stats test_pano_view test_pano_preview_report
       - name: Full native UI, real browser and media checks before packaging
         shell: pwsh
         env:
@@ -76,7 +76,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Real HTTP checks failed' }
           node test_extension_refresh.cjs
           if ($LASTEXITCODE -ne 0) { throw 'SHA-256 checks failed' }
-          foreach ($report in @('component','atlas','dialog','settings','odak')) {
+          foreach ($report in @('component','atlas','pano','dialog','settings','odak')) {
             .venv/Scripts/python.exe "tools/report_${report}_previews.py"
             if ($LASTEXITCODE -ne 0) { throw "Preview report failed: $report" }
           }
