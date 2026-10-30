@@ -17,6 +17,7 @@ class CapturePrompt(AppWindow):
     def __init__(self,parent,request,decision):
         video=request['kind']=='video'
         super().__init__(parent,'İndirmeyi nasıl başlatalım?',720,800 if video else 450)
+        pano=self.p.get('design')=='pano'
         self.request=dict(request);self.decision=decision;self.buttons={};self._done=False
         if request.get('audio'):self.request['audio_filesize']=request.get('audio_filesize') or request.get('filesize',0)
         self.name=tk.StringVar(self,clean_filename(request.get('filename') or 'Video'))
@@ -24,7 +25,8 @@ class CapturePrompt(AppWindow):
         self.folder=tk.StringVar(self,parent.settings['download_dir'])
         self.quality=tk.StringVar(self,'audio' if request.get('audio') else str(request.get('height') or 'best'))
         self.formats=[];self.duration=request.get('duration');self.estimate=tk.StringVar(self,'')
-        summary=AutoCard(self.body,self.p);row=summary.content
+        summary=AutoCard(self.body,self.p);self.summary_card=summary;row=summary.content
+        if pano:summary.radius=22
         if video:
             from ui_thumbnail import Thumbnail
             self.thumbnail=Thumbnail(row,parent,self.p,width=208,height=117,source=request.get('thumbnail'));self.thumbnail.pack(side='left',padx=(0,16))
@@ -35,7 +37,9 @@ class CapturePrompt(AppWindow):
         label(info,variable=self.estimate,palette=self.p,size=12,muted=True).pack(anchor='w')
         self.quality_host=None;self.section_fields=None
         if video:
-            quality=AutoCard(self.body,self.p);heading=tk.Frame(quality.content,bg=self.p['card']);heading.pack(fill='x',pady=(0,12))
+            quality=AutoCard(self.body,self.p);self.quality_card=quality
+            if pano:quality.radius=22
+            heading=tk.Frame(quality.content,bg=self.p['card']);heading.pack(fill='x',pady=(0,12))
             label(heading,'Kalite',palette=self.p,weight='SemiBold').pack(side='left');label(heading,'Boyutlar tahminidir',palette=self.p,size=12,muted=True).pack(side='right')
             self.quality_host=tk.Frame(quality.content,bg=self.p['card']);self.quality_host.pack(fill='x')
             self.render_qualities()
@@ -48,12 +52,14 @@ class CapturePrompt(AppWindow):
             label(self.audio_row,'Sanatçı / Albüm klasörü',palette=self.p).pack(side='right',padx=(0,8))
             if self.quality.get()=='audio':self.audio_row.pack(fill='x',pady=(12,0))
             section=AutoCard(self.body,self.p)
+            if pano:section.radius=22
             from video_section import SectionFields
             self.section_fields=SectionFields(section.content,duration=self.duration,palette=self.p,command=self.validate)
         save=AutoCard(self.body,self.p);label(save.content,'Kaydet',palette=self.p,weight='SemiBold').pack(anchor='w')
+        if pano:save.radius=22
         self.name_input=field(save.content,'Dosya adı',self.name,self.p)
         field(save.content,'Klasör',self.folder,self.p,actions=[('Değiştir',self.browse)])
-        self.buttons['start']=action(self.actionbar,'Şimdi indir',lambda:self.choose('start'),self.p,'primary')
+        self.buttons['start']=action(self.actionbar,'Şimdi indir',lambda:self.choose('start'),self.p,'start' if pano else 'primary')
         self.buttons['queue']=action(self.actionbar,'Kuyruğa ekle',lambda:self.choose('queue'),self.p)
         self.buttons['cancel']=action(self.actionbar,'İptal',lambda:self.choose('cancel'),self.p,'ghost')
         if not video:action(self.actionbar,'Tarayıcıda indir',lambda:self.choose('browser'),self.p,'link','left')
