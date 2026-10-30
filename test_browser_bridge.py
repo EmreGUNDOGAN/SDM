@@ -52,6 +52,33 @@ class BridgeTests(unittest.TestCase):
                          'height': None, 'audio': True}).status_code, 202)
         self.assertTrue(self.bridge.pending.get_nowait()['audio'])
 
+    def test_page_scan_batch_opens_selection(self):
+        urls=['https://cdn.example.com/a.mp3','https://cdn.example.com/a.mp3','http://192.168.1.1/router.bin',
+              'http://localhost/x.zip','https://files.example.org/b.zip']
+        reply=self.request('/batch',body={'urls':urls})
+        self.assertEqual((reply.status_code,reply.json()['count']),(202,2))
+        queued=self.bridge.pending.get_nowait()
+        # Duplicates and local addresses never reach the batch window.
+        self.assertEqual((queued['kind'],queued['urls']),('batch',['https://cdn.example.com/a.mp3','https://files.example.org/b.zip']))
+        self.assertEqual(self.bridge.decisions[queued['ticket']]['action'],'start')
+
+    def test_music_button_queues_without_dialog(self):
+        reply=self.request('/music',body={'url':'https://music.youtube.com/playlist?list=OLAK5uy_x','bitrate':320,'list':True})
+        self.assertEqual(reply.status_code,202)
+        queued=self.bridge.pending.get_nowait()
+        self.assertEqual((queued['kind'],queued['bitrate'],queued['list']),('music',320,True))
+        self.assertEqual(self.bridge.decisions[queued['ticket']]['action'],'start')
+        for body in ({'url':'https://music.youtube.com/watch?v=x','bitrate':64},{'url':'https://music.youtube.com/watch?v=x','bitrate':'320'},
+                     {'url':'https://music.youtube.com/watch?v=x','bitrate':192,'list':'yes'},{'url':'https://www.youtube.com/watch?v=x','bitrate':192}):
+            with self.subTest(body=body):self.assertEqual(self.request('/music',body=body).status_code,400)
+
+    def test_page_scan_batch_limits(self):
+        for urls in ([],['https://e.example/x.zip']*(browser_bridge.BATCH_LIMIT+1),['file:///C:/x.zip'],
+                     ['https://user:pw@e.example/x.zip'],['http://127.0.0.1/x.zip'],'https://e.example/x.zip'):
+            with self.subTest(urls=str(urls)[:60]):
+                self.assertEqual(self.request('/batch',body={'urls':urls}).status_code,400)
+        self.assertEqual(self.request('/download',body={'url':'https://youtu.be/x','audio':True,'pad':'x'*20000}).status_code,400)
+
     def test_local_and_spoofed_urls_are_denied(self):
         for url in ['http://127.0.0.1/test', 'file:///C:/test',
                     'https://youtube.com.evil.example/video', 'https://user:pass@youtube.com/video']:

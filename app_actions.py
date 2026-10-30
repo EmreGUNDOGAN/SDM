@@ -57,9 +57,39 @@ class AppActions:
 
     def browser_request(self,request,decision):
         self.deiconify()
+        if request['kind']=='batch':
+            from batch_dialog import BatchDialog
+            return BatchDialog(self,'\n'.join(request['urls']))
+        if request['kind']=='music':return self.music_request(request)
         prompt=CapturePrompt(self,request,decision)
         if getattr(self,'integration_test',False):self.after(150,lambda:prompt.choose('start'))
         return prompt
+
+    def music_request(self,request):
+        """YouTube Music button: MP3s straight into the downloads, Artist/Album layout."""
+        import threading
+        from pathlib import Path
+        from urllib.parse import parse_qs,urlparse
+        folder=Path(self.settings['download_dir']);bitrate=request['bitrate']
+        def add(url,track=None):
+            self.add_download_from_dialog(url,'YouTube Music.mp3',str(folder/'YouTube Music.mp3'),is_video=True,
+                video_quality='Yalnızca Ses (MP3)',audio=dict(bitrate=bitrate,album=True,track=track))
+        if not request['list']:
+            add(request['url']);return self.notify('Müzik eklendi',f'MP3 · {bitrate} kb/sn')
+        # Only album lists ("OLAK5uy_…") number the files; a mixed playlist keeps each song's own data.
+        album=parse_qs(urlparse(request['url']).query).get('list',[''])[0].startswith('OLAK5uy_')
+        def work():
+            from dialog_inspection import inspect_url
+            try:
+                result=inspect_url(request['url'],force_video=True)
+                entries=[url for url,_ in result['entries']] if result['kind']=='playlist' else [request['url']]
+            except Exception as error:
+                return self.post_ui(lambda e=str(error):self.notify('Liste alınamadı',e,tone='error'))
+            def apply():
+                for index,url in enumerate(entries,1):add(url,index if album else None)
+                self.notify('Müzik eklendi',f'{len(entries)} parça · MP3 · {bitrate} kb/sn')
+            self.post_ui(apply)
+        threading.Thread(target=work,daemon=True).start()
 
     def toggle_capture(self):
         self.settings['browser_capture']=not self.settings.get('browser_capture',True)

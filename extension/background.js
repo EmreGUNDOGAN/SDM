@@ -43,18 +43,19 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     }).catch(error => respond({error:error.message}));
     return true;
   }
-  if (sender.id === chrome.runtime.id && sender.url?.startsWith(chrome.runtime.getURL('')) && ['control','settings'].includes(message.type)) {
-    request(message.type === 'control' ? '/capture-control' : '/settings', message.body || {})
+  if (sender.id === chrome.runtime.id && sender.url?.startsWith(chrome.runtime.getURL('')) && ['control','settings','batch'].includes(message.type)) {
+    request({control:'/capture-control',settings:'/settings',batch:'/batch'}[message.type], message.body || {})
       .then(result=>respond({result})).catch(error=>respond({error:error.message}));
     return true;
   }
-  if (!sender.tab || sender.id !== chrome.runtime.id || !['formats', 'download'].includes(message.type)) return;
+  if (!sender.tab || sender.id !== chrome.runtime.id || !['formats', 'download', 'music'].includes(message.type)) return;
   try {
     const page = new URL(sender.url);
     const url = new URL(message.url);
     if (!['https:', 'http:'].includes(url.protocol) || page.origin !== url.origin) throw new Error('Geçersiz sayfa');
   } catch { respond({error: 'Geçersiz sayfa'}); return; }
   const body = message.type === 'formats' ? {url: message.url}
+    : message.type === 'music' ? {url: message.url, bitrate: message.bitrate, list: message.list === true}
     : {url: message.url, height: message.height, audio: message.audio === true, title:message.title, filesize:message.filesize};
   request('/' + message.type, body).then(result => respond({result})).catch(error => respond({error: error.message}));
   return true;

@@ -69,6 +69,8 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH: '${{ github.workspace }}/build/pw-browsers'
           SDM_TEST_PYTHON: python
         run: |
+          node test_extension_scan.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Page scanner failed' }
           node test_extension.cjs
           if ($LASTEXITCODE -ne 0) { throw 'Extension UI failed' }
           node test_capture.cjs

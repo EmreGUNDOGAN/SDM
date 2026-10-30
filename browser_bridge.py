@@ -16,6 +16,7 @@ from capture_policy import should_capture, capture_enabled, normalize_domain
 from app_version import VERSION
 
 PORT = int(os.environ.get('SDM_BRIDGE_PORT', '49282'))
+BATCH_LIMIT = 200  # page-scan links per request; the batch window inspects each one
 EXTENSION_ID = 'eipmgfnkhpeaefhjpbgkccckcacafjkj'
 ORIGIN = 'chrome-extension://' + EXTENSION_ID
 
@@ -28,6 +29,28 @@ def get_token():
     except FileExistsError:
         pass
     return path.read_text(encoding='ascii').strip()
+
+
+def validate_batch(urls):
+    """Scanned page links: http(s) only, no credentials, no loopback/private literal hosts.
+
+    Names are not resolved here (200 lookups would stall the bridge); every link
+    is shown in the batch window and nothing starts before the user confirms.
+    """
+    import ipaddress
+    if not isinstance(urls, list) or not 0 < len(urls) <= BATCH_LIMIT:
+        raise ValueError('Geçersiz bağlantı listesi')
+    clean = []
+    for url in urls:
+        if not isinstance(url, str) or len(url) > 8192:raise ValueError('Geçersiz bağlantı')
+        parsed = urlparse(url)
+        host = (parsed.hostname or '').lower()
+        if parsed.scheme not in ('http', 'https') or not host or parsed.username or parsed.password:raise ValueError('Geçersiz bağlantı')
+        try:local = not ipaddress.ip_address(host).is_global
+        except ValueError:local = host == 'localhost' or host.endswith('.localhost')
+        if not local and url not in clean:clean.append(url)
+    if not clean:raise ValueError('Gönderilecek bağlantı yok')
+    return clean
 
 
 def validate_url(url):
@@ -89,7 +112,7 @@ class BrowserBridge:
                     return self.send_json(403, {'error': 'Erişim reddedildi'})
                 try:
                     size = int(self.headers.get('Content-Length', '0'))
-                    if not 0 < size <= 16384:
+                    if not 0 < size <= (262144 if self.path == '/batch' else 16384):
                         raise ValueError('Geçersiz istek boyutu')
                     self.connection.settimeout(10)
                     data = json.loads(self.rfile.read(size))
@@ -128,10 +151,28 @@ class BrowserBridge:
                         request=prepare_transfer(data.get('url'))
                         ticket = bridge.enqueue(request)
                         return self.send_json(202,{'ok':True,'ticket':ticket})
+                    if self.path == '/batch':
+                        # Page scan: opens the batch window; the user selects and confirms there.
+                        urls = validate_batch(data.get('urls'))
+                        ticket = bridge.enqueue({'kind':'batch','urls':urls})
+                        bridge.decide(ticket,'start')
+                        return self.send_json(202, {'ok': True, 'count': len(urls)})
                     url = validate_url(data.get('url'))
                     if self.path == '/formats':
                         from video_downloader import fetch_video_formats
                         return self.send_json(200, fetch_video_formats(url))
+                    if self.path == '/music':
+                        # YouTube Music button: quality chosen in the page, queued without a dialog.
+                        from file_tools import AUDIO_BITRATES
+                        if not should_capture(url,url,load_settings(),'song.mp3'):
+                            return self.send_json(409,{'error':'Bu sitede SDM yakalaması kapalı'})
+                        bitrate, whole = data.get('bitrate'), data.get('list', False)
+                        if type(bitrate) is not int or bitrate not in AUDIO_BITRATES or not isinstance(whole, bool):
+                            raise ValueError('Geçersiz ses kalitesi')
+                        if urlparse(url).hostname != 'music.youtube.com':raise ValueError('Yalnız YouTube Music')
+                        ticket = bridge.enqueue({'kind':'music','url':url,'bitrate':bitrate,'list':whole})
+                        bridge.decide(ticket,'start')
+                        return self.send_json(202, {'ok': True})
                     if self.path == '/download':
                         if not should_capture(url,url,load_settings(),'video.mp3' if data.get('audio') else 'video.mp4'):
                             return self.send_json(409,{'error':'Bu sitede SDM yakalaması kapalı'})
