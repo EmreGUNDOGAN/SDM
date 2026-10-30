@@ -10,6 +10,7 @@ from ui_controls import TextInput,CheckBox,Select,SegmentedControl,Switch
 from file_tools import AUDIO_BITRATES
 from ui_indicators import FileTile
 from ui_surface import TextLabel
+from ui_tokens import text_px
 from utils import is_valid_url,clean_filename,extract_filename_from_url,format_bytes
 from video_downloader import is_video_site
 from atlas_view import domain,file_kind,number
@@ -18,32 +19,67 @@ from atlas_view import domain,file_kind,number
 class BatchDialog(AppWindow):
     def __init__(self,parent,initial=''):
         super().__init__(parent,'Yeni indirme',760,820,'Bağlantıları yapıştır; SDM her birini inceleyip boyutunu ve kalitelerini gösterir.')
+        self.pano=self.p.get('design')=='pano'
+        self.item_palette=dict(self.p,card=self.p['well'],line=self.p['well']) if self.pano else self.p
+        if self.pano:
+            description=self.description_label.text;self.description_label.pack_forget()
+            self.description_label=tk.Label(self.header,text=description,bg=self.p['dialog'],fg=self.p['muted'],
+                font=('Inter',text_px(13)),justify='left',anchor='w',wraplength=712)
+            self.description_label.pack(fill='x',pady=(6,0))
+            self.header.bind('<Configure>',lambda event:self.description_label.configure(wraplength=event.width),add='+')
         self.items={};self.inspection_attempted=set();self._results={};self._requested=set();self.inspecting=False;self._debounce=None
         self._closed=threading.Event();self._jobs=queue.Queue();self._workers=[]
         self.folder=tk.StringVar(self,parent.settings['download_dir'])
         self.queue_name=tk.StringVar(self,parent.settings['queues'][0]['name'])
         self.video=tk.BooleanVar(self,False);self.audio=tk.BooleanVar(self,False);self.quality=tk.StringVar(self,'En İyi')
-        self.links=tk.StringVar(self,initial);self.url_input=TextInput(self.body,variable=self.links,palette=self.p,multiline=True,height=130)
-        self.url_input.pack(fill='x',padx=24,pady=(0,10));self.urls=self.url_input.entry
-        Button(self.body,'Panodan yapıştır',self.paste,palette=self.p,kind='soft').pack(anchor='e',padx=24,pady=(0,16))
-        head=tk.Frame(self.body,bg=self.p['dialog']);head.pack(fill='x',padx=24,pady=(0,12))
+        link_parent=self.body
+        if self.pano:
+            self.links_card=AutoCard(self.body,self.p);self.links_card.radius=22;link_parent=self.links_card.content
+            label(link_parent,'BAĞLANTILAR',palette=self.p,size=12,weight='SemiBold',muted=True).pack(anchor='w',pady=(0,8))
+        self.links=tk.StringVar(self,initial);self.url_input=TextInput(link_parent,variable=self.links,palette=self.p,multiline=True,height=110 if self.pano else 130)
+        self.url_input.pack(fill='x',padx=0 if self.pano else 24,pady=(0,10));self.urls=self.url_input.entry
+        if self.pano:
+            self.urls.bind('<FocusIn>',lambda event:self.links_card.set_focused(True),add='+')
+            self.urls.bind('<FocusOut>',lambda event:self.links_card.set_focused(False),add='+')
+        Button(link_parent,'Panodan yapıştır',self.paste,palette=self.p,kind='soft').pack(anchor='e',padx=0 if self.pano else 24,pady=(0,0 if self.pano else 16))
+        found_parent=self.body
+        if self.pano:
+            self.found_card=AutoCard(self.body,self.p);self.found_card.radius=22;found_parent=self.found_card.content
+        head=tk.Frame(found_parent,bg=found_parent.cget('bg'));head.pack(fill='x',padx=0 if self.pano else 24,pady=(0,12))
         self.status=tk.StringVar(self,'Bulunanlar · 0 bağlantı');label(head,variable=self.status,palette=self.p,weight='SemiBold').pack(side='left')
         Button(head,'Tümünü seç',self.select_all,palette=self.p,kind='link').pack(side='right')
-        self.found=tk.Frame(self.body,bg=self.p['dialog']);self.found.pack(fill='x')
-        save=AutoCard(self.body,self.p)
+        self.found=tk.Frame(found_parent,bg=found_parent.cget('bg'));self.found.pack(fill='x')
+        save_parent=self.body
+        if self.pano:
+            save_parent=tk.Frame(self.body,bg=self.p['dialog']);save_parent.pack(fill='x',padx=20)
+            save_parent.columnconfigure((0,1),weight=1,uniform='save')
+            folder_host=tk.Frame(save_parent,bg=self.p['dialog']);folder_host.grid(row=0,column=0,sticky='nsew',padx=(4,6))
+            queue_host=tk.Frame(save_parent,bg=self.p['dialog']);queue_host.grid(row=0,column=1,sticky='nsew',padx=(6,4))
+        save=AutoCard(folder_host if self.pano else save_parent,self.p)
+        if self.pano:save.radius=22;save.pack_configure(padx=0,fill='both',expand=True);self.folder_card=save
         field(save.content,'Klasör',self.folder,self.p,actions=[('Değiştir',self.browse)])
-        label(save.content,'Kuyruk',palette=self.p,muted=True).pack(anchor='w',pady=(8,4))
-        Select(save.content,{q['name']:q['name'] for q in parent.settings['queues']},self.queue_name,palette=self.p,width=260).pack(fill='x')
+        queue_content=save.content
+        if self.pano:
+            self.queue_card=AutoCard(queue_host,self.p);self.queue_card.radius=22
+            self.queue_card.pack_configure(padx=0,fill='both',expand=True);queue_content=self.queue_card.content
+        label(queue_content,'Kuyruk',palette=self.p,muted=True).pack(anchor='w',pady=(8,4))
+        Select(queue_content,{q['name']:q['name'] for q in parent.settings['queues']},self.queue_name,palette=self.p,width=240 if self.pano else 260).pack(fill='x')
         # Applies to every link saved as MP3; same options as the YouTube Music button.
         self.bitrate=tk.StringVar(self,'192');self.album=tk.BooleanVar(self,False)
-        audio_row=tk.Frame(save.content,bg=self.p['card']);audio_row.pack(fill='x',pady=(12,0))
+        audio_parent=save.content
+        if self.pano:
+            audio_card=AutoCard(self.body,self.p);audio_card.radius=22;audio_parent=audio_card.content
+        audio_row=tk.Frame(audio_parent,bg=self.p['card']);audio_row.pack(fill='x',pady=(0 if self.pano else 12,0))
         label(audio_row,'MP3 kalitesi',palette=self.p,muted=True).pack(side='left',padx=(0,10))
         Select(audio_row,{str(rate):f'{rate} kb/sn' for rate in AUDIO_BITRATES},self.bitrate,palette=self.p,width=150).pack(side='left')
         Switch(audio_row,self.album,palette=self.p).pack(side='right')
         label(audio_row,'Sanatçı / Albüm klasörü',palette=self.p).pack(side='right',padx=(0,8))
-        self.total=tk.StringVar(self,'0 öğe seçili');label(self.actionbar,variable=self.total,palette=self.p,size=12).pack(side='left')
+        self.total=tk.StringVar(self,'0 öğe seçili')
+        total_label=label(self.footer if self.pano else self.actionbar,variable=self.total,palette=self.p,size=12)
+        if self.pano:total_label.pack(before=self.actionbar,anchor='w',padx=24,pady=(8,0))
+        else:total_label.pack(side='left')
         self.buttons={}
-        self.buttons['start']=action(self.actionbar,'Şimdi indir',lambda:self.submit(True),self.p,'primary')
+        self.buttons['start']=action(self.actionbar,'Şimdi indir',lambda:self.submit(True),self.p,'start' if self.pano else 'primary')
         self.buttons['queue']=action(self.actionbar,'Kuyruğa ekle',lambda:self.submit(False),self.p)
         action(self.actionbar,'İptal',self.close,self.p,'ghost')
         self._links_trace=self.links.trace_add('write',self.schedule_inspection)
@@ -95,15 +131,19 @@ class BatchDialog(AppWindow):
         self.update_total()
 
     def make_item(self,url,title='',source=None):
-        card=AutoCard(self.found,self.p,padding=12);row=card.content
+        p=self.item_palette
+        card=AutoCard(self.found,p,padding=12);row=card.content
+        if self.pano:card.radius=16;card.pack_configure(padx=0,pady=(0,8))
         selected=tk.BooleanVar(self,True);item=dict(url=url,source=source,card=card,selected=selected,title=title or extract_filename_from_url(url),kind='pending',size=0,mode=tk.StringVar(self,'video'),quality=tk.StringVar(self,'best'),formats=[])
         self.items[url]=item
-        CheckBox(row,variable=selected,palette=self.p,command=self.update_total).pack(side='left',anchor='n',padx=(0,12),pady=8)
-        item['tile']=FileTile(row,Path(item['title']).suffix.lstrip('.') or 'URL',palette=self.p);item['tile'].pack(side='left',anchor='n',padx=(0,12),pady=8)
-        content=tk.Frame(row,bg=self.p['card']);content.pack(side='left',fill='x',expand=True)
+        CheckBox(row,variable=selected,palette=p,command=self.update_total).pack(side='left',anchor='n',padx=(0,12),pady=8)
+        item['tile']=FileTile(row,Path(item['title']).suffix.lstrip('.') or 'URL',palette=p);item['tile'].pack(side='left',anchor='n',padx=(0,12),pady=8)
+        content=tk.Frame(row,bg=p['card']);content.pack(side='left',fill='x',expand=True)
         item['name_label']=label(content,item['title'],palette=self.p,weight='SemiBold');item['name_label'].max_width=460;item['name_label'].pack(anchor='w')
+        if self.pano:
+            content.bind('<Configure>',lambda event:(setattr(item['name_label'],'max_width',event.width),item['name_label'].draw()),add='+')
         item['info']=label(content,'İnceleniyor…',palette=self.p,size=12,muted=True);item['info'].pack(anchor='w',pady=(4,0))
-        item['options']=tk.Frame(content,bg=self.p['card'])
+        item['options']=tk.Frame(content,bg=p['card'])
         item['section_host']=content
         item['selected_trace']=selected.trace_add('write',lambda *args:self.update_total())
         card.bind('<Destroy>',lambda e:selected.trace_remove('write',item['selected_trace']) if e.widget is card else None,add='+')
@@ -137,7 +177,7 @@ class BatchDialog(AppWindow):
             item['info'].configure(text=('Devam ettirilebilir · en çok '+str(self.parent.settings['default_connections'])+' bağlantı' if result.get('supports_ranges') else 'Devam desteği doğrulanmadı')+' · '+(number(self.parent,format_bytes(item['size'])) if item['size'] else 'Boyut bilinmiyor'))
         elif result['kind']=='video':
             from ui_thumbnail import Thumbnail
-            item['tile'].destroy();item['tile']=Thumbnail(item['card'].content,self.parent,self.p,source=result.get('thumbnail'))
+            item['tile'].destroy();item['tile']=Thumbnail(item['card'].content,self.parent,self.item_palette,source=result.get('thumbnail'))
             item['tile'].pack(side='left',anchor='n',before=item['section_host'],padx=(0,12))
             item['title']=result['title'];item['formats']=result['qualities'];choices={str(q['height']):str(q['height'])+'p' for q in result['qualities']}
             choices=choices or {'best':'En iyi'}
@@ -146,6 +186,15 @@ class BatchDialog(AppWindow):
             SegmentedControl(item['options'],{'video':'Video','audio':'MP3'},item['mode'],palette=self.p,command=lambda *args:self.item_changed(item)).pack(side='left')
             Select(item['options'],choices,item['quality'],palette=self.p,width=120,command=lambda *args:self.item_changed(item)).pack(side='left',padx=6)
             Button(item['options'],'Bölüm seç',lambda:self.show_section(item),palette=self.p,kind='link').pack(side='left')
+            if self.pano:
+                controls=list(item['options'].pack_slaves())
+                for control in controls:control.pack_forget()
+                for index,control in enumerate(controls):
+                    control.grid(row=0,column=index,sticky='w',padx=(0 if index==0 else 6,0))
+                def arrange(event,controls=controls):
+                    wrapped=event.width<sum(control.winfo_reqwidth() for control in controls)+12
+                    controls[-1].grid_configure(row=1 if wrapped else 0,column=0 if wrapped else 2,columnspan=2 if wrapped else 1)
+                item['options'].bind('<Configure>',arrange)
             self.item_changed(item)
         else:item['info'].configure(text='İncelenemedi · yine de indirilebilir')
         item['name_label'].configure(text=item['title'])
@@ -163,7 +212,7 @@ class BatchDialog(AppWindow):
     def show_section(self,item):
         if 'section' not in item:
             from video_section import SectionFields
-            item['section']=SectionFields(item['section_host'],duration=item.get('duration'),palette=self.p,command=self.update_total)
+            item['section']=SectionFields(item['section_host'],duration=item.get('duration'),palette=self.item_palette,command=self.update_total)
         item['section'].enabled.set(not item['section'].enabled.get())
 
     def select_all(self):
