@@ -16,26 +16,51 @@ class TransferContent(tk.Frame):
         super().__init__(master,bg=parent.palette['canvas']);self.parent=parent;self.did=did;self.p=parent.palette
         keys=('url','state','total','received','speed','eta','resume','method','connections','path','average','peak','active_time')
         self.values={key:tk.StringVar(self,'') for key in keys};self.display={key:tk.StringVar(self,'') for key in keys}
+        self.pano=self.p.get('design')=='pano'
         top=tk.Frame(self,bg=self.p['canvas']);top.pack(fill='x',pady=(16,0))
-        left=AutoCard(top,self.p);left.pack_configure(side='left',fill='both',expand=True,padx=(24,8))
-        self.ring=ProgressRing(left.content,self.p,value=None);self.ring.pack(side='left',padx=(0,12))
-        summary=tk.Frame(left.content,bg=self.p['card']);summary.pack(side='left',fill='x',expand=True)
-        for key,title in (('received','İndirilen'),('total','Toplam'),('eta','Kalan süre')):
-            label(summary,title,palette=self.p,size=12,muted=True).pack(anchor='w',pady=(4,2))
-            label(summary,variable=self.display[key],palette=self.p,size=14,weight='SemiBold').pack(anchor='w')
-        right=AutoCard(top,self.p);right.pack_configure(side='left',fill='both',expand=True,padx=(8,24))
+        left=AutoCard(top,self.p);self.progress_card=left
+        if self.pano:
+            label(left.content,'İLERLEME',palette=self.p,size=12,weight='SemiBold',muted=True).pack(anchor='w')
+        else:left.pack_configure(side='left',fill='both',expand=True,padx=(24,8))
+        self.ring=ProgressRing(left.content,self.p,value=None);self.ring.pack(fill='x') if self.pano else self.ring.pack(side='left',padx=(0,12))
+        if self.pano:
+            self.ring.configure(height=115);self.amount=tk.StringVar(self,'—');self.active_connections=tk.StringVar(self,'—')
+            label(left.content,variable=self.amount,palette=self.p,size=12,muted=True).pack(anchor='w',pady=(0,10))
+        summary=tk.Frame(left.content,bg=self.p['card']);summary.pack(fill='x') if self.pano else summary.pack(side='left',fill='x',expand=True)
+        fields=(('eta','Kalan süre'),('connections','Bağlantı')) if self.pano else (('received','İndirilen'),('total','Toplam'),('eta','Kalan süre'))
+        for key,title in fields:
+            content=summary
+            if self.pano:
+                well=AutoCard(summary,dict(self.p,card=self.p['well'],line=self.p['well']),padding=12);well.radius=14
+                well.pack_configure(side='left',fill='both',expand=True,padx=(0,4) if key=='eta' else (4,0),pady=0);content=well.content
+            label(content,title,palette=self.p,size=12,muted=True).pack(anchor='w',pady=(4,2))
+            variable=self.active_connections if self.pano and key=='connections' else self.display[key]
+            label(content,variable=variable,palette=self.p,size=14,weight='SemiBold').pack(anchor='w')
+        right=AutoCard(top,self.p);self.speed_card=right
+        if not self.pano:right.pack_configure(side='left',fill='both',expand=True,padx=(8,24))
         label(right.content,'Aktarım hızı',palette=self.p,size=12,muted=True).pack(anchor='w')
         label(right.content,variable=self.display['speed'],palette=self.p,size=24,weight='Bold').pack(anchor='w')
-        self.chart=SpeedChart(right.content,self.p,width=380,height=130,formatter=lambda text:number(parent,text));self.chart.pack(fill='x')
-        average=label(right.content,variable=self.display['average'],palette=self.p,size=12,muted=True);average.pack(anchor='w')
-        # Ellipsize to the card instead of running past its right edge.
-        right.content.bind('<Configure>',lambda e:(setattr(average,'max_width',max(40,e.width-4)),average.draw()),add='+')
-        top.bind('<Configure>',lambda e:self.arrange_cards(e,left,right))
+        self.chart=SpeedChart(right.content,self.p,width=380,height=90 if self.pano else 130,formatter=lambda text:number(parent,text));self.chart.pack(fill='x')
+        self.metric_cards=[]
+        if self.pano:
+            self.mean=tk.StringVar(self,'—');self.highest=tk.StringVar(self,'—')
+            for title,variable in (('Ortalama',self.mean),('En yüksek',self.highest)):
+                card=AutoCard(top,self.p);label(card.content,title,palette=self.p,size=12,muted=True).pack(anchor='w')
+                label(card.content,variable=variable,palette=self.p,size=18,weight='Bold').pack(anchor='w',pady=(6,0));self.metric_cards.append(card)
+            for card in (left,right,*self.metric_cards):card.pack_forget();card.radius=22
+            top.bind('<Configure>',self.arrange_pano)
+        else:
+            average=label(right.content,variable=self.display['average'],palette=self.p,size=12,muted=True);average.pack(anchor='w')
+            # Ellipsize to the card instead of running past its right edge.
+            right.content.bind('<Configure>',lambda e:(setattr(average,'max_width',max(40,e.width-4)),average.draw()),add='+')
+            top.bind('<Configure>',lambda e:self.arrange_cards(e,left,right))
         parts=AutoCard(self,self.p)
+        if self.pano:parts.radius=22
         label(parts.content,'Parça haritası',palette=self.p,weight='SemiBold').pack(anchor='w')
         label(parts.content,variable=self.display['connections'],palette=self.p,size=12,muted=True).pack(anchor='w',pady=6)
         self.parts=PartMap(parts.content,self.p,rows=(),height=80);self.parts.pack(fill='x')
-        technical=AutoCard(self,self.p)
+        technical=AutoCard(self,self.p);self.technical_card=technical
+        if self.pano:technical.radius=22
         # A05: one label column, equal row heights and hairlines; values used to
         # start right after each label, so every row began at a different x.
         for index,(key,title) in enumerate((('url','Adres'),('path','Kayıt yeri'),('method','Yöntem'),('resume','Sürdürme'))):
@@ -43,10 +68,24 @@ class TransferContent(tk.Frame):
             row=tk.Frame(technical.content,bg=self.p['card'],height=44);row.pack(fill='x');row.pack_propagate(False)
             column=tk.Frame(row,bg=self.p['card'],width=140,height=44);column.pack(side='left');column.pack_propagate(False)
             label(column,title,palette=self.p,muted=True).pack(side='left')
-            if key=='url':Button(row,'Kopyala',self.copy_url,palette=self.p,kind='soft',height=SIZES['small_button']).pack(side='right')
-            if key=='path':Button(row,'Klasörü aç',self.open_folder,palette=self.p,kind='soft',height=SIZES['small_button']).pack(side='right')
+            button=None
+            if key=='url':button=Button(row,'Kopyala',self.copy_url,palette=self.p,kind='soft',height=SIZES['small_button'])
+            if key=='path':button=Button(row,'Klasörü aç',self.open_folder,palette=self.p,kind='soft',height=SIZES['small_button'])
+            if button:button.pack(side='right')
             item=label(row,variable=self.display[key],palette=self.p);item.max_width=520;item.pack(side='left')
+            if self.pano:
+                row.bind('<Configure>',lambda event,item=item,button=button:(setattr(item,'max_width',max(1,event.width-140-(button.winfo_reqwidth()+8 if button else 0))),item.draw()),add='+')
         self.snapshot=None
+
+    def arrange_pano(self,event):
+        if event.widget is not self.progress_card.master:return
+        top=event.widget;wide=event.width>=800
+        for column in range(4):top.columnconfigure(column,weight=1 if wide or column<2 else 0,uniform='detail' if wide or column<2 else '')
+        left,right=self.progress_card,self.speed_card
+        left.grid(row=0,column=0,rowspan=2 if wide else 1,columnspan=2,sticky='nsew',padx=(24,8) if wide else 24,pady=(0,16))
+        right.grid(row=0 if wide else 1,column=2 if wide else 0,columnspan=2,sticky='nsew',padx=(8,24) if wide else 24,pady=(0,16))
+        for index,card in enumerate(self.metric_cards):
+            card.grid(row=1 if wide else 2,column=2+index if wide else index,sticky='nsew',padx=(8,16) if wide and index==0 else (0,24) if wide else (24,8) if index==0 else (8,24),pady=(0,16))
 
     def arrange_cards(self,event,left,right):
         if event.widget is not left.master:return
@@ -89,6 +128,10 @@ class TransferContent(tk.Frame):
             average='Ortalama '+format_speed(history.average)+' · En yüksek '+format_speed(max((v for _,v in points),default=0)) if history else 'Gerçek aktarım örnekleri bekleniyor…',
             peak=format_speed(max((v for _,v in points),default=0)),active_time=f'{history.active_seconds:.0f} sn' if history else '—')
         for key,value in texts.items():self.values[key].set(value);self.display[key].set(number(app,value) if key in ('total','received','speed','average') else value)
+        if self.pano:
+            self.mean.set(number(app,format_speed(history.average)) if history else '—');self.highest.set(number(app,texts['peak']) if points else '—')
+            self.amount.set(number(app,format_bytes(received)+' / '+(format_bytes(total) if total else 'Bilinmiyor')))
+            self.active_connections.set(count)
         self.snapshot=dict(record=record,state=state,progress=ratio,total=total,received=received,streams=streams)
         return self.snapshot
 
@@ -104,7 +147,11 @@ class DownloadDetailDialog(AppWindow):
         self.status_badge=StatusBadge(top,record['status'],self.p);self.status_badge.pack(side='right',padx=(0,12))
         text=tk.Frame(top,bg=self.p['dialog']);text.pack(side='left',fill='x',expand=True)
         name=label(text,record['filename'],palette=self.p,size=16,weight='Bold');name.max_width=560;name.pack(anchor='w')
-        label(text,subtitle(record),palette=self.p,size=12,muted=True).pack(anchor='w',pady=(2,0))
+        description=label(text,subtitle(record),palette=self.p,size=12,muted=True);description.pack(anchor='w',pady=(2,0))
+        if self.p.get('design')=='pano':
+            def fit_header(event):
+                for item in (name,description):item.max_width=event.width;item.draw()
+            text.bind('<Configure>',fit_header)
         self.content=TransferContent(self.body,parent,self.download_id);self.content.pack(fill='both',expand=True)
         self.values=self.content.values;self.auto_close=tk.BooleanVar(self,False)
         CheckBox(self.actionbar,'Bitince bu pencereyi kapat',self.auto_close,palette=self.p).pack(side='left')

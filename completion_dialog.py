@@ -35,8 +35,9 @@ class CompletionDialog(AppWindow):
             filename=record['filename'];prefix=ellipsize(filename,380,14,'SemiBold')
             self.name_lines=[]
             if prefix!=filename:
-                cut=len(prefix.removesuffix('…'));space=filename.rfind(' ',0,cut)
-                if space>cut//2:cut=space
+                cut=len(prefix.removesuffix('…'))
+                boundary=max(filename.rfind(' ',0,cut),filename.rfind('-',0,cut)+1,filename.rfind('_',0,cut)+1)
+                if boundary>cut//2:cut=boundary
                 names=(filename[:cut],filename[cut:].lstrip())
             else:names=(filename,)
             for value in names:

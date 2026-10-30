@@ -32,6 +32,28 @@ class PreviewReportTests(unittest.TestCase):
             (root/'queue_ui.py').write_bytes(b'fixture');(root/'pano-settings-0.png').write_bytes(b'corrupt')
             with self.assertRaisesRegex(ValueError,'PNG'):validate_pano_settings(root,root)
 
+    def test_pano_utilities_reject_shifted_cards_stale_sources_and_pngs(self):
+        import copy,hashlib,json
+        from tools.report_dialog_previews import UTILITY_SOURCES,UTILITY_STATES,validate_pano_utilities
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            for name in UTILITY_SOURCES:
+                path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(b'fixture')
+            data=dict(sources={name:hashlib.sha256(b'fixture').hexdigest() for name in UTILITY_SOURCES},
+                previews={},stat_width_delta=0,stat_y_delta=0,step_width_delta=0)
+            for state in UTILITY_STATES:
+                image=Image.new('RGB',(560,600),palette('pano_light')['dialog'])
+                for x in range(64):image.putpixel((x,20),(x,0,0))
+                path=root/f'pano-utility-{state}.png';image.save(path);data['previews'][state]=hashlib.sha256(path.read_bytes()).hexdigest()
+            path=root/'pano-utility-layout.json';path.write_text(json.dumps(data));self.assertEqual(len(validate_pano_utilities(root,root)),4)
+            for key,value in (('stat_width_delta',2),('stat_y_delta',1),('step_width_delta',2),('step_width_delta',float('nan'))):
+                bad=copy.deepcopy(data);bad[key]=value;path.write_text(json.dumps(bad))
+                with self.assertRaisesRegex(ValueError,'alignment'):validate_pano_utilities(root,root)
+            path.write_text(json.dumps(data));(root/'feature_windows.py').write_bytes(b'changed')
+            with self.assertRaisesRegex(ValueError,'Stale'):validate_pano_utilities(root,root)
+            (root/'feature_windows.py').write_bytes(b'fixture');(root/'pano-utility-graph.png').write_bytes(b'corrupt')
+            with self.assertRaisesRegex(ValueError,'Stale'):validate_pano_utilities(root,root)
+
     def test_pano_completion_rejects_misalignment_and_stale_sources_or_pngs(self):
         import copy,hashlib,json
         with tempfile.TemporaryDirectory() as folder:
