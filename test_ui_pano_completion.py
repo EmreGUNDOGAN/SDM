@@ -41,7 +41,7 @@ def main():
             with patch('antivirus.scan_file',return_value=('Taranan nesnelerde tehdit bulunmadı. Ek tarama ayrıntısı.',folder/'synthetic-scan.log')) as scanner:
                 window=CompletionDialog(app,record);window.geometry('560x500+40+40');settle()
                 scanner.assert_not_called()
-                if design=='pano':
+                if design in ('pano','yorunge'):
                     assert len(window.stat_cards)==3 and len(window.name_lines)==2
                     assert window.name_lines[0].text.endswith('-')
                     assert ''.join(line.text for line in window.name_lines)==name
@@ -56,11 +56,12 @@ def main():
                     assert len(set(value_y))==1,value_y
                     assert window.scan_title.master.cget('bg')==app.palette['card']
                     assert window.file_card.winfo_rootx()==window.scan_title.master.master.master.winfo_rootx(), 'File/scan card left edges differ'
-                    capture_client(window).save(Path('build/p06-pano.png'))
+                    capture_client(window).save(Path(f'build/p06-{design}.png'))
+                if design=='pano':
                     measurements['stat_width_spread']=max(widths)-min(widths)
                     measurements['stat_value_y_spread']=max(value_y)-min(value_y)
                     measurements['card_edge_delta']=abs(window.file_card.winfo_rootx()-window.scan_title.master.master.master.winfo_rootx())
-                else:assert not window.stat_cards
+                elif design!='yorunge':assert not window.stat_cards
                 window.scan_button.invoke();assert window.scan_button.disabled
                 deadline=time.monotonic()+3
                 while window.scan_button.disabled:

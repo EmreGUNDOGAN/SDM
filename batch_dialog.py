@@ -10,7 +10,7 @@ from ui_controls import TextInput,CheckBox,Select,SegmentedControl,Switch
 from file_tools import AUDIO_BITRATES
 from ui_indicators import FileTile
 from ui_surface import TextLabel
-from ui_tokens import text_px
+from ui_tokens import text_px,YORUNGE_MONO_FAMILY
 from utils import is_valid_url,clean_filename,extract_filename_from_url,format_bytes
 from video_downloader import is_video_site
 from atlas_view import domain,file_kind,number
@@ -18,8 +18,10 @@ from atlas_view import domain,file_kind,number
 
 class BatchDialog(AppWindow):
     def __init__(self,parent,initial=''):
-        super().__init__(parent,'Yeni indirme',760,820,'Bağlantıları yapıştır; SDM her birini inceleyip boyutunu ve kalitelerini gösterir.')
-        self.pano=self.p.get('design')=='pano'
+        super().__init__(parent,'Yeni indirme',760,820,'Bağlantıları yapıştır; SDM her birini inceleyip boyutunu ve kalitelerini gösterir.',kicker='YENİ AKTARIM')
+        self.pano=self.p.get('design')=='pano';self.orbit=self.p.get('design')=='yorunge'
+        # Pano and Yörünge share the panelled P03/F03 layout; only Pano rounds and tints it.
+        self.panels=self.pano or self.orbit
         self.item_palette=dict(self.p,card=self.p['well'],line=self.p['well']) if self.pano else self.p
         if self.pano:
             description=self.description_label.text;self.description_label.pack_forget()
@@ -33,51 +35,69 @@ class BatchDialog(AppWindow):
         self.queue_name=tk.StringVar(self,parent.settings['queues'][0]['name'])
         self.video=tk.BooleanVar(self,False);self.audio=tk.BooleanVar(self,False);self.quality=tk.StringVar(self,'En İyi')
         link_parent=self.body
-        if self.pano:
-            self.links_card=AutoCard(self.body,self.p);self.links_card.radius=22;link_parent=self.links_card.content
-            label(link_parent,'BAĞLANTILAR',palette=self.p,size=12,weight='SemiBold',muted=True).pack(anchor='w',pady=(0,8))
-        self.links=tk.StringVar(self,initial);self.url_input=TextInput(link_parent,variable=self.links,palette=self.p,multiline=True,height=110 if self.pano else 130)
-        self.url_input.pack(fill='x',padx=0 if self.pano else 24,pady=(0,10));self.urls=self.url_input.entry
-        if self.pano:
+        if self.panels:
+            self.links_card=AutoCard(self.body,self.p);link_parent=self.links_card.content
+            if self.orbit:self.links_card.brackets=False
+            else:
+                self.links_card.radius=22
+                label(link_parent,'BAĞLANTILAR',palette=self.p,size=12,weight='SemiBold',muted=True).pack(anchor='w',pady=(0,8))
+        self.links=tk.StringVar(self,initial);self.url_input=TextInput(link_parent,variable=self.links,palette=self.p,multiline=True,height=110 if self.panels else 130)
+        self.url_input.pack(fill='x',padx=0 if self.panels else 24,pady=(0,10));self.urls=self.url_input.entry
+        if self.panels:
             self.urls.bind('<FocusIn>',lambda event:self.links_card.set_focused(True),add='+')
             self.urls.bind('<FocusOut>',lambda event:self.links_card.set_focused(False),add='+')
-        Button(link_parent,'Panodan yapıştır',self.paste,palette=self.p,kind='soft').pack(anchor='e',padx=0 if self.pano else 24,pady=(0,0 if self.pano else 16))
+        paste_parent=link_parent
+        if self.orbit:
+            paste_parent=tk.Frame(link_parent,bg=self.p['card']);paste_parent.pack(fill='x')
+            TextLabel(paste_parent,'HER SATIRA BİR BAĞLANTI · SÜRÜKLE-BIRAK DESTEKLENİR',size=10,fg=self.p['muted'],family=YORUNGE_MONO_FAMILY).pack(side='left')
+        Button(paste_parent,'Panodan yapıştır',self.paste,palette=self.p,kind='soft').pack(side='right' if self.orbit else 'top',anchor='e',padx=0 if self.panels else 24,pady=(0,0 if self.panels else 16))
         found_parent=self.body
-        if self.pano:
-            self.found_card=AutoCard(self.body,self.p);self.found_card.radius=22;found_parent=self.found_card.content
-        head=tk.Frame(found_parent,bg=found_parent.cget('bg'));head.pack(fill='x',padx=0 if self.pano else 24,pady=(0,12))
-        self.status=tk.StringVar(self,'Bulunanlar · 0 bağlantı');label(head,variable=self.status,palette=self.p,weight='SemiBold').pack(side='left')
+        if self.panels:
+            self.found_card=AutoCard(self.body,self.p);found_parent=self.found_card.content
+            if self.pano:self.found_card.radius=22
+        head=tk.Frame(found_parent,bg=found_parent.cget('bg'));head.pack(fill='x',padx=0 if self.panels else 24,pady=(0,12))
+        self.status=tk.StringVar(self,'Bulunanlar · 0 bağlantı')
+        if self.orbit:TextLabel(head,textvariable=self.status,size=10,fg=self.p['muted'],family=YORUNGE_MONO_FAMILY).pack(side='left')
+        else:label(head,variable=self.status,palette=self.p,weight='SemiBold').pack(side='left')
         Button(head,'Tümünü seç',self.select_all,palette=self.p,kind='link').pack(side='right')
         self.found=tk.Frame(found_parent,bg=found_parent.cget('bg'));self.found.pack(fill='x')
         save_parent=self.body
-        if self.pano:
+        if self.panels:
             save_parent=tk.Frame(self.body,bg=self.p['dialog']);save_parent.pack(fill='x',padx=20)
             save_parent.columnconfigure((0,1),weight=1,uniform='save')
             folder_host=tk.Frame(save_parent,bg=self.p['dialog']);folder_host.grid(row=0,column=0,sticky='nsew',padx=(4,6))
             queue_host=tk.Frame(save_parent,bg=self.p['dialog']);queue_host.grid(row=0,column=1,sticky='nsew',padx=(6,4))
-        save=AutoCard(folder_host if self.pano else save_parent,self.p)
-        if self.pano:save.radius=22;save.pack_configure(padx=0,fill='both',expand=True);self.folder_card=save
+        save=AutoCard(folder_host if self.panels else save_parent,self.p)
+        if self.panels:save.radius=22 if self.pano else 0;save.pack_configure(padx=0,fill='both',expand=True);self.folder_card=save
         field(save.content,'Klasör',self.folder,self.p,actions=[('Değiştir',self.browse)])
         queue_content=save.content
-        if self.pano:
-            self.queue_card=AutoCard(queue_host,self.p);self.queue_card.radius=22
+        if self.panels:
+            self.queue_card=AutoCard(queue_host,self.p);self.queue_card.radius=22 if self.pano else 0
             self.queue_card.pack_configure(padx=0,fill='both',expand=True);queue_content=self.queue_card.content
         label(queue_content,'Kuyruk',palette=self.p,muted=True).pack(anchor='w',pady=(8,4))
         Select(queue_content,{q['name']:q['name'] for q in parent.settings['queues']},self.queue_name,palette=self.p,width=240 if self.pano else 260).pack(fill='x')
         # Applies to every link saved as MP3; same options as the YouTube Music button.
         self.bitrate=tk.StringVar(self,'192');self.album=tk.BooleanVar(self,False)
         audio_parent=save.content
-        if self.pano:
-            audio_card=AutoCard(self.body,self.p);audio_card.radius=22;audio_parent=audio_card.content
-        audio_row=tk.Frame(audio_parent,bg=self.p['card']);audio_row.pack(fill='x',pady=(0 if self.pano else 12,0))
+        if self.panels:
+            audio_card=AutoCard(self.body,self.p);audio_card.radius=22 if self.pano else 0;audio_parent=audio_card.content
+            if self.orbit:
+                for card in (save,self.queue_card,audio_card):card.brackets=False
+        audio_row=tk.Frame(audio_parent,bg=self.p['card']);audio_row.pack(fill='x',pady=(0 if self.panels else 12,0))
         label(audio_row,'MP3 kalitesi',palette=self.p,muted=True).pack(side='left',padx=(0,10))
         Select(audio_row,{str(rate):f'{rate} kb/sn' for rate in AUDIO_BITRATES},self.bitrate,palette=self.p,width=150).pack(side='left')
         Switch(audio_row,self.album,palette=self.p).pack(side='right')
         label(audio_row,'Sanatçı / Albüm klasörü',palette=self.p).pack(side='right',padx=(0,8))
         self.total=tk.StringVar(self,'0 öğe seçili')
-        total_label=label(self.footer if self.pano else self.actionbar,variable=self.total,palette=self.p,size=12)
-        if self.pano:total_label.pack(before=self.actionbar,anchor='w',padx=24,pady=(8,0))
-        else:total_label.pack(side='left')
+        self.scanning=tk.StringVar(self,'')
+        if self.orbit:
+            summary=tk.Frame(self.actionbar,bg=self.p['footer']);summary.pack(side='left')
+            TextLabel(summary,textvariable=self.total,size=12,weight='Bold',fg=self.p['text'],family=YORUNGE_MONO_FAMILY).pack(anchor='w')
+            TextLabel(summary,textvariable=self.scanning,size=10,fg=self.p['muted'],family=YORUNGE_MONO_FAMILY).pack(anchor='w')
+        else:
+            total_label=label(self.footer if self.pano else self.actionbar,variable=self.total,palette=self.p,size=12)
+            if self.pano:total_label.pack(before=self.actionbar,anchor='w',padx=24,pady=(8,0))
+            else:total_label.pack(side='left')
         self.buttons={}
         self.buttons['start']=action(self.actionbar,'Şimdi indir',lambda:self.submit(True),self.p,'start' if self.pano else 'primary')
         self.buttons['queue']=action(self.actionbar,'Kuyruğa ekle',lambda:self.submit(False),self.p)
@@ -133,7 +153,7 @@ class BatchDialog(AppWindow):
     def make_item(self,url,title='',source=None):
         p=self.item_palette
         card=AutoCard(self.found,p,padding=12);row=card.content
-        if self.pano:card.radius=16;card.pack_configure(padx=0,pady=(0,8))
+        if self.panels:card.radius=16 if self.pano else 0;card.pack_configure(padx=0,pady=(0,8))
         selected=tk.BooleanVar(self,True);item=dict(url=url,source=source,card=card,selected=selected,title=title or extract_filename_from_url(url),kind='pending',size=0,mode=tk.StringVar(self,'video'),quality=tk.StringVar(self,'best'),formats=[])
         self.items[url]=item
         CheckBox(row,variable=selected,palette=p,command=self.update_total).pack(side='left',anchor='n',padx=(0,12),pady=8)
@@ -145,7 +165,12 @@ class BatchDialog(AppWindow):
         item['info']=label(content,'İnceleniyor…',palette=self.p,size=12,muted=True);item['info'].pack(anchor='w',pady=(4,0))
         item['options']=tk.Frame(content,bg=p['card'])
         item['section_host']=content
-        item['selected_trace']=selected.trace_add('write',lambda *args:self.update_total())
+        if self.orbit:
+            # F03: a selected target carries the accent stripe instead of brackets.
+            card.brackets=False
+            def mark():card.stripe=self.p['accent'] if selected.get() else None;card.set_focused(card.focused)
+            mark()
+        item['selected_trace']=selected.trace_add('write',lambda *args:(self.orbit and mark(),self.update_total()))
         card.bind('<Destroy>',lambda e:selected.trace_remove('write',item['selected_trace']) if e.widget is card else None,add='+')
         return item
 
@@ -186,7 +211,7 @@ class BatchDialog(AppWindow):
             SegmentedControl(item['options'],{'video':'Video','audio':'MP3'},item['mode'],palette=self.p,command=lambda *args:self.item_changed(item)).pack(side='left')
             Select(item['options'],choices,item['quality'],palette=self.p,width=120,command=lambda *args:self.item_changed(item)).pack(side='left',padx=6)
             Button(item['options'],'Bölüm seç',lambda:self.show_section(item),palette=self.p,kind='link').pack(side='left')
-            if self.pano:
+            if self.panels:
                 controls=list(item['options'].pack_slaves())
                 for control in controls:control.pack_forget()
                 for index,control in enumerate(controls):
@@ -221,8 +246,13 @@ class BatchDialog(AppWindow):
     def update_total(self):
         selected=[item for item in self.items.values() if item['selected'].get()]
         pending=sum(item['kind']=='pending' for item in self.items.values())
-        self.inspecting=bool(pending);self.status.set(f'Bulunanlar · {len(self.items)} bağlantı')
-        self.total.set(f'{len(selected)} öğe seçili · ~{number(self.parent,format_bytes(sum(item.get("size",0) for item in selected)))} · {pending} inceleniyor')
+        self.inspecting=bool(pending);size=number(self.parent,format_bytes(sum(item.get('size',0) for item in selected)))
+        if self.orbit:
+            self.status.set(f'// ALGILANAN HEDEFLER · {len(self.items):02}');self.total.set(f'{len(selected)} SEÇİLİ · ~{size}')
+            self.scanning.set(f'{pending} HEDEF TARANIYOR' if pending else '')
+        else:
+            self.status.set(f'Bulunanlar · {len(self.items)} bağlantı')
+            self.total.set(f'{len(selected)} öğe seçili · ~{size} · {pending} inceleniyor')
         valid=bool(selected) and not pending
         for item in selected:
             if 'section' in item:

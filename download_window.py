@@ -6,7 +6,8 @@ from ui_dialog import AppWindow,AutoCard,label,action
 from ui_controls import CheckBox
 from ui_indicators import ProgressRing,SpeedChart,PartMap,FileTile,StatusBadge
 from theme_widgets import Button
-from ui_tokens import SIZES
+from ui_tokens import SIZES,YORUNGE_MONO_FAMILY
+from ui_surface import TextLabel
 from utils import format_bytes,format_speed,format_eta
 from atlas_view import number,file_kind,subtitle
 
@@ -16,38 +17,50 @@ class TransferContent(tk.Frame):
         super().__init__(master,bg=parent.palette['canvas']);self.parent=parent;self.did=did;self.p=parent.palette
         keys=('url','state','total','received','speed','eta','resume','method','connections','path','average','peak','active_time')
         self.values={key:tk.StringVar(self,'') for key in keys};self.display={key:tk.StringVar(self,'') for key in keys}
-        self.pano=self.p.get('design')=='pano'
+        self.pano=self.p.get('design')=='pano';self.orbit=self.p.get('design')=='yorunge'
+        # Yörünge F05 keeps Pano's P05 grid; it adds mono captions and stripe metric boxes.
+        self.panels=self.pano or self.orbit
         top=tk.Frame(self,bg=self.p['canvas']);top.pack(fill='x',pady=(16,0))
         left=AutoCard(top,self.p);self.progress_card=left
-        if self.pano:
-            label(left.content,'İLERLEME',palette=self.p,size=12,weight='SemiBold',muted=True).pack(anchor='w')
+        if self.panels:self.caption(left.content,'İLERLEME').pack(anchor='w')
         else:left.pack_configure(side='left',fill='both',expand=True,padx=(24,8))
-        self.ring=ProgressRing(left.content,self.p,value=None);self.ring.pack(fill='x') if self.pano else self.ring.pack(side='left',padx=(0,12))
-        if self.pano:
-            self.ring.configure(height=115);self.amount=tk.StringVar(self,'—');self.active_connections=tk.StringVar(self,'—')
-            label(left.content,variable=self.amount,palette=self.p,size=12,muted=True).pack(anchor='w',pady=(0,10))
-        summary=tk.Frame(left.content,bg=self.p['card']);summary.pack(fill='x') if self.pano else summary.pack(side='left',fill='x',expand=True)
-        fields=(('eta','Kalan süre'),('connections','Bağlantı')) if self.pano else (('received','İndirilen'),('total','Toplam'),('eta','Kalan süre'))
+        self.ring=ProgressRing(left.content,self.p,value=None,size=160 if self.orbit else None)
+        # Pano stretches its horizontal bar; Yörünge's ring stays a circle.
+        if self.orbit:self.ring.pack(pady=(8,0))
+        else:self.ring.pack(fill='x') if self.panels else self.ring.pack(side='left',padx=(0,12))
+        if self.panels:
+            if self.pano:self.ring.configure(height=115)
+            self.amount=tk.StringVar(self,'—');self.active_connections=tk.StringVar(self,'—')
+            self.value(left.content,self.amount,12,muted=True).pack(anchor='w' if self.pano else 'center',pady=(0,10))
+        summary=tk.Frame(left.content,bg=self.p['card']);summary.pack(fill='x') if self.panels else summary.pack(side='left',fill='x',expand=True)
+        fields=(('eta','Kalan süre'),('connections','Bağlantı')) if self.panels else (('received','İndirilen'),('total','Toplam'),('eta','Kalan süre'))
         for key,title in fields:
             content=summary
-            if self.pano:
-                well=AutoCard(summary,dict(self.p,card=self.p['well'],line=self.p['well']),padding=12);well.radius=14
+            if self.panels:
+                well=self.metric(summary,self.p['accent']) if self.orbit else AutoCard(summary,dict(self.p,card=self.p['well'],line=self.p['well']),padding=12)
+                if self.pano:well.radius=14
                 well.pack_configure(side='left',fill='both',expand=True,padx=(0,4) if key=='eta' else (4,0),pady=0);content=well.content
-            label(content,title,palette=self.p,size=12,muted=True).pack(anchor='w',pady=(4,2))
-            variable=self.active_connections if self.pano and key=='connections' else self.display[key]
-            label(content,variable=variable,palette=self.p,size=14,weight='SemiBold').pack(anchor='w')
+            if self.orbit:self.caption(content,title,mark=False).pack(anchor='w',pady=(4,2))
+            else:label(content,title,palette=self.p,size=12,muted=True).pack(anchor='w',pady=(4,2))
+            variable=self.active_connections if self.panels and key=='connections' else self.display[key]
+            self.value(content,variable,14,'SemiBold').pack(anchor='w')
         right=AutoCard(top,self.p);self.speed_card=right
-        if not self.pano:right.pack_configure(side='left',fill='both',expand=True,padx=(8,24))
-        label(right.content,'Aktarım hızı',palette=self.p,size=12,muted=True).pack(anchor='w')
-        label(right.content,variable=self.display['speed'],palette=self.p,size=24,weight='Bold').pack(anchor='w')
-        self.chart=SpeedChart(right.content,self.p,width=380,height=90 if self.pano else 130,formatter=lambda text:number(parent,text));self.chart.pack(fill='x')
+        if not self.panels:right.pack_configure(side='left',fill='both',expand=True,padx=(8,24))
+        if self.orbit:right.brackets=False;self.caption(right.content,'HIZ · SON 60 SN').pack(anchor='w')
+        else:label(right.content,'Aktarım hızı',palette=self.p,size=12,muted=True).pack(anchor='w')
+        self.value(right.content,self.display['speed'],24,'Bold').pack(anchor='w')
+        self.chart=SpeedChart(right.content,self.p,width=380,height=90 if self.panels else 130,formatter=lambda text:number(parent,text));self.chart.pack(fill='x')
         self.metric_cards=[]
-        if self.pano:
+        if self.panels:
             self.mean=tk.StringVar(self,'—');self.highest=tk.StringVar(self,'—')
-            for title,variable in (('Ortalama',self.mean),('En yüksek',self.highest)):
-                card=AutoCard(top,self.p);label(card.content,title,palette=self.p,size=12,muted=True).pack(anchor='w')
-                label(card.content,variable=variable,palette=self.p,size=18,weight='Bold').pack(anchor='w',pady=(6,0));self.metric_cards.append(card)
-            for card in (left,right,*self.metric_cards):card.pack_forget();card.radius=22
+            for title,variable,stripe in (('Ortalama',self.mean,'violet'),('En yüksek',self.highest,'success')):
+                card=self.metric(top,self.p.get(stripe,self.p['accent'])) if self.orbit else AutoCard(top,self.p)
+                if self.orbit:self.caption(card.content,title,mark=False).pack(anchor='w')
+                else:label(card.content,title,palette=self.p,size=12,muted=True).pack(anchor='w')
+                self.value(card.content,variable,18,'Bold').pack(anchor='w',pady=(6,0));self.metric_cards.append(card)
+            for card in (left,right,*self.metric_cards):
+                card.pack_forget()
+                if self.pano:card.radius=22
             top.bind('<Configure>',self.arrange_pano)
         else:
             average=label(right.content,variable=self.display['average'],palette=self.p,size=12,muted=True);average.pack(anchor='w')
@@ -56,26 +69,43 @@ class TransferContent(tk.Frame):
             top.bind('<Configure>',lambda e:self.arrange_cards(e,left,right))
         parts=AutoCard(self,self.p)
         if self.pano:parts.radius=22
-        label(parts.content,'Parça haritası',palette=self.p,weight='SemiBold').pack(anchor='w')
+        if self.orbit:parts.brackets=False;self.caption(parts.content,'PARÇA HARİTASI').pack(anchor='w')
+        else:label(parts.content,'Parça haritası',palette=self.p,weight='SemiBold').pack(anchor='w')
         label(parts.content,variable=self.display['connections'],palette=self.p,size=12,muted=True).pack(anchor='w',pady=6)
         self.parts=PartMap(parts.content,self.p,rows=(),height=80);self.parts.pack(fill='x')
         technical=AutoCard(self,self.p);self.technical_card=technical
         if self.pano:technical.radius=22
+        if self.orbit:technical.brackets=False
         # A05: one label column, equal row heights and hairlines; values used to
         # start right after each label, so every row began at a different x.
         for index,(key,title) in enumerate((('url','Adres'),('path','Kayıt yeri'),('method','Yöntem'),('resume','Sürdürme'))):
             if index:tk.Frame(technical.content,bg=self.p['line_soft'],height=1).pack(fill='x')
             row=tk.Frame(technical.content,bg=self.p['card'],height=44);row.pack(fill='x');row.pack_propagate(False)
             column=tk.Frame(row,bg=self.p['card'],width=140,height=44);column.pack(side='left');column.pack_propagate(False)
-            label(column,title,palette=self.p,muted=True).pack(side='left')
+            if self.orbit:self.caption(column,title,mark=False,size=11).pack(side='left')
+            else:label(column,title,palette=self.p,muted=True).pack(side='left')
             button=None
             if key=='url':button=Button(row,'Kopyala',self.copy_url,palette=self.p,kind='soft',height=SIZES['small_button'])
             if key=='path':button=Button(row,'Klasörü aç',self.open_folder,palette=self.p,kind='soft',height=SIZES['small_button'])
             if button:button.pack(side='right')
             item=label(row,variable=self.display[key],palette=self.p);item.max_width=520;item.pack(side='left')
-            if self.pano:
+            if self.panels:
                 row.bind('<Configure>',lambda event,item=item,button=button:(setattr(item,'max_width',max(1,event.width-140-(button.winfo_reqwidth()+8 if button else 0))),item.draw()),add='+')
         self.snapshot=None
+
+    def caption(self,parent,text,mark=True,size=10):
+        """Small heading: Pano's muted caps; Yörünge's mono '// TEXT'."""
+        if not self.orbit:return label(parent,text.upper(),palette=self.p,size=12,weight='SemiBold',muted=True)
+        text=text.replace('i','İ').replace('ı','I').upper()
+        return TextLabel(parent,('// ' if mark else '')+text,size=size,fg=self.p['muted'],family=YORUNGE_MONO_FAMILY)
+
+    def value(self,parent,variable,size,weight='Regular',muted=False):
+        if not self.orbit:return label(parent,variable=variable,palette=self.p,size=size,weight=weight,muted=muted)
+        return TextLabel(parent,textvariable=variable,size=size,weight=weight,fg=self.p['muted'] if muted else self.p['text'],family=YORUNGE_MONO_FAMILY)
+
+    def metric(self,parent,stripe):
+        """Yörünge ölçü kutusu: plain panel with a coloured left stripe."""
+        card=AutoCard(parent,self.p,padding=12);card.brackets=False;card.stripe=stripe;return card
 
     def arrange_pano(self,event):
         if event.widget is not self.progress_card.master:return
@@ -128,7 +158,7 @@ class TransferContent(tk.Frame):
             average='Ortalama '+format_speed(history.average)+' · En yüksek '+format_speed(max((v for _,v in points),default=0)) if history else 'Gerçek aktarım örnekleri bekleniyor…',
             peak=format_speed(max((v for _,v in points),default=0)),active_time=f'{history.active_seconds:.0f} sn' if history else '—')
         for key,value in texts.items():self.values[key].set(value);self.display[key].set(number(app,value) if key in ('total','received','speed','average') else value)
-        if self.pano:
+        if self.panels:
             self.mean.set(number(app,format_speed(history.average)) if history else '—');self.highest.set(number(app,texts['peak']) if points else '—')
             self.amount.set(number(app,format_bytes(received)+' / '+(format_bytes(total) if total else 'Bilinmiyor')))
             self.active_connections.set(count)
@@ -148,13 +178,13 @@ class DownloadDetailDialog(AppWindow):
         text=tk.Frame(top,bg=self.p['dialog']);text.pack(side='left',fill='x',expand=True)
         name=label(text,record['filename'],palette=self.p,size=16,weight='Bold');name.max_width=560;name.pack(anchor='w')
         description=label(text,subtitle(record),palette=self.p,size=12,muted=True);description.pack(anchor='w',pady=(2,0))
-        if self.p.get('design')=='pano':
+        if self.p.get('design') in ('pano','yorunge'):
             def fit_header(event):
                 for item in (name,description):item.max_width=event.width;item.draw()
             text.bind('<Configure>',fit_header)
         self.content=TransferContent(self.body,parent,self.download_id);self.content.pack(fill='both',expand=True)
         self.values=self.content.values;self.auto_close=tk.BooleanVar(self,False)
-        CheckBox(self.actionbar,'Bitince bu pencereyi kapat',self.auto_close,palette=self.p).pack(side='left')
+        CheckBox(self.actionbar,'Bitince kapat' if self.p.get('design')=='yorunge' else 'Bitince bu pencereyi kapat',self.auto_close,palette=self.p).pack(side='left')
         self.pause_button=action(self.actionbar,'Duraklat',self.pause_resume,self.p,'primary')
         self.cancel_button=action(self.actionbar,'İptal et',self.cancel,self.p,'danger_ghost')
         self.update_values()
