@@ -44,6 +44,8 @@ def build_ui(app):
     if design=='pano':
         from layout_pano import build
         return build(app)
-    # Dedicated Yörünge workspace follows in Y-2.
+    if design=='yorunge':
+        from layout_yorunge import build
+        return build(app)
     from layout_atlas import build
     return build(app)

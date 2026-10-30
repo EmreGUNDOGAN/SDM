@@ -24,7 +24,7 @@ def validate_settings(data):
         result[key]=value
     if 'excluded_sites' in result:
         result['excluded_sites']=sorted(set(normalize_domain(d) for d in result['excluded_sites']))
-    for key in ('capture_extensions','monitored_extensions','visible_columns'):
+    for key in ('capture_extensions','monitored_extensions','visible_columns','yorunge_visible_columns'):
         if key in result and any(not isinstance(v,str) or len(v)>80 for v in result[key]):raise ValueError('Geçersiz liste.')
     for key,minimum,maximum in [('default_connections',1,32),('max_simultaneous_downloads',1,10),('speed_limit_kbs',0,1000000)]:
         if key in result and not minimum<=result[key]<=maximum:raise ValueError(f'Geçersiz ayar: {key}')

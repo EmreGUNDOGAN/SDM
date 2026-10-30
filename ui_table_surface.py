@@ -57,7 +57,7 @@ class TableSurface(tk.Canvas):
         columns=list(tree.cget('displaycolumns'));head_h=40
         visible=[(item,tree.bbox(item)) for item in tree.get_children() if tree.bbox(item)]
         if visible:head_h=visible[0][1][1] if visible[0][1][1]<70 else 40
-        if app.theme_family in ('atlas','odak','pano'):
+        if app.theme_family in ('atlas','odak','pano','yorunge'):
             signature=(w,h,head_h,tuple(columns),tuple(tree.selection()),tree.xview(),tree.yview(),
                 self._keyboard_focus and tree.focus_get() is tree,
                 tuple((item,box,tree.item(item,'values'),getattr(app,'_visible_records',{}).get(int(tree.item(item,'values')[0]),{})) for item,box in visible))

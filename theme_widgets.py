@@ -190,8 +190,12 @@ class Search(tk.Canvas):
     def draw(self):
         from ui_surface import surface,photo,icon
         p=self.p;w=max(40,self.winfo_width() if self.winfo_width()>1 else 320)
-        image=surface(w,40,self.cget('bg'),p['control'],p['accent'] if self.focused else p['line'],20 if p.get('design')=='pano' else 7)
-        glyph=icon('search',18,p['muted']);image.paste(glyph,(12,11),glyph)
+        image=surface(w,40,self.cget('bg'),p['control'],p['accent'] if self.focused else p['line'],20 if p.get('design')=='pano' else 0 if p.get('design')=='yorunge' else 7)
+        if p.get('design')=='yorunge':
+            from ui_surface import text_on
+            text_on(image,(12,20),'>',13,fill=p['accent'],anchor='lm',family='JetBrains Mono')
+        else:
+            glyph=icon('search',18,p['muted']);image.paste(glyph,(12,11),glyph)
         if self.var.get():
             self.placeholder.place_forget();glyph=icon('x',16,p['muted']);image.paste(glyph,(w-27,12),glyph)
         else:self.placeholder.place(x=38,y=10)
