@@ -1,9 +1,10 @@
 """Design/color-mode preferences and deterministic legacy settings migration."""
 import sys
-from ui_tokens import COLOR_MODES, DESIGNS, DESIGN_NAMES, colors
+from ui_tokens import COLOR_MODES, DESIGNS, DESIGN_NAMES, FIXED_MODES, colors
 
 FAMILIES = DESIGNS
-THEMES = tuple(f'{design}_{mode}' for design in DESIGNS for mode in ('light', 'dark'))
+THEMES = tuple(f'{design}_{mode}' for design in DESIGNS
+               for mode in ((FIXED_MODES[design],) if design in FIXED_MODES else ('light', 'dark')))
 LEGACY_THEMES = tuple(f'{family}_{mode}' for family in ('atlas', 'orbit', 'nova')
                       for mode in ('light', 'dark')) + ('light', 'cosmo', 'dark', 'system')
 
@@ -33,7 +34,9 @@ def system_color_mode():
 
 
 def effective_mode(settings):
-    mode = migrate_settings(settings)['color_mode']
+    normalized = migrate_settings(settings)
+    if normalized['design'] in FIXED_MODES:return FIXED_MODES[normalized['design']]
+    mode = normalized['color_mode']
     return system_color_mode() if mode == 'system' else mode
 
 
@@ -52,9 +55,11 @@ def palette(key):
     design, mode = key.rsplit('_', 1)
     if design not in DESIGNS or mode not in ('light', 'dark'):
         raise ValueError(f'Unknown resolved theme: {key}')
-    p = colors(mode)
+    if design in FIXED_MODES and mode!=FIXED_MODES[design]:
+        raise ValueError(f'Unsupported color mode for design: {key}')
+    p = colors(mode,design)
     # Compatibility roles for old layouts, retained until phase 6.
-    p.update(panel=p['side'], selected=p['accent_soft'], hover=p['subtle'],
+    p.update(panel=p['card'] if design in FIXED_MODES else p['side'], selected=p['accent_soft'], hover=p['subtle'],
              control=p['card'], disabled_bg=p['subtle'], disabled_text=p['muted'],
              accent_hover=p['accent'], accent_pressed=p['accent_text'], design=design, mode=mode)
     return p
