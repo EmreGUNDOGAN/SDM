@@ -8,7 +8,7 @@ import sys
 import tempfile
 
 ROOT=Path(__file__).resolve().parent.parent
-DEFAULT=('test_ui_components.py','test_ui_alignment.py','test_ui_design_foundations.py','test_ui_031.py','test_ui_themes.py','test_ui_theme_preview.py','test_ui_atlas.py','test_ui_dialogs.py','test_ui_settings.py','test_ui_window_frame.py','test_ui_odak.py',
+DEFAULT=('test_ui_components.py','test_ui_alignment.py','test_ui_design_foundations.py','test_ui_031.py','test_ui_themes.py','test_ui_theme_preview.py','test_ui_atlas.py','test_ui_dialogs.py','test_ui_pano_completion.py','test_ui_settings.py','test_ui_window_frame.py','test_ui_odak.py',
          'test_gui_transfer.py','test_cancel_remove_ui.py','test_ui_compatibility.py','test_source_desktop.py')
 
 
