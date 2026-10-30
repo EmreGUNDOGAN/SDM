@@ -6,7 +6,8 @@ from pathlib import Path
 from tkinter import filedialog
 from ui_dialog import AppWindow,AutoCard,action,label,field
 from theme_widgets import Button
-from ui_controls import TextInput,CheckBox,Select,SegmentedControl
+from ui_controls import TextInput,CheckBox,Select,SegmentedControl,Switch
+from file_tools import AUDIO_BITRATES
 from ui_indicators import FileTile
 from ui_surface import TextLabel
 from utils import is_valid_url,clean_filename,extract_filename_from_url,format_bytes
@@ -33,6 +34,13 @@ class BatchDialog(AppWindow):
         field(save.content,'Klasör',self.folder,self.p,actions=[('Değiştir',self.browse)])
         label(save.content,'Kuyruk',palette=self.p,muted=True).pack(anchor='w',pady=(8,4))
         Select(save.content,{q['name']:q['name'] for q in parent.settings['queues']},self.queue_name,palette=self.p,width=260).pack(fill='x')
+        # Applies to every link saved as MP3; same options as the YouTube Music button.
+        self.bitrate=tk.StringVar(self,'192');self.album=tk.BooleanVar(self,False)
+        audio_row=tk.Frame(save.content,bg=self.p['card']);audio_row.pack(fill='x',pady=(12,0))
+        label(audio_row,'MP3 kalitesi',palette=self.p,muted=True).pack(side='left',padx=(0,10))
+        Select(audio_row,{str(rate):f'{rate} kb/sn' for rate in AUDIO_BITRATES},self.bitrate,palette=self.p,width=150).pack(side='left')
+        Switch(audio_row,self.album,palette=self.p).pack(side='right')
+        label(audio_row,'Sanatçı / Albüm klasörü',palette=self.p).pack(side='right',padx=(0,8))
         self.total=tk.StringVar(self,'0 öğe seçili');label(self.actionbar,variable=self.total,palette=self.p,size=12).pack(side='left')
         self.buttons={}
         self.buttons['start']=action(self.actionbar,'Şimdi indir',lambda:self.submit(True),self.p,'primary')
@@ -190,7 +198,8 @@ class BatchDialog(AppWindow):
                 section=item['section'].collect() if 'section' in item else None
                 did=self.parent.add_download_from_dialog(item['url'],name,str(Path(self.folder.get())/name),is_video=video,
                     video_quality='Yalnızca Ses (MP3)' if audio else 'En İyi',selected_height=int(item['quality'].get()) if item['quality'].get().isdigit() else None,
-                    auto_start=immediate,expected_size=0 if section else item.get('size',0),section=section)
+                    auto_start=immediate,expected_size=0 if section else item.get('size',0),section=section,
+                    audio=dict(bitrate=int(self.bitrate.get()),album=self.album.get()) if video and audio else None)
                 if did is not None:self.parent.db.set_queue(did,self.queue_name.get())
             self.close()
         except Exception as error:self.error.set(str(error))
