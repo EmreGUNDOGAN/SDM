@@ -170,6 +170,11 @@ class AutoCard(Panel):
         if int(self.cget('height'))!=target:self.configure(height=target)
 
 
+def caption(text):
+    """Yörünge caption text: '// ' plus Turkish capitals."""
+    return '// '+text.replace('i','İ').replace('ı','I').upper()
+
+
 def label(parent,text='',variable=None,palette=None,size=13,weight='Regular',muted=False):
     return TextLabel(parent,text,textvariable=variable,size=size,weight=weight,
                      fg=palette['muted'] if muted else palette['text'])

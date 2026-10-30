@@ -8,7 +8,7 @@ from ui_messages import messagebox
 import threading
 import ttkbootstrap as tb
 from utils import format_speed,format_bytes,format_eta
-from ui_dialog import AppWindow
+from ui_dialog import AppWindow,caption
 import subprocess
 import time
 
@@ -34,7 +34,7 @@ class SpeedHistory:
 
 class ToolsDialog(AppWindow):
     def __init__(self,parent):
-        super().__init__(parent,'Araçlar',900,760)
+        super().__init__(parent,'Araçlar',900,760,kicker='MODÜLLER')
         from feature_windows import build_tools
         build_tools(self,parent)
     def update_mode(self):
@@ -50,19 +50,21 @@ class ToolsDialog(AppWindow):
             if self.format.get() not in ('mp4','mkv','mp3','m4a','wav'):self.format.set('mp4')
         else:self.format_host.pack_forget()
         if media and self.format.get() in ('mp3','m4a'):
-            if self.p.get('design')=='pano':self.quality_box.pack(fill='x',pady=6,before=self.output_box)
+            if self.p.get('design') in ('pano','yorunge'):self.quality_box.pack(fill='x',pady=6,before=self.output_box)
             else:self.quality_box.pack(side='left',pady=6,padx=(0,12),before=self.output_box)
         else:self.quality_box.pack_forget()
-        if self.p.get('design')=='pano':self.arrange_pano_output()
+        if self.p.get('design') in ('pano','yorunge'):self.arrange_pano_output()
         if media:
-            if self.p.get('design')=='pano':self.footer_note.pack(before=self.actionbar,fill='x',padx=24,pady=(8,0))
+            if self.p.get('design') in ('pano','yorunge'):self.footer_note.pack(before=self.actionbar,fill='x',padx=24,pady=(8,0))
             else:self.footer_note.pack(side='left')
         else:self.footer_note.pack_forget()
-        self.output_step.title.configure(text={'Biçim dönüştürme':'Çıktı biçimi','Video / ses kesme':'Aralık ve biçim'}.get(self.mode.get(),'Çıktı'))
+        title={'Biçim dönüştürme':'Çıktı biçimi','Video / ses kesme':'Aralık ve biçim'}.get(self.mode.get(),'Çıktı')
+        self.output_step.title.configure(text=caption(title) if self.p.get('design')=='yorunge' else title)
         self.run_button.configure(command=self.run,text={'Biçim dönüştürme':'Dönüştür','Video / ses kesme':'Kes','Bağlantı kontrolü':'Kontrol et','Klasörü düzenleme':'Önizle ve taşı','Altyazı indirme':'Altyazıyı indir'}[self.mode.get()])
         titles={'Biçim dönüştürme':'Biçim dönüştür','Video / ses kesme':'Video / ses kes','Bağlantı kontrolü':'Bağlantı kontrolü','Klasörü düzenleme':'Klasörü düzenle','Altyazı indirme':'Altyazı indir'}
         self.title_label.configure(text=titles[self.mode.get()])
-        if not self.description_label.winfo_manager():self.description_label.pack(anchor='w',pady=(6,0))
+        # Yörünge headers carry no description (F14).
+        if not self.description_label.winfo_manager() and self.p.get('design')!='yorunge':self.description_label.pack(anchor='w',pady=(6,0))
         self.description_label.configure(text={
             'Video / ses kesme':'Bir aralığı yeni dosyaya kaydet. Kaynak dosya değişmez.',
             'Biçim dönüştürme':'Video veya sesi başka bir biçime çevir. Kaynak dosya değişmez.',

@@ -65,8 +65,9 @@ class FileTile(Indicator):
 
 
 class ProgressBar(Indicator):
-    def __init__(self,master,palette,value=0,status='İndiriliyor',show_text=True,thickness=None,**kwargs):
-        self.value=fraction(value);self.status=status;self.show_text=show_text
+    def __init__(self,master,palette,value=0,status='İndiriliyor',show_text=True,thickness=None,cells=20,**kwargs):
+        # cells: Yörünge tile count (rows 20, HUD 30, tools and part map 40).
+        self.value=fraction(value);self.status=status;self.show_text=show_text;self.cells=cells
         self.thickness=thickness or SIZES['progress']
         super().__init__(master,palette,**kwargs);self.draw()
 
@@ -79,7 +80,7 @@ class ProgressBar(Indicator):
         image=Image.new('RGB',(w*scale,h*scale),self.cget('bg'));d=ImageDraw.Draw(image)
         bar=max(1,w-(46 if self.show_text else 0));y=(h-self.thickness)//2
         if p.get('design')=='yorunge':
-            cells=20;gap=2;cell=max(0,(bar-gap*(cells-1))/cells)
+            cells=self.cells;gap=2;cell=max(0,(bar-gap*(cells-1))/cells)
             filled=round((self.value or 0)*cells)
             color=status_colors(self.status,p.get('mode','dark'),'yorunge')[0]
             for index in range(cells):
@@ -188,7 +189,7 @@ class SpeedChart(Indicator):
             d.line(coords,fill=p['accent'],width=2*s,joint='curve')
         if self.average is not None and self.axes:
             y=(base-max(0,self.average)/peak*span_y)*s
-            for x in range(left*s,right*s,8*s):d.line((x,y,min(x+4*s,right*s),y),fill=p['start'] if p.get('design')=='pano' else p['muted'],width=s)
+            for x in range(left*s,right*s,8*s):d.line((x,y,min(x+4*s,right*s),y),fill=p[{'pano':'start','yorunge':'violet'}.get(p.get('design'),'muted')],width=s)
         image=image.resize((w,h),Image.Resampling.LANCZOS)
         if self.axes:
             precision=2 if peak<1048576 else 1
