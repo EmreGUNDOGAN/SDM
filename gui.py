@@ -47,6 +47,7 @@ from video_downloader import VideoDownloadTask, fetch_video_info, is_video_site
 from download_window import DownloadDetailDialog
 from list_display import COLUMNS, row_values
 from modern_ui import ModernUI
+import title_bar
 from app_actions import AppActions
 from advanced_actions import AdvancedActions
 from transfer_control import GLOBAL_LIMITER
@@ -119,6 +120,7 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
             logger.debug(f"Could not set Tk icon: {e}")
 
         self._build_ui()
+        title_bar.install(self)
         self._setup_shortcuts()
         self._load_downloads_from_db()
         self.initialize_actions()
@@ -335,6 +337,7 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         for child in self.winfo_children():
             if not isinstance(child, tk.Toplevel):child.destroy()
         self._build_ui()
+        title_bar.refresh(self)
         self.initialize_drop()
         if self.settings.get('mini_hud'):self.show_mini_hud()
 
