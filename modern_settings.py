@@ -149,7 +149,7 @@ class SettingsContent(tk.Frame):
         switch_palette=dict(p,accent=self.p['on_accent'],accent_text=self.p['accent_soft'],on_accent=self.p['accent'],input_border=self.p['accent_text']) if p['card']==self.p['accent'] else p
         switch=Switch(row,self.value(key),palette=switch_palette);switch.pack(side='right')
         if self.pano:
-            text=tk.Label(row,text=title,bg=p['card'],fg=p['text'],font=('Inter',text_px(13)),wraplength=440,justify='left',anchor='w');text.pack(fill='x')
+            text=tk.Label(row,text=title,bg=p['card'],fg=p['text'],font=('Inter',text_px(13)),wraplength=440,justify='left',anchor='w',padx=0,pady=0,bd=0,highlightthickness=0);text.pack(fill='x')
             row.bind('<Configure>',lambda event:text.configure(wraplength=max(1,event.width-switch.winfo_reqwidth()-8)),add='+')
         else:text=label(row,title,palette=p);text.max_width=440;text.pack(anchor='w')
         if description:self.text(row,description)
@@ -209,7 +209,7 @@ class SettingsContent(tk.Frame):
         Button(c,'Ekle',self.add_site,palette=self.p,kind='soft').pack(side='left');Button(c,'Seçili satırı kaldır',self.remove_site,palette=self.p,kind='ghost').pack(side='left',padx=8)
     def queues(self):
         from queue_ui import QueueEditor
-        self.queue_editor=QueueEditor(self.tabs['Kuyruk'].content,self.settings['queues'],palette=self.p,command=self.changed);self.queue_editor.pack(fill='both',expand=True,padx=16)
+        self.queue_editor=QueueEditor(self.tabs['Kuyruk'].content,self.settings['queues'],palette=self.p,command=self.changed);self.queue_editor.pack(fill='both',expand=True,padx=24 if self.pano else 16)
         c=self.card('Kuyruk','Tamamlanınca');self.check(c,'shutdown_after_queue','Kuyruk bitince bilgisayarı kapat','Kapatmadan önce 60 saniye iptal süresi verilir.')
     def tools(self):
         c=self.card('Araçlar','İnterneti rahatlat');self.field(c,'relax_limit_kbs','Hız · KB/sn')

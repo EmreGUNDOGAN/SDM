@@ -39,7 +39,7 @@ class QueueEditor(tk.Frame):
         super().__init__(parent,bg=self.p['dialog']);self.queues=copy.deepcopy(queues);self.index=0;self.renames={};self.command=command;self._loading=True;self._traces=[]
         pano=self.p.get('design')=='pano'
         if pano:
-            catalog=AutoCard(self,self.p,padding=12);catalog.radius=22;catalog.configure(width=176);catalog.pack_configure(side='left',fill='y',padx=(0,8),pady=0);side=catalog.content
+            catalog=AutoCard(self,self.p,padding=12);catalog.radius=22;catalog.configure(width=176);catalog.pack_configure(side='left',fill='y',padx=(0,12),pady=0);side=catalog.content
         else:side=tk.Frame(self,bg=self.p['dialog'],width=176);side.pack(side='left',fill='y',padx=(0,8))
         self.names=QueueList(side,[q['name'] for q in self.queues],dict(self.p,dialog=self.p['card']) if pano else self.p,self.select);self.names.pack(fill='x')
         Button(side,'+ Yeni kuyruk',self.add,palette=self.p,kind='soft',width=160).pack(fill='x',pady=8)
@@ -48,7 +48,7 @@ class QueueEditor(tk.Frame):
             def arrange(event):
                 if event.widget is not self:return
                 narrow=event.width<650
-                catalog.pack_configure(side='top' if narrow else 'left',fill='x' if narrow else 'y',padx=0 if narrow else (0,8),pady=(0,12) if narrow else 0)
+                catalog.pack_configure(side='top' if narrow else 'left',fill='x' if narrow else 'y',padx=0 if narrow else (0,12),pady=(0,12) if narrow else 0)
                 body.pack_configure(side='top' if narrow else 'left',fill='both',expand=True)
             self.bind('<Configure>',arrange)
         self.name=tk.StringVar(self);self.limit=tk.StringVar(self);self.enabled=tk.BooleanVar(self);self.once_enabled=tk.BooleanVar(self)
@@ -81,7 +81,8 @@ class QueueEditor(tk.Frame):
         for title,days in [('Bugün',0),('Yarın',1)]:Button(row,title,lambda d=days:self.quick_date(d),palette=self.p,kind='soft').pack(side='left',padx=(0,8))
         footer=AutoCard(body,self.p,padding=12);self.summary=label(footer.content,'',palette=self.p,size=12,muted=True);self.summary.max_width=420;self.summary.pack(anchor='w')
         if pano:
-            for card in (info,daily,once,footer):card.radius=22
+            # Editor and catalog share the page's 24 px card edge.
+            for card in (info,daily,once,footer):card.radius=22;card.pack_configure(padx=0)
         problem=label(footer.content,variable=self.problem,palette=self.p,size=12);problem.fg=self.p['danger_fg'];problem.pack(anchor='w')
         Button(footer.content,'Zamanlamayı temizle',lambda:(self.enabled.set(False),self.once_enabled.set(False)),palette=self.p,kind='ghost').pack(anchor='w',pady=8)
         Button(footer.content,'Kuyruğu kaldır',self.remove,palette=self.p,kind='danger_ghost').pack(anchor='w')
