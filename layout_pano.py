@@ -36,7 +36,7 @@ class PanoWorkspace(AtlasWorkspace):
     def __init__(self,app):
         self.app=app;self.p=app.palette;self.alive=True;self.menu=None;self.tooltips=[]
         self._disk_due=0;self._disk_busy=False;self.speed_points=deque(maxlen=301)
-        self.current_id=None;self._layout=None;self._empty_layout=None;self._list_empty=None;app._atlas_workspace=self;p=self.p
+        self.current_id=None;self._layout=None;self._empty_layout=None;self._list_empty=None;self._selection_active=False;app._atlas_workspace=self;p=self.p
         self.body=tk.Frame(app,bg=p['bg']);self.body.pack(fill='both',expand=True)
         self.body.bind('<Destroy>',self.dispose)
         self.main=self.body
@@ -51,6 +51,7 @@ class PanoWorkspace(AtlasWorkspace):
         self.disk_card=self.card();self.list_card=self.card();self.navigation_card=self.card()
         self.build_current();self.build_speed();self.build_summary();self.build_disk()
         self.build_listing();self.build_navigation();self.build_empty()
+        self.watch_focus(self.dashboard)
         self.toast_manager=ToastManager(app,p,self.desktop_notify)
         self.body.bind('<Configure>',self.resize,add='+')
         app.refresh_downloads();app.update_action_states()
@@ -296,10 +297,26 @@ class PanoWorkspace(AtlasWorkspace):
     def update_selection(self):
         if not self.alive:return
         selected=bool(self.app.tree.selection());caps=self.capabilities()
+        changed=selected!=self._selection_active;self._selection_active=selected
         for key,button in self.actions.items():button.configure(state='normal' if caps[key] else 'disabled')
         self.queue_button.configure(state='normal' if caps['queue'] else 'disabled')
         if selected:self.filters.pack_forget();self.action_group.pack(side='left')
         else:self.action_group.pack_forget();self.filters.pack(side='left')
+        if selected and changed:
+            self.toolbar.update_idletasks();self.reveal_widget(self.toolbar)
+
+    def watch_focus(self,parent):
+        for widget in parent.winfo_children():
+            widget.bind('<FocusIn>',lambda event:self.reveal_widget(event.widget),add='+')
+            self.watch_focus(widget)
+
+    def reveal_widget(self,widget):
+        if not self.alive or not widget.winfo_ismapped():return
+        canvas=self.scroll._canvas
+        top=widget.winfo_rooty()-self.dashboard.winfo_rooty()
+        visible_top=canvas.canvasy(0);height=canvas.winfo_height()
+        if top<visible_top or top+widget.winfo_height()>visible_top+height:
+            self.scroll.yview_moveto(top/max(1,self.dashboard.winfo_height()))
 
     def update_hud(self,speed):
         # Share capture/rate controls and the disk worker without building Atlas's footer.

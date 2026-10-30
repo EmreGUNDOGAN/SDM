@@ -90,11 +90,19 @@ def main():
         app.tree.selection_set((f'download-{complete}',f'download-{queued}'));settle()
         assert not workspace.filters.winfo_manager()
         assert workspace.action_group.winfo_manager()=='pack'
+        for button in (*workspace.actions.values(),workspace.queue_button):
+            assert button.winfo_rooty()>=workspace.scroll._canvas.winfo_rooty(),'Selected action above viewport'
+            assert button.winfo_rooty()+button.winfo_height()<=workspace.scroll._canvas.winfo_rooty()+workspace.scroll._canvas.winfo_height(),'Selected action below viewport'
         assert workspace.actions['folder'].disabled
         selection=app.tree.selection()
         with patch.object(app,'pause_download') as pause:
             workspace.current_pause.invoke();pause.assert_called_once_with(active)
         assert app.tree.selection()==selection
+        workspace.scroll.yview_moveto(1);settle()
+        workspace.current_details.focus_force();settle()
+        assert app.focus_get() is workspace.current_details
+        assert workspace.current_details.winfo_rooty()>=workspace.scroll._canvas.winfo_rooty()
+        assert workspace.current_details.winfo_rooty()+workspace.current_details.winfo_height()<=workspace.scroll._canvas.winfo_rooty()+workspace.scroll._canvas.winfo_height(),'Keyboard focus remained outside the viewport'
         app.tree.selection_remove(selection);settle()
         assert workspace.filters.winfo_manager()=='pack'
         workspace.select_status('Tamamlananlar');settle()
