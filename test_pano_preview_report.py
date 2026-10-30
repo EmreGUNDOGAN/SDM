@@ -75,5 +75,29 @@ class PanoReportTests(unittest.TestCase):
             (root/'batch_dialog.py').write_bytes(b'fixture');(root/'pano-dialog-batch.png').write_bytes(b'corrupt')
             with self.assertRaisesRegex(ValueError,'Stale'):validate(root,root)
 
+    def test_details_report_rejects_card_drift_stale_sources_and_pngs(self):
+        import json
+        from PIL import Image
+        from theme_catalog import palette
+        from tools.report_pano_details import SOURCES,STATES,validate
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            for name in SOURCES:
+                path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(b'fixture')
+            data=dict(sources={name:hashlib.sha256(b'fixture').hexdigest() for name in SOURCES},previews={},metric_width_delta=0,metric_y_delta=0,technical_overflow=0)
+            for state in STATES:
+                image=Image.new('RGB',(660,800),palette('pano_light')['dialog'])
+                for x in range(64):image.putpixel((x,20),(x,0,0))
+                path=root/f'pano-details-{state}.png';image.save(path);data['previews'][state]=hashlib.sha256(path.read_bytes()).hexdigest()
+            path=root/'pano-details-layout.json';path.write_text(json.dumps(data));self.assertEqual(len(validate(root,root)),4)
+            for key,value in (('metric_width_delta',2),('metric_y_delta',1),('technical_overflow',1),('technical_overflow',float('nan'))):
+                bad=copy.deepcopy(data);bad[key]=value;path.write_text(json.dumps(bad))
+                with self.assertRaisesRegex(ValueError,'geometry'):validate(root,root)
+            path.write_text(json.dumps(data));(root/'download_window.py').write_bytes(b'changed')
+            with self.assertRaisesRegex(ValueError,'Stale'):validate(root,root)
+            (root/'download_window.py').write_bytes(b'fixture');(root/'pano-details-wide.png').write_bytes(b'corrupt')
+            with self.assertRaisesRegex(ValueError,'Stale'):validate(root,root)
+
+
 
 if __name__=='__main__':unittest.main()
