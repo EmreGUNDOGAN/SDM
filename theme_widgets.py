@@ -203,7 +203,7 @@ class Search(tk.Canvas):
 
 class Panel(tk.Canvas):
     def __init__(self,master,palette,padding=12,radius=None):
-        self.p=palette;self.padding=padding
+        self.p=palette;self.padding=padding;self.focused=False
         design=palette.get('design','atlas')
         if design=='yorunge':self.radius=0
         elif radius is not None:self.radius=radius
@@ -215,8 +215,9 @@ class Panel(tk.Canvas):
         self.bind('<Configure>',self.resize)
     def resize(self,event):
         from ui_surface import surface,photo
-        image=surface(max(1,event.width),max(1,event.height),self.cget('bg'),self.p['panel'],self.p['line'],self.radius)
-        if self.inset:
+        image=surface(max(1,event.width),max(1,event.height),self.cget('bg'),self.p['panel'],
+            self.p['accent'] if self.focused else self.p['line'],self.radius,border_width=FOCUS_WIDTH if self.focused else 1)
+        if self.inset and not self.focused:
             from ui_surface import pano_tile_surface
             image=pano_tile_surface(event.width,event.height,self.cget('bg'),self.p['panel'],self.radius)
         if self.p.get('design')=='yorunge':
@@ -227,3 +228,8 @@ class Panel(tk.Canvas):
         self._surface=photo(image,self)
         self.delete('surface');self.create_image(0,0,image=self._surface,anchor='nw',tags='surface')
         self.tag_lower('surface');self.itemconfigure(self.window,width=max(1,event.width-2*(self.padding+self.inset)),height=max(1,event.height-2*(self.padding+self.inset)))
+
+    def set_focused(self,value):
+        self.focused=value
+        from types import SimpleNamespace
+        self.resize(SimpleNamespace(width=self.winfo_width(),height=self.winfo_height()))

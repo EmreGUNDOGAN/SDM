@@ -122,6 +122,22 @@ class ProgressRing(Indicator):
     def draw(self):
         w,h=self.size();s=SURFACE_SCALE
         image=Image.new('RGB',(w*s,h*s),self.cget('bg'));d=ImageDraw.Draw(image)
+        if self.p.get('design')=='pano' and min(w,h)>=96:
+            # P05 uses the same measured fraction and indeterminate timer, with
+            # large digits and a horizontal track instead of the circular form.
+            y=h-18;d.rounded_rectangle((0,y*s,w*s,(y+12)*s),radius=6*s,fill=self.p['track'])
+            if self.value is None:
+                left=max(0,(self._angle/360*1.25-.25)*w);right=min(w,left+w/4)
+            else:left=0;right=w*self.value
+            if right>left:d.rounded_rectangle((left*s,y*s,right*s,(y+12)*s),radius=min(6,(right-left)/2)*s,fill=self.p['accent'])
+            image=image.resize((w,h),Image.Resampling.LANCZOS)
+            digits='—' if self.value is None else str(round(self.value*100));size=60
+            suffix=font(28,'Bold').getlength('%')+6 if self.value is not None else 0
+            while size>20 and font(size,'Bold').getlength(digits)+suffix>w:size-=1
+            baseline=min(h-36,font(size,'Bold').getmetrics()[0]+6)
+            text_on(image,(0,baseline),digits,size,'Bold',self.p['text'],'ls')
+            if self.value is not None:text_on(image,(font(size,'Bold').getlength(digits)+4,baseline),'%',28,'Bold',self.p['text'],'ls')
+            self.present(image);return
         stroke=self.stroke*s;inset=stroke/2+s
         box=(inset,inset,w*s-inset,h*s-inset)
         d.ellipse(box,outline=self.p['track'],width=stroke)
@@ -188,7 +204,8 @@ class SpeedChart(Indicator):
             d.line(coords,fill=p['accent'],width=2*s,joint='curve')
         if self.average is not None and self.axes:
             y=(base-max(0,self.average)/peak*span_y)*s
-            for x in range(left*s,right*s,8*s):d.line((x,y,min(x+4*s,right*s),y),fill=p['violet'] if yorunge else p['muted'],width=s)
+            color=p['start'] if p.get('design')=='pano' else p['violet'] if yorunge else p['muted']
+            for x in range(left*s,right*s,8*s):d.line((x,y,min(x+4*s,right*s),y),fill=color,width=s)
         image=image.resize((w,h),Image.Resampling.LANCZOS)
         if self.axes:
             precision=2 if peak<1048576 else 1
@@ -222,8 +239,9 @@ class PartMap(Indicator):
             cell=(right-left)/max(1,len(parts));gap=min(3,cell/3)
             for j,value in enumerate(parts):
                 value=fraction(value) or 0;x=left+j*cell;cw=max(1,cell-gap)
-                d.rounded_rectangle((x*s,y*s,(x+cw)*s,(y+22)*s),radius=3*s,fill=p['track'])
-                if value:d.rounded_rectangle((x*s,y*s,(x+cw*value)*s,(y+22)*s),radius=min(3,cw*value/2)*s,fill=p['accent'])
+                height=24 if p.get('design')=='pano' else 22;radius=8 if p.get('design')=='pano' else 3
+                d.rounded_rectangle((x*s,y*s,(x+cw)*s,(y+height)*s),radius=radius*s,fill=p['track'])
+                if value:d.rounded_rectangle((x*s,y*s,(x+cw*value)*s,(y+height)*s),radius=min(radius,cw*value/2)*s,fill=p['accent'])
             labels.append((y,label,metadata,sum(parts)/len(parts) if parts and all(value is not None for value in parts) else None))
         image=image.resize((w,h),Image.Resampling.LANCZOS)
         for y,label,metadata,value in labels:

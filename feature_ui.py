@@ -46,12 +46,17 @@ class ToolsDialog(AppWindow):
         media=self.mode.get() in ('Biçim dönüştürme','Video / ses kesme')
         if media:
             # `before` keeps the cards above the output row after a mode switch re-packs them.
-            self.format_host.pack(fill='x',pady=(0,12),before=self.output_row)
+            self.format_host.pack(fill='x',pady=(0,12),**({'before':self.output_row} if self.format_host.master is self.output_row.master else {}))
             if self.format.get() not in ('mp4','mkv','mp3','m4a','wav'):self.format.set('mp4')
         else:self.format_host.pack_forget()
-        if media and self.format.get() in ('mp3','m4a'):self.quality_box.pack(side='left',pady=6,padx=(0,12),before=self.output_box)
+        if media and self.format.get() in ('mp3','m4a'):
+            if self.p.get('design')=='pano':self.quality_box.pack(fill='x',pady=6,before=self.output_box)
+            else:self.quality_box.pack(side='left',pady=6,padx=(0,12),before=self.output_box)
         else:self.quality_box.pack_forget()
-        if media:self.footer_note.pack(side='left')
+        if self.p.get('design')=='pano':self.arrange_pano_output()
+        if media:
+            if self.p.get('design')=='pano':self.footer_note.pack(before=self.actionbar,fill='x',padx=24,pady=(8,0))
+            else:self.footer_note.pack(side='left')
         else:self.footer_note.pack_forget()
         self.output_step.title.configure(text={'Biçim dönüştürme':'Çıktı biçimi','Video / ses kesme':'Aralık ve biçim'}.get(self.mode.get(),'Çıktı'))
         self.run_button.configure(command=self.run,text={'Biçim dönüştürme':'Dönüştür','Video / ses kesme':'Kes','Bağlantı kontrolü':'Kontrol et','Klasörü düzenleme':'Önizle ve taşı','Altyazı indirme':'Altyazıyı indir'}[self.mode.get()])
