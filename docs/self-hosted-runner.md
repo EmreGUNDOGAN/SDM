@@ -5,6 +5,13 @@ Etiketler: `self-hosted`, `Windows`, `X64`, `sdm-ui`. Verify ve Windows
 paketleme workflow'ları aynı runner'ı kullanır. Main'e push ve birleştirme
 yardımcı tarafından yapılmaz.
 
+1.0.0 hazırlığında sürüm değişmeyen ara PR'lar için otomatik paketleme
+başlatılmaz: release workflow'u yalnız `main` üzerinde `app_version.py`
+değiştiğinde otomatik çalışır. Nihai sürüm yükseltmesi bu tetikleyiciyi
+çalıştırır. `workflow_dispatch` ile elle paketleme korunur; dal koşumunda
+yayın yapılmaz. Mevcut sürüm/etiket koruması değişmez. PR Verify akışı
+bu yayın filtresinden bağımsızdır.
+
 Runner, proje checkout'undan ayrı `C:\actions-runner` klasöründedir.
 İlk kurulan sürüm 2.338.2; resmi GitHub release varlığının SHA-256 değeri
 `a1f17aa987fc8158bc7521d284912267a0d01b7c2c4684b33c86783b5e8221cc`

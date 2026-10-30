@@ -2,7 +2,7 @@ name: Build and release SDM for Windows
 on:
   push:
     branches: [main]
-    paths-ignore: ['README*.md', 'docs/**']
+    paths: ['app_version.py']
   workflow_dispatch:
 permissions:
   contents: write
