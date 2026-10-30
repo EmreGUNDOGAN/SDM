@@ -124,7 +124,9 @@ class BrowserBridge:
                         settings = load_settings()
                         return self.send_json(200, {'capture':capture_enabled(settings),
                             'excluded_sites':settings.get('excluded_sites',['canva.com']),
-                            'capture_extensions':settings.get('capture_extensions',[])})
+                            'capture_extensions':settings.get('capture_extensions',[]),
+                            # The video button follows SDM's design (P07/F07); unknown values fall back to Atlas.
+                            'design':settings.get('design','atlas')})
                     if self.path == '/decision':
                         with bridge.decision_lock:
                             decision = bridge.decisions.get(data.get('ticket'))
@@ -160,7 +162,8 @@ class BrowserBridge:
                     url = validate_url(data.get('url'))
                     if self.path == '/formats':
                         from video_downloader import fetch_video_formats
-                        return self.send_json(200, fetch_video_formats(url))
+                        # The picker opens through here, so a design change in SDM reaches the button.
+                        return self.send_json(200, dict(fetch_video_formats(url),design=load_settings().get('design','atlas')))
                     if self.path == '/music':
                         # YouTube Music button: quality chosen in the page, queued without a dialog.
                         from file_tools import AUDIO_BITRATES

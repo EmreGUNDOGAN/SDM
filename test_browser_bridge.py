@@ -109,6 +109,13 @@ class BridgeTests(unittest.TestCase):
             response = self.request('/formats')
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()['qualities'][0]['height'], 720)
+            self.assertEqual(response.json()['design'], 'atlas')
+
+    def test_design_reaches_extension(self):
+        # The video button styles itself from this (P07 Pano / F07 Yörünge).
+        for design in ('pano', 'yorunge'):
+            with self.subTest(design=design), patch('browser_bridge.load_settings', return_value={'design': design}):
+                self.assertEqual(self.request('/settings', body={}).json()['design'], design)
 
 
 if __name__ == '__main__':
