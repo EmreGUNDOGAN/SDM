@@ -34,6 +34,12 @@ class AdvancedActions:
         from feature_ui import ToolsDialog
         ToolsDialog(self)
 
+    def open_stats(self):
+        from stats_window import StatsWindow
+        for child in self.winfo_children():
+            if isinstance(child,StatsWindow):child.lift();child.refresh();return child
+        return StatsWindow(self)
+
     def show_mini_hud(self):
         from feature_ui import MiniHUD
         if self._mini_hud and self._mini_hud.winfo_exists():self._mini_hud.lift()

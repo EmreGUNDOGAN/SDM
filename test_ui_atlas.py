@@ -56,7 +56,7 @@ def main():
             workspace=app._atlas_workspace;assert workspace.alive
             assert len(app.tree.get_children())==7,(mode,app.current_category,app.current_status_filter,len(app.tree.get_children()))
             assert app.status_buttons['Tümü'].count=='7'
-            assert list(workspace.bottom_buttons)==['Araçlar','Masaüstü HUD','Ayarlar']
+            assert list(workspace.bottom_buttons)==['Araçlar','İstatistik','Masaüstü HUD','Ayarlar']
             assert tuple(app.tree.cget('displaycolumns'))==DEFAULT_COLUMNS
             assert not workspace.details.winfo_ismapped()
             choose(did);wait(lambda:workspace.details.winfo_ismapped())
