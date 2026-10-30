@@ -12,6 +12,8 @@ YORUNGE_MONO_FAMILY = 'JetBrains Mono'
 SURFACE_SCALE = 3
 # 0.5.1: every UI text size is multiplied once here (12 px reads as 14).
 TEXT_SCALE = 1.15
+# HUD text multipliers (Ayarlar › Araçlar). Width stays 340 px; the HUD grows taller.
+HUD_TEXT_SIZES = MappingProxyType({'normal': 1.0, 'large': 1.2, 'xlarge': 1.4})
 FOCUS_WIDTH = 2
 FOCUS_GAP = 2
 DISABLED_OPACITY = 0.55
