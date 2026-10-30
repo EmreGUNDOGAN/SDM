@@ -19,22 +19,31 @@ class MenuButton(Button):
         variable=spec['variable']
         checked=variable is not None and (bool(variable.get()) if spec['check'] else variable.get()==spec['value'])
         pano=p.get('design')=='pano'
+        yorunge=p.get('design')=='yorunge'
+        if yorunge:
+            base_text,base_ellipsize=text_on,ellipsize
+            text_on=lambda *args,**kwargs:base_text(*args,**kwargs,family='JetBrains Mono')
+            ellipsize=lambda *args,**kwargs:base_ellipsize(*args,**kwargs,family='JetBrains Mono')
+            if self.selected or self.hover:fg=p['danger'] if spec['danger'] else p['accent']
         if pano:
             if checked and not spec['check']:bg=p['accent'];fg=p['on_accent']
             elif self.selected or self.hover:bg=p['accent_soft'];fg=p['accent_text']
             elif spec['danger']:bg=p['danger_bg']
             if self.disabled:fg=p['muted']
-        image=surface(w,h,self.cget('bg'),p['card'] if pano else bg,radius=14 if pano else 7);d=ImageDraw.Draw(image)
+        image=surface(w,h,self.cget('bg'),p['card'] if pano else bg,radius=14 if pano else 0 if yorunge else 7);d=ImageDraw.Draw(image)
+        if yorunge and (self.selected or spec['danger']):d.rectangle((0,0,1,h),fill=p['danger'] if spec['danger'] else p['accent'])
         if pano:
             if not spec.get('round_top',True):d.rectangle((0,0,w,h//2),fill=p['card'])
             if not spec.get('round_bottom',True):d.rectangle((0,h//2,w,h),fill=p['card'])
             if bg!=p['card']:d.rounded_rectangle((3,2,w-4,h-3),radius=12,fill=bg)
         if variable is not None:
             if spec['check']:
-                d.rounded_rectangle((9,h//2-8,25,h//2+8),radius=4,fill=p['accent'] if checked else p['card'],outline=p['accent'] if checked else p['input_border'])
+                d.rounded_rectangle((11,h//2-6,23,h//2+6) if yorunge else (9,h//2-8,25,h//2+8),radius=0 if yorunge else 4,fill=p['accent'] if checked else p['card'],outline=p['accent'] if checked else p['input_border'])
                 if checked:
                     glyph=icon('check-small',12,p['on_accent']);image.paste(glyph,(11,h//2-6),glyph)
-            elif checked:d.ellipse((14,h//2-3,20,h//2+3),fill=p['on_accent'] if pano else p['accent'])
+            elif checked:
+                if yorunge:d.polygon(((17,h//2-4),(21,h//2),(17,h//2+4),(13,h//2)),fill=p['accent'])
+                else:d.ellipse((14,h//2-3,20,h//2+3),fill=p['on_accent'] if pano else p['accent'])
             left=35
         shortcut='›' if spec['submenu'] else spec['shortcut'];reserved=90 if shortcut else 16
         if spec['description']:text_on(image,(left,10),ellipsize(self.text,w-left-reserved,13),13,fill=fg)
@@ -298,6 +307,9 @@ class Toast(tk.Toplevel):
             body=tk.Frame(self,bg=self.p['toast']);body.pack(fill='both',expand=True,padx=14,pady=12)
         from ui_surface import surface,icon,photo
         role=tone if tone in ('success','warning','danger') else 'info'
+        if self.p.get('design')=='yorunge':
+            border=tk.Frame(self,bg=self.p[role+'_fg']);border.place(x=0,y=0,relwidth=1,relheight=1);border.lower()
+            body.pack_configure(padx=1,pady=1,ipadx=13,ipady=11)
         tile=surface(28,28,self.p['toast'],self.p[role+'_bg'],radius=7)
         glyph=icon('check-small' if role=='success' else 'alert-circle' if role in ('warning','danger') else 'info',16,self.p[role+'_fg']);tile.paste(glyph,(6,6),glyph)
         self._glyph=photo(tile,self);tk.Label(body,image=self._glyph,bg=self.p['toast']).pack(side='left',padx=(0,10))
