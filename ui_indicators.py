@@ -142,9 +142,18 @@ class ProgressRing(Indicator):
         stroke=self.stroke*s;inset=stroke/2+s
         box=(inset,inset,w*s-inset,h*s-inset)
         d.ellipse(box,outline=self.p['track'],width=stroke)
+        yorunge=self.p.get('design')=='yorunge'
+        if yorunge:
+            d.ellipse((s,s,w*s-s,h*s-s),outline=self.p['line'],width=s)
+            inner=stroke+5*s
+            for angle in range(0,360,12):d.arc((inner,inner,w*s-inner,h*s-inner),angle,angle+4,fill=self.p['line'],width=s)
         start=-90 if self.value is not None else self._angle
         extent=360*self.value if self.value is not None else 90
         if extent>0:
+            if yorunge:
+                from PIL import ImageFilter
+                glow=Image.new('RGBA',image.size);ImageDraw.Draw(glow).arc(box,start,start+extent,fill=self.p['accent'],width=stroke)
+                glow=glow.filter(ImageFilter.GaussianBlur(3*s));image.paste(glow,(0,0),glow);d=ImageDraw.Draw(image)
             d.arc(box,start,start+extent,fill=self.p['accent'],width=stroke)
             radius=(min(w,h)*s-stroke-2*s)/2
             for angle in (start,start+extent):
@@ -154,7 +163,7 @@ class ProgressRing(Indicator):
         if self.value is not None:
             compact=min(w,h)<96
             text_on(image,(w/2,h/2-(0 if compact else 5)),f'{self.value:.0%}',
-                    min(28,round(min(w,h)*0.23)),'Bold',self.p['text'],'mm')
+                    min(28,round(min(w,h)*0.23)),'Bold',self.p['text'],'mm',family='JetBrains Mono' if yorunge else 'Inter')
             if not compact:text_on(image,(w/2,h/2+22),'tamamlandı',11,fill=self.p['muted'],anchor='mm')
         self.present(image)
 
@@ -175,17 +184,24 @@ class SpeedChart(Indicator):
         left,bottom=(40,22) if self.axes else (0,0);top=8 if self.axes else 1
         right=max(left+1,w-4);base=max(top+1,h-bottom);span_y=base-top
         peak=max(1,*[max(0,value) for _,value in self.points],self.average or 0)
-        if self.axes:
+        yorunge=p.get('design')=='yorunge'
+        if self.axes or yorunge:
             for step in range(4):
                 y=base-span_y*step/3
-                d.line((left*s,y*s,right*s,y*s),fill=p['line_soft'],width=s)
+                if yorunge:
+                    for x in range(left*s,right*s,8*s):d.line((x,y*s,min(x+3*s,right*s),y*s),fill=p['line_soft'],width=s)
+                else:d.line((left*s,y*s,right*s,y*s),fill=p['line_soft'],width=s)
         if len(self.points)>1:
             first=self.points[0][0];duration=max(1,self.points[-1][0]-first)
             coords=[((left+(stamp-first)/duration*(right-left))*s,(base-max(0,value)/peak*span_y)*s) for stamp,value in self.points]
-            if self.axes or p.get('design')=='pano':
+            if self.axes or p.get('design') in ('pano','yorunge'):
                 tint=Image.new('RGBA',image.size);td=ImageDraw.Draw(tint)
                 td.polygon([(left*s,base*s),*coords,(right*s,base*s)],fill=p['accent']+'20')
                 image.paste(tint,(0,0),tint);d=ImageDraw.Draw(image)
+            if yorunge:
+                from PIL import ImageFilter
+                glow=Image.new('RGBA',image.size);ImageDraw.Draw(glow).line(coords,fill=p['accent'],width=2*s,joint='curve')
+                glow=glow.filter(ImageFilter.GaussianBlur(2*s));image.paste(glow,(0,0),glow);d=ImageDraw.Draw(image)
             d.line(coords,fill=p['accent'],width=2*s,joint='curve')
         if self.average is not None and self.axes:
             y=(base-max(0,self.average)/peak*span_y)*s

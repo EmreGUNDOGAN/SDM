@@ -10,6 +10,36 @@ from tools.report_settings_previews import PANO_SOURCES,PANO_STATES,validate_pan
 
 
 class PreviewReportTests(unittest.TestCase):
+    def test_yorunge_settings_reject_stale_sources_palette_and_alignment(self):
+        import copy,hashlib,json
+        from tools.report_settings_previews import YORUNGE_SOURCES,validate_settings
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);sources={};previews={}
+            for name in YORUNGE_SOURCES:
+                path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(b'fixture')
+                sources[name]=hashlib.sha256(b'fixture').hexdigest()
+            for state in PANO_STATES:
+                image=Image.new('RGB',(760,500),palette('yorunge_dark')['dialog'])
+                for x in range(64):image.putpixel((x,20),(x,0,0))
+                path=root/f'yorunge-settings-{state}.png';image.save(path);previews[state]=hashlib.sha256(path.read_bytes()).hexdigest()
+            data=dict(sources=sources,previews=previews,control_center_errors=[0,.5,0,.5],nav_text_x=[15]*6)
+            report=root/'yorunge-settings-layout.json';report.write_text(json.dumps(data))
+            self.assertEqual(len(validate_settings(root,'yorunge',root)),len(PANO_STATES))
+            for values in ([],[0,0,0,1],[0,0,0,float('nan')],[0,0,0,float('inf')]):
+                bad=copy.deepcopy(data);bad['control_center_errors']=values;report.write_text(json.dumps(bad))
+                with self.assertRaisesRegex(ValueError,'alignment'):validate_settings(root,'yorunge',root)
+            for starts in ([15]*5,[15]*5+[40],[15]*5+[17]):
+                bad=copy.deepcopy(data);bad['nav_text_x']=starts;report.write_text(json.dumps(bad))
+                with self.assertRaisesRegex(ValueError,'alignment'):validate_settings(root,'yorunge',root)
+            report.write_text(json.dumps(data));(root/'test_ui_yorunge_settings.py').write_bytes(b'changed')
+            with self.assertRaisesRegex(ValueError,'sources'):validate_settings(root,'yorunge',root)
+            (root/'test_ui_yorunge_settings.py').write_bytes(b'fixture')
+            path=root/'yorunge-settings-0.png';image.putpixel((4,4),(255,255,255));image.save(path)
+            data['previews']['0']=hashlib.sha256(path.read_bytes()).hexdigest();report.write_text(json.dumps(data))
+            with self.assertRaisesRegex(ValueError,'palette'):validate_settings(root,'yorunge',root)
+            path.write_bytes(b'corrupt')
+            with self.assertRaisesRegex(ValueError,'PNG'):validate_settings(root,'yorunge',root)
+
     def test_pano_settings_reject_stale_captures_and_invalid_counter_centres(self):
         import copy,hashlib,json
         with tempfile.TemporaryDirectory() as folder:

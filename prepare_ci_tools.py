@@ -1,5 +1,6 @@
 """Fetch verified vendor binaries only during CI packaging, never at app runtime."""
 import hashlib
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -15,11 +16,22 @@ INNO_SHA256='a549929319f9120716677c685535ca4671e4b937b5fdc87e2585f32d8eb30e8c'
 def fetch(url,name,digest):
     target=CACHE/name
     if target.exists() and hashlib.sha256(target.read_bytes()).hexdigest()==digest:return target
+    # Checkout cleanup removes build-tools. Keep only verified vendor archives
+    # in the runner's existing tool cache, keyed by their pinned digest.
+    runner_cache=os.environ.get('RUNNER_TOOL_CACHE')
+    shared=Path(runner_cache)/'sdm-vendor'/digest/name if runner_cache else None
+    if shared and shared.is_file():
+        content=shared.read_bytes()
+        if hashlib.sha256(content).hexdigest()==digest:
+            target.write_bytes(content);return target
     with requests.get(url,stream=True,timeout=(30,180)) as response:
         response.raise_for_status()
         with target.open('wb') as stream:
             for chunk in response.iter_content(1024*1024):stream.write(chunk)
-    if hashlib.sha256(target.read_bytes()).hexdigest()!=digest:raise RuntimeError('Vendor binary SHA-256 mismatch: '+name)
+    content=target.read_bytes()
+    if hashlib.sha256(content).hexdigest()!=digest:raise RuntimeError('Vendor binary SHA-256 mismatch: '+name)
+    if shared:
+        shared.parent.mkdir(parents=True,exist_ok=True);shared.write_bytes(content)
     return target
 
 
