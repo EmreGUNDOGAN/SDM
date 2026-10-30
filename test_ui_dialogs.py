@@ -86,10 +86,19 @@ def main():
                 wait(lambda:len(prompt.formats)==2)
                 assert prompt.quality.get()=='720' and len(prompt.quality_cards)==3
                 prompt.quality.set('audio');assert prompt.name.get().endswith('.mp3')
+                app.update();assert prompt.audio_row.winfo_ismapped(),'MP3 shows its quality and album options'
                 prompt.section_fields.enabled.set(True);prompt.section_fields.start.set('00:00:10');prompt.section_fields.end.set('00:03:00');app.update()
                 assert prompt.buttons['queue'].disabled
                 prompt.section_fields.end.set('00:00:20');app.update();assert not prompt.buttons['queue'].disabled
                 snapshot(prompt,'capture',mode);prompt.buttons['cancel'].invoke();assert decision==[('fixture-ticket','cancel')]
+                # The chosen MP3 options are stored with the download (music engine reads them).
+                mp3=CapturePrompt(app,dict(request,ticket='mp3-ticket',filename='Synthetic song'),lambda token,result:decision.append((token,result)))
+                wait(lambda:len(mp3.formats)==2);mp3.quality.set('audio');mp3.bitrate.set('320');mp3.album.set(True)
+                with patch('video_downloader.VideoDownloadTask.start'):mp3.choose('queue')
+                song=max((r for r in app.db.get_all_downloads() if r['filename'].startswith('Synthetic song')),key=lambda r:r['id'])
+                assert json.loads(song['options_json'])['audio']==dict(bitrate=320,album=True),song['options_json']
+                mp3=CapturePrompt(app,dict(request,ticket='video-ticket'),lambda token,result:None);wait(lambda:len(mp3.formats)==2)
+                assert not mp3.audio_row.winfo_ismapped();mp3.choose('cancel')
             # Real task snapshot; configured maximum never stands in for observed parts.
             did=app.add_download_from_dialog('https://example.invalid/range','synthetic-range.bin',str(folder/f'range-{mode}.bin'),auto_start=False)
             task=app.engine.get_task(did);task.filesize=1000000;task.supports_ranges=True;task.current_speed=50000;task.eta=15;task.status='İndiriliyor'
@@ -105,6 +114,18 @@ def main():
             snapshot(graph,'graph',mode);graph.close()
             app.show_mini_hud();app.update();hud=app._mini_hud;assert hud.winfo_exists()
             snapshot(hud,'hud',mode);hud.close();assert hud._timer is None
+            # HUD text size (Ayarlar › Araçlar): text grows, width stays 340 px, the HUD grows taller.
+            from preferences import validate_settings
+            heights=[]
+            for size,scale in (('normal',1.0),('large',1.2),('xlarge',1.4)):
+                app.settings['hud_text_size']=size;app.show_mini_hud();app.update();hud=app._mini_hud
+                assert hud.speed.size==round(20*scale) and hud.status.size==round(12*scale),(size,hud.speed.size)
+                assert hud.winfo_width()==340 and hud.speed.winfo_rootx()+hud.speed.winfo_width()<=hud.spark.winfo_rootx(),size
+                heights.append(hud.winfo_height());snapshot(hud,f'hud-{size}',mode);hud.close();app.update()
+            assert heights==sorted(heights) and heights[0]<heights[-1],heights
+            app.settings['hud_text_size']='normal'
+            try:validate_settings(dict(app.settings,hud_text_size='huge'));raise AssertionError('invalid HUD size accepted')
+            except ValueError:pass
             completion=CompletionDialog(app,dict(app.db.get_download(did),status='Tamamlandı'))
             snapshot(completion,'completion',mode)
             # The real two-sentence clean verdict once ran under the scan button.

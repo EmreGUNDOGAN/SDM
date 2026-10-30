@@ -11,7 +11,7 @@ from ui_surface import TextLabel
 from utils import format_speed,format_bytes,format_eta,save_settings,get_category_by_extension
 from atlas_view import number,file_kind
 from file_tools import AUDIO_BITRATES
-from ui_tokens import SIZES,TEXT_SCALE,text_px
+from ui_tokens import SIZES,TEXT_SCALE,HUD_TEXT_SIZES,text_px
 
 # Tool list width follows the text size so descriptions are not cut.
 SIDE=round(268*TEXT_SCALE)
@@ -55,20 +55,21 @@ class MiniHUD(tb.Toplevel):
             return '#'+''.join(f'{round(a*(1-amount)+b*amount):02x}' for a,b in zip(ImageColor.getrgb(self.p['hud']),ImageColor.getrgb(self.p['toast_text'])))
         self.p.update(subtle=tint(.1),control=tint(.06),accent_soft=tint(.18),input_border=tint(.2),track=tint(.14))
         self.configure(bg=self.p['hud']);self._timer=None;self._drag=None;self.points=[]
+        size=lambda base:round(base*HUD_TEXT_SIZES.get(parent.settings.get('hud_text_size'),1.0))
         head=tk.Frame(self,bg=self.p['hud']);head.pack(fill='x',padx=16,pady=(16,10))
         self.ring=ProgressRing(head,self.p,size=48,stroke=5,value=0);self.ring.pack(side='left',padx=(0,14))
         info=tk.Frame(head,bg=self.p['hud']);info.pack(side='left',fill='x',expand=True)
-        self.speed=label(info,'0 KB/sn',palette=self.p,size=20,weight='Bold');self.speed.pack(anchor='w')
-        self.status=label(info,'Aktif indirme yok',palette=self.p,size=12,muted=True);self.status.pack(anchor='w')
+        self.speed=label(info,'0 KB/sn',palette=self.p,size=size(20),weight='Bold');self.speed.pack(anchor='w')
+        self.status=label(info,'Aktif indirme yok',palette=self.p,size=size(12),muted=True);self.status.pack(anchor='w')
         self.spark=Sparkline(head,self.p,width=80,height=24);self.spark.pack(side='right')
         self.files=tk.Frame(self,bg=self.p['hud']);self.files.pack(fill='x',padx=16,pady=8)
         self.file_rows=[]
         for _ in range(3):
             row=tk.Frame(self.files,bg=self.p['hud'])  # packed by tick() only while a file is active
-            text=label(row,'',palette=self.p,size=12);text.max_width=304;text.pack(fill='x')
+            text=label(row,'',palette=self.p,size=size(12));text.max_width=304;text.pack(fill='x')
             bar=ProgressBar(row,self.p,width=304,height=10,thickness=3,show_text=False);bar.pack(fill='x')
             self.file_rows.append((row,text,bar))
-        self.more=label(self.files,'',palette=self.p,size=12,muted=True)
+        self.more=label(self.files,'',palette=self.p,size=size(12),muted=True)
         foot=tk.Frame(self,bg=self.p['hud']);foot.pack(fill='x',padx=12,pady=(0,12))
         Button(foot,'Tümünü duraklat',self.pause_all,palette=self.p,kind='soft').pack(side='left')
         Button(foot,'SDM’yi aç',self.show_main,palette=self.p,quiet=True).pack(side='left',padx=4)
