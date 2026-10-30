@@ -43,6 +43,8 @@ def main():
                 scanner.assert_not_called()
                 if design=='pano':
                     assert len(window.stat_cards)==3 and len(window.name_lines)==2
+                    assert window.name_lines[0].text.endswith('-')
+                    assert ''.join(line.text for line in window.name_lines)==name
                     widths=[card.winfo_width() for card in window.stat_cards]
                     assert max(widths)-min(widths)<=1,widths
                     assert len({card.winfo_y() for card in window.stat_cards})==1
@@ -85,6 +87,11 @@ def main():
                 close=next(child for child in descendants(window.actionbar) if isinstance(child,Button) and child.text=='Kapat')
                 close.invoke();settle()
                 assert not window.winfo_exists()
+                if design=='pano':
+                    alternate=CompletionDialog(app,dict(record,filename=name.replace('-','_')));settle()
+                    assert alternate.name_lines[0].text.endswith('_')
+                    assert ''.join(line.text for line in alternate.name_lines)==name.replace('-','_')
+                    alternate.close();settle()
         assert not errors,errors
         measurements['sources']={name:hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in P06_SOURCES}
         measurements['previews']={state:hashlib.sha256(Path(f'build/p06-{state}.png').read_bytes()).hexdigest() for state in ('pano','pano-scanned')}

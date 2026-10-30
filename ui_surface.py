@@ -21,14 +21,15 @@ def font(size=13,weight='Regular',family='Inter'):
 
 def photo(image,master):return ImageTk.PhotoImage(image,master=master)
 @lru_cache(maxsize=96)
-def _surface(w,h,bg,fill,border,radius,scale):
+def _surface(w,h,bg,fill,border,radius,scale,border_width):
     image=Image.new('RGB',(max(1,w)*scale,max(1,h)*scale),bg)
     draw=ImageDraw.Draw(image)
-    draw.rounded_rectangle((scale/2,scale/2,w*scale-scale/2,h*scale-scale/2),radius=radius*scale,fill=fill,outline=border,width=scale if border else 1)
+    inset=border_width*scale/2 if border else scale/2
+    draw.rounded_rectangle((inset,inset,w*scale-inset,h*scale-inset),radius=radius*scale,fill=fill,outline=border,width=border_width*scale if border else 1)
     return image.resize((max(1,w),max(1,h)),Image.Resampling.LANCZOS)
 
-def surface(w,h,bg,fill,border=None,radius=7,scale=SURFACE_SCALE):
-    return _surface(max(1,round(w)),max(1,round(h)),bg,fill,border,radius,scale).copy()
+def surface(w,h,bg,fill,border=None,radius=7,scale=SURFACE_SCALE,border_width=1):
+    return _surface(max(1,round(w)),max(1,round(h)),bg,fill,border,radius,scale,border_width).copy()
 
 
 @lru_cache(maxsize=96)
