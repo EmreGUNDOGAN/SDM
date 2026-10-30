@@ -161,6 +161,7 @@ class ToolCard(RadioCard):
     Only the selected tool is raised as a card; the rest lie flat on the side panel.
     """
     def __init__(self,master,value,variable,tile,**kwargs):
+        if kwargs.get('palette',{}).get('design')=='pano':kwargs.setdefault('height',132)
         self.tile=tile;super().__init__(master,value,variable,**kwargs)
 
     def draw(self):
@@ -168,6 +169,16 @@ class ToolCard(RadioCard):
         w=self.winfo_width() if self.winfo_width()>1 else int(self.cget('width'))
         h=int(self.cget('height'));p=self.p;bg=self.cget('bg')
         selected=self.variable.get()==self.value
+        if p.get('design')=='pano':
+            fill=p['accent'] if selected else p['card']
+            image=surface(w,h,bg,fill,radius=20);draw=ImageDraw.Draw(image)
+            tile_text,kind=self.tile;tile_bg,tile_fg=file_tile_colors(kind,p['mode'],'pano')
+            draw.rounded_rectangle((12,12,48,48),radius=12,fill=p['card'] if selected else tile_bg)
+            text_on(image,(30,30),tile_text,10,'Bold',p['accent'] if selected else tile_fg,'mm')
+            text_on(image,(12,58),ellipsize(self.text,w-24,13,'Bold'),13,'Bold',p['on_accent'] if selected else p['text'])
+            for index,line in enumerate(self.description.splitlines()[:2]):
+                text_on(image,(12,84+16*index),ellipsize(line,w-24,11),11,fill=p['on_accent'] if selected else p['muted'])
+            self.display(image);return
         fill=p['card'] if selected else p['subtle'] if self.hover else bg
         image=surface(w,h,bg,fill,p['line'] if selected else fill,self.radius)
         label,kind=self.tile;tile_bg,tile_fg=file_tile_colors(kind,p['mode'],p.get('design','atlas'))

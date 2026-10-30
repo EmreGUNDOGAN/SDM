@@ -70,6 +70,8 @@ jobs:
         run: python tools/report_pano_dialogs.py
       - name: Validate Pano transfer detail previews and measured geometry
         run: python tools/report_pano_details.py
+      - name: Validate Pano tools, mode and conversion previews
+        run: python tools/report_pano_tools.py
       - name: Real browser HTTP and SHA-256 checks
         env:
           PLAYWRIGHT_BROWSERS_PATH: '${{ github.workspace }}/build/pw-browsers'
