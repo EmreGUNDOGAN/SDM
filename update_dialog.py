@@ -2,10 +2,11 @@
 import tkinter as tk
 import webbrowser
 from urllib.parse import quote
-from ui_dialog import AppWindow,AutoCard,label,action,step
+from ui_dialog import AppWindow,AutoCard,label,action,step,caption
 from theme_widgets import Button
 from app_version import VERSION
-from ui_tokens import text_px
+from ui_tokens import text_px,YORUNGE_MONO_FAMILY
+from ui_surface import TextLabel
 
 
 def attach_release_notes(updater,update):
@@ -22,6 +23,7 @@ class UpdateDialog(AppWindow):
     def __init__(self,parent,update):
         super().__init__(parent,'Yeni sürüm hazır',560,560);self.result=False
         pano=self.p.get('design')=='pano'
+        if self.p.get('design')=='yorunge':self.build_orbit(parent,update);return
         if pano:
             self.header.pack_forget()
             self.hero=AutoCard(self.body,dict(self.p,card=self.p['accent'],line=self.p['accent'],text=self.p['on_accent']),padding=20);self.hero.radius=22
@@ -66,6 +68,45 @@ class UpdateDialog(AppWindow):
                 tk.Label(warning.content,text=message,wraplength=450,justify='left',bg=self.p['warning_bg'],fg=self.p['warning_fg'],font=('Inter',text_px(12))).pack(fill='x')
             else:label(self.body,message,palette=self.p,size=12).pack(anchor='w',padx=24,pady=12)
         action(self.actionbar,'Şimdi güncelle',self.accept,self.p,'start' if pano else 'primary');action(self.actionbar,'Daha sonra',self.close,self.p,'secondary' if pano else 'ghost')
+    def build_orbit(self,parent,update):
+        """F17: featured version panel, notes, one install-order panel, warning strip."""
+        from ui_surface import surface,photo,icon
+        from PIL import ImageDraw
+        p=self.p;self.header.pack_forget();self.step_cards=[]
+        def mono(parent_,text,size=10,fg=None,weight='Regular'):
+            return TextLabel(parent_,text,size=size,weight=weight,fg=fg or p['muted'],family=YORUNGE_MONO_FAMILY)
+        self.hero=AutoCard(self.body,dict(p,card=p['accent_soft'],line=p['accent']),padding=18);self.hero.pack_configure(pady=(18,12))
+        bg=p['accent_soft'];mark=tk.Canvas(self.hero.content,width=56,height=56,bg=bg,highlightthickness=0);mark.pack(side='left',padx=(0,18))
+        image=surface(56,56,bg,bg,None,0);ImageDraw.Draw(image).polygon(((28,2),(54,28),(28,54),(2,28)),outline=p['accent'],width=2)
+        glyph=icon('refresh',20,p['accent']);image.paste(glyph,(18,18),glyph)
+        mark.image=photo(image,mark);mark.create_image(0,0,image=mark.image,anchor='nw')
+        info=tk.Frame(self.hero.content,bg=bg);info.pack(side='left',fill='x',expand=True)
+        mono(info,'// YENİ SÜRÜM ALGILANDI',fg=p['accent']).pack(anchor='w')
+        versions=tk.Frame(info,bg=bg);versions.pack(anchor='w',pady=(6,0))
+        mono(versions,VERSION,16,p['muted'],'Bold').pack(side='left')
+        mono(versions,' → '+update['version'].lstrip('v'),16,p['text'],'Bold').pack(side='left')
+        card=AutoCard(self.body,p);card.brackets=False
+        head=tk.Frame(card.content,bg=p['card']);head.pack(fill='x')
+        mono(head,'// BU SÜRÜMDE').pack(side='left')
+        if update.get('notes_url'):Button(head,'Tüm notlar >',lambda:webbrowser.open(update['notes_url']),palette=p,kind='link').pack(side='right')
+        notes=[line.strip().lstrip('#*- ').strip() for line in update.get('notes','').splitlines() if line.strip()][:5]
+        for note in notes or ['Sürüm notları alınamadı; tüm sürüm notlarını açabilirsin.']:
+            row=tk.Frame(card.content,bg=p['card']);row.pack(fill='x',pady=(8,0))
+            mono(row,'+',13,p['accent']).pack(side='left',anchor='n',padx=(0,10))
+            item=tk.Label(row,text=note,justify='left',anchor='w',bg=p['card'],fg=p['text'],font=('Inter',text_px(13)),padx=0,pady=0,bd=0)
+            item.pack(side='left',fill='x',expand=True);row.bind('<Configure>',lambda event,item=item:item.configure(wraplength=max(1,event.width-30)),add='+')
+        order=AutoCard(self.body,p);order.brackets=False;mono(order.content,'// KURULUM SIRASI').pack(anchor='w',pady=(0,6))
+        for index,(title,detail) in enumerate((('İndir ve doğrula','SHA-256'),('Duraklat ve kapat','SDM'),('Kur ve yeniden aç',update['version'].lstrip('v'))),1):
+            row=tk.Frame(order.content,bg=p['card']);row.pack(fill='x',pady=6);self.step_cards.append(row)
+            mono(row,f'{index:02}',12,p['accent'],'Bold').pack(side='left',padx=(0,22))
+            mono(row,caption(title)[3:],12,p['text'],'SemiBold').pack(side='left')
+            mono(row,detail,11).pack(side='right')
+        active=parent.engine.get_active_count()+sum(task.status in ('İndiriliyor','Dönüştürülüyor') for task in parent.video_tasks.values())
+        if active:
+            warning=AutoCard(self.body,dict(p,card=p['card'],line=p['warning']),padding=12);warning.brackets=False
+            mono(warning.content,caption(f'! {active} aktif aktarım duraklatılacak, sonra devam edecek')[3:],11,p['warning'],'SemiBold').pack(anchor='w')
+        action(self.actionbar,'Şimdi güncelle',self.accept,p,'primary');action(self.actionbar,'Daha sonra',self.close,p,'secondary')
+
     def accept(self):self.result=True;self.destroy()
 
 

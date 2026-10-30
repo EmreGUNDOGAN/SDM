@@ -3,7 +3,7 @@ from pathlib import Path
 import time
 import tkinter as tk
 import ttkbootstrap as tb
-from ui_dialog import AppWindow,AutoCard,label,action,field,step
+from ui_dialog import AppWindow,AutoCard,label,action,field,step,caption
 from ui_controls import SegmentedControl,RadioCard,ToolCard,TextInput,Select
 from ui_indicators import SpeedChart,ProgressRing,ProgressBar,Sparkline,Summary,FileTile
 from theme_widgets import Button
@@ -11,7 +11,7 @@ from ui_surface import TextLabel
 from utils import format_speed,format_bytes,format_eta,save_settings,get_category_by_extension
 from atlas_view import number,file_kind
 from file_tools import AUDIO_BITRATES
-from ui_tokens import SIZES,TEXT_SCALE,HUD_TEXT_SIZES,text_px
+from ui_tokens import SIZES,TEXT_SCALE,HUD_TEXT_SIZES,text_px,YORUNGE_MONO_FAMILY
 
 # Tool list width follows the text size so descriptions are not cut.
 SIDE=round(268*TEXT_SCALE)
@@ -20,25 +20,35 @@ SIDE=round(268*TEXT_SCALE)
 class SpeedGraph(AppWindow):
     def __init__(self,parent,did):
         record=parent.db.get_download(did)
-        super().__init__(parent,'Hız grafiği',760,440,record['filename'] if record else 'Gerçek aktarım ölçümleri')
-        pano=self.p.get('design')=='pano'
+        super().__init__(parent,'Hız grafiği',760,440,record['filename'] if record else 'Gerçek aktarım ölçümleri',kicker='HIZ TELEMETRİSİ')
+        orbit=self.p.get('design')=='yorunge';pano=self.p.get('design') in ('pano','yorunge')
         self.did=did;self.span=tk.StringVar(self,'300')
         # A16: the span choice sits on the file-name line, right-aligned.
         line=tk.Frame(self.header,bg=self.p['dialog']);line.pack(fill='x',pady=(6,0))
-        # Re-packed into a later sibling, the label must be raised above it.
-        self.description_label.pack_forget();self.description_label.pack(in_=line,side='left');tk.Misc.tkraise(self.description_label,line)
-        spans=SegmentedControl(self.header,{'60':'1 dk','300':'5 dk','all':'Tümü'},self.span,palette=self.p);spans.pack(in_=line,side='right')
-        if pano:
+        if orbit:
+            # F16: the file name is the heading; spans share the title row.
+            line=self.title_label.master;self.title_label.configure(text=record['filename'] if record else 'Gerçek aktarım ölçümleri')
+            self.title_label.max_width=520
+        else:
+            # Re-packed into a later sibling, the label must be raised above it.
+            self.description_label.pack_forget();self.description_label.pack(in_=line,side='left');tk.Misc.tkraise(self.description_label,line)
+        spans=SegmentedControl(self.header,{'60':'1 dk','300':'5 dk','all':'Tümü'},self.span,palette=self.p);spans.pack(in_=line,side='right',padx=(0,8) if orbit else 0)
+        if pano and not orbit:
             line.bind('<Configure>',lambda event:(setattr(self.description_label,'max_width',max(1,event.width-spans.winfo_reqwidth()-12)),self.description_label.draw()),add='+')
         stats=tk.Frame(self.body,bg=self.p['dialog']);stats.pack(fill='x',padx=24,pady=(0,16))
         self.stats={};self.stat_cards=[]
         for key,title in (('now','Şimdi'),('average','Ortalama'),('peak','En yüksek'),('active','Aktif süre')):
             self.stats[key]=tk.StringVar(self,'—')
             if pano:
-                holder=tk.Frame(stats,bg=self.p['dialog']);card=AutoCard(holder,self.p,padding=12);card.radius=18
+                holder=tk.Frame(stats,bg=self.p['dialog']);card=AutoCard(holder,self.p,padding=12);card.radius=0 if orbit else 18
                 card.pack_configure(padx=0,pady=0,fill='both',expand=True);self.stat_cards.append(card)
-                label(card.content,title,palette=self.p,size=12,muted=True).pack(anchor='w')
-                label(card.content,variable=self.stats[key],palette=self.p,size=16,weight='Bold').pack(anchor='w',pady=(4,0))
+                if orbit:
+                    card.brackets=False;card.stripe=self.p[{'now':'accent','average':'violet','peak':'success','active':'warning'}[key]]
+                    TextLabel(card.content,caption(title)[3:],size=10,fg=self.p['muted'],family=YORUNGE_MONO_FAMILY).pack(anchor='w')
+                    TextLabel(card.content,textvariable=self.stats[key],size=16,weight='Bold',fg=self.p['text'],family=YORUNGE_MONO_FAMILY).pack(anchor='w',pady=(4,0))
+                else:
+                    label(card.content,title,palette=self.p,size=12,muted=True).pack(anchor='w')
+                    label(card.content,variable=self.stats[key],palette=self.p,size=16,weight='Bold').pack(anchor='w',pady=(4,0))
             else:Summary(stats,title,self.stats[key],self.p).pack(side='left',fill='x',expand=True)
         if pano:
             def arrange(event):
@@ -50,7 +60,7 @@ class SpeedGraph(AppWindow):
             stats.bind('<Configure>',arrange)
         chart_parent=self.body
         if pano:
-            self.chart_card=AutoCard(self.body,self.p);self.chart_card.radius=22;chart_parent=self.chart_card.content
+            self.chart_card=AutoCard(self.body,self.p);self.chart_card.radius=0 if orbit else 22;chart_parent=self.chart_card.content
         self.chart=SpeedChart(chart_parent,self.p,width=700,height=220,formatter=lambda text:number(parent,text));self.chart.pack(fill='both',expand=True,padx=0 if pano else 24)
         self.canvas=self.chart
         label(self.actionbar,'Anlık hız · kesikli çizgi: gerçek aktarım ortalaması',palette=self.p,size=12,muted=True).pack(side='left')
@@ -77,8 +87,9 @@ class MiniHUD(tb.Toplevel):
         self.configure(bg=self.p['hud']);self._timer=None;self._drag=None;self.points=[]
         size=lambda base:round(base*HUD_TEXT_SIZES.get(parent.settings.get('hud_text_size'),1.0))
         # P15: Pano's HUD is light tiles without a file list (approved: HUD stays simple).
-        self.pano=parent.palette.get('design')=='pano'
+        self.pano=parent.palette.get('design')=='pano';self.orbit=parent.palette.get('design')=='yorunge'
         if self.pano:self.build_pano(size)
+        elif self.orbit:self.build_orbit(size)
         else:
             head=tk.Frame(self,bg=self.p['hud']);head.pack(fill='x',padx=16,pady=(16,10))
             self.ring=ProgressRing(head,self.p,size=48,stroke=5,value=0);self.ring.pack(side='left',padx=(0,14))
@@ -115,10 +126,11 @@ class MiniHUD(tb.Toplevel):
         known=bool(records) and all(r['filesize']>0 for r in records)
         self.speed.configure(text=number(app,format_speed(speed)))
         eta=format_eta(max(0,total-received)/speed) if known and speed else 'Boyut bilinmiyor' if records and not known else '—'
-        if self.pano:
+        if self.pano or self.orbit:
             self.total_bar.set(min(1,received/total) if known else None if records else 0)
             self.percent.configure(text=f'{min(100,round(received/total*100))}%' if known else '—')
-            self.eta.configure(text='Bilinmiyor' if records and not known else eta);self.count.configure(text=f'{len(records)} etkin')
+            self.eta.configure(text='Bilinmiyor' if records and not known else eta)
+            self.count.configure(text=f'● {len(records)} AKTİF' if self.orbit else f'{len(records)} etkin')
             self.arrange_speed()
             return self.fit_and_repeat()
         self.ring.set(min(1,received/total) if known else None if records else 0)
@@ -133,7 +145,10 @@ class MiniHUD(tb.Toplevel):
 
     def fit_and_repeat(self):
         # Fit the shown rows; a fixed height left an empty block with no downloads.
-        self.update_idletasks();height=self.winfo_reqheight()
+        self.update_idletasks()
+        # F15's card sizes itself from its content only on a later Configure.
+        if self.orbit:self.tiles[0].fit();self.update_idletasks()
+        height=self.winfo_reqheight()
         if self.winfo_ismapped() and height!=self.winfo_height():self.geometry(f'340x{height}')
         self._timer=self.after(1000,self.tick)
 
@@ -167,6 +182,30 @@ class MiniHUD(tb.Toplevel):
         self.count=label(right,'Aktif indirme yok',palette=p,size=size(11),muted=True);self.count.max_width=130;self.count.pack(anchor='w')
         foot=tk.Frame(self,bg=p['bg']);foot.pack(fill='x',padx=10,pady=(0,10))
         Button(foot,'Tümünü duraklat',self.pause_all,palette=p,kind='primary').pack(side='left',fill='x',expand=True)
+        Button(foot,'SDM’yi aç',self.show_main,palette=p,kind='secondary').pack(side='left',fill='x',expand=True,padx=6)
+        Button(foot,'×',self.close,palette=p,kind='icon',width=34).pack(side='right')
+
+    def build_orbit(self,size):
+        """F15: one bracketed panel; speed with chart, 30 tiles, total and remaining."""
+        p=self.p=dict(self.parent.palette,hud=self.parent.palette['bg']);self.configure(bg=p['bg'])
+        def mono(parent,text,base,fg=None,weight='Regular'):
+            return TextLabel(parent,text,size=size(base),weight=weight,fg=fg or p['muted'],family=YORUNGE_MONO_FAMILY)
+        panel=AutoCard(self,p,padding=14);panel.pack_configure(padx=0,pady=0,fill='both',expand=True);self.tiles=[panel]
+        # The card grows after its content; refit on either size change.
+        body=panel.content;body.bind('<Configure>',self.fit_pano,add='+');panel.bind('<Configure>',self.fit_pano,add='+')
+        head=tk.Frame(body,bg=p['card']);head.pack(fill='x')
+        mono(head,'// SDM · CANLI',10).pack(side='left')
+        self.count=mono(head,'● 0 AKTİF',10,p['success'],'SemiBold');self.count.pack(side='right')
+        top=tk.Frame(body,bg=p['card']);top.pack(fill='x',pady=(10,8));self.speed_host=top;top.columnconfigure(0,weight=1)
+        self.speed=mono(top,'0 KB/sn',22,p['text'],'Bold');self.speed.grid(row=0,column=0,sticky='w')
+        self.spark=Sparkline(top,p,width=96,height=34);self.spark.grid(row=0,column=1,sticky='e',padx=(12,0))
+        top.bind('<Configure>',lambda event:self.arrange_speed(),add='+')
+        self.total_bar=ProgressBar(body,p,width=300,height=12,thickness=10,show_text=False,cells=30);self.total_bar.pack(fill='x')
+        row=tk.Frame(body,bg=p['card']);row.pack(fill='x',pady=(8,12))
+        mono(row,'TOPLAM ',11).pack(side='left');self.percent=mono(row,'—',11,p['text'],'Bold');self.percent.pack(side='left')
+        self.eta=mono(row,'—',11,p['text'],'Bold');self.eta.pack(side='right');mono(row,'KALAN ',11).pack(side='right')
+        foot=tk.Frame(body,bg=p['card']);foot.pack(fill='x')
+        Button(foot,'Tümünü duraklat',self.pause_all,palette=p,kind='outline_accent').pack(side='left',fill='x',expand=True)
         Button(foot,'SDM’yi aç',self.show_main,palette=p,kind='secondary').pack(side='left',fill='x',expand=True,padx=6)
         Button(foot,'×',self.close,palette=p,kind='icon',width=34).pack(side='right')
 
@@ -224,7 +263,9 @@ MEDIA_TOOLS=('Biçim dönüştürme','Video / ses kesme')
 
 def build_tools(window,parent):
     """Create A14 fields while retaining ToolsDialog's cancellable workers."""
-    p=window.p;pano=p.get('design')=='pano'
+    p=window.p;orbit=p.get('design')=='yorunge'
+    # Yörünge F14 keeps Pano's P14 cards; it swaps step discs for '// CAPTION'.
+    pano=p.get('design') in ('pano','yorunge');round_=22 if p.get('design')=='pano' else 0
     window.cancel=__import__('threading').Event();window.busy=False
     window.mode=tk.StringVar(window,'Biçim dönüştürme');window.input=tk.StringVar(window,'');window.output=tk.StringVar(window,'')
     window.start=tk.StringVar(window,'00:00');window.end=tk.StringVar(window,'00:30');window.format=tk.StringVar(window,'mp4')
@@ -232,7 +273,7 @@ def build_tools(window,parent):
     if pano:
         side=tk.Frame(window.body,bg=p['dialog']);side.pack(fill='x',padx=20,pady=(0,16))
         window.description_label.pack_forget()
-        window.description_label=tk.Label(window.header,bg=p['dialog'],fg=p['muted'],font=('Inter',text_px(13)),justify='left',anchor='w',wraplength=852)
+        window.description_label=tk.Label(window.header,bg=p['dialog'],fg=p['muted'],font=('Inter',text_px(13)),justify='left',anchor='w',wraplength=852,padx=0,pady=0,bd=0)
         window.header.bind('<Configure>',lambda event:window.description_label.configure(wraplength=event.width),add='+')
     else:
         side=tk.Frame(window,bg=p['side'],width=SIDE);side.pack(side='left',fill='y',before=window.header);side.pack_propagate(False)
@@ -240,9 +281,10 @@ def build_tools(window,parent):
     window.mode_buttons={}
     for index,(name,title,description,tile) in enumerate(TOOLS):
         if pano:
-            title=('Dönüştür','Kes','Bağlantılar','Klasörler','Altyazı')[index]
+            title=(('Dönüştür','Kes','Bağlantı','Klasör','Altyazı') if orbit else ('Dönüştür','Kes','Bağlantılar','Klasörler','Altyazı'))[index]
             description=('MP4, MKV, MP3,\nM4A, WAV','Aralığı ayrı\ndosya yap','Listedeki\nadresleri sına','Dosyaları türe\ngöre ayır','Video altyazı\ndillerini indir')[index]
         button=ToolCard(side,name,window.mode,tile,text=title,description=description,palette=p,width=160 if pano else SIDE-24,**({'height':132} if pano else {}))
+        if orbit:button.number=index+1
         if not pano:button.pack(fill='x',padx=12,pady=2)
         window.mode_buttons[name]=button
     if pano:
@@ -254,10 +296,17 @@ def build_tools(window,parent):
     # Steps lie on the window; only the source file and the result are cards (A14).
     def section(number,title):
         if pano and number in (1,3):
-            outer=AutoCard(window.body,p);outer.radius=22;frame=outer.content
+            outer=AutoCard(window.body,p);outer.radius=round_;frame=outer.content
+            # F14: only the running-job panel is featured.
+            if orbit and number==1:outer.brackets=False
         else:
             frame=tk.Frame(window.body,bg=p['dialog']);frame.pack(fill='x',padx=24,pady=(0,20))
-        frame.step=step(frame,number,title,p);frame.step.pack(anchor='w',pady=(0,10));return frame
+        if orbit:
+            frame.step=tk.Frame(frame,bg=frame.cget('bg'))
+            frame.step.title=TextLabel(frame.step,'',size=10,fg=p['muted'],family=YORUNGE_MONO_FAMILY);frame.step.title.pack(anchor='w')
+            frame.step.title.configure(text=caption(title))
+        else:frame.step=step(frame,number,title,p)
+        frame.step.pack(anchor='w',pady=(0,10));return frame
     source=section(1,'Kaynak')
     window.source_card=AutoCard(source,p,padding=0 if pano else 14);window.source_card.pack_forget()
     if pano:window.source_card.radius=0;window.source_card.p=dict(window.source_card.p,line=p['card'])
@@ -272,7 +321,7 @@ def build_tools(window,parent):
     window.source_box=window.source_input.master.master
     hint='Dosya sürükleyip bırakabilir veya bir video bağlantısı yapıştırabilirsin.'
     if pano:
-        window.source_hint=tk.Label(source,text=hint,bg=p['card'],fg=p['muted'],font=('Inter',text_px(12)),wraplength=800,justify='left',anchor='w')
+        window.source_hint=tk.Label(source,text=hint,bg=p['card'],fg=p['muted'],font=('Inter',text_px(12)),wraplength=800,justify='left',anchor='w',padx=0,pady=0,bd=0)
         source.bind('<Configure>',lambda event:window.source_hint.configure(wraplength=event.width),add='+')
         def fit_source(event):
             for item in (window.source_name,window.source_meta):item.max_width=event.width;item.draw()
@@ -284,8 +333,9 @@ def build_tools(window,parent):
     if pano:
         window.output_cards=tk.Frame(output,bg=p['dialog']);window.output_cards.pack(fill='x')
         format_holder=tk.Frame(window.output_cards,bg=p['dialog']);settings_holder=tk.Frame(window.output_cards,bg=p['dialog'])
-        format_card=AutoCard(format_holder,p);format_card.radius=22;format_card.pack_configure(padx=0,pady=0,fill='both',expand=True)
-        settings_card=AutoCard(settings_holder,p);settings_card.radius=22;settings_card.pack_configure(padx=0,pady=0,fill='both',expand=True)
+        format_card=AutoCard(format_holder,p);format_card.radius=round_;format_card.pack_configure(padx=0,pady=0,fill='both',expand=True)
+        settings_card=AutoCard(settings_holder,p);settings_card.radius=round_;settings_card.pack_configure(padx=0,pady=0,fill='both',expand=True)
+        if orbit:format_card.brackets=settings_card.brackets=False
         options_parent=format_card.content;settings_parent=settings_card.content
         def arrange_output(event=None):
             media=window.mode.get() in MEDIA_TOOLS;wide=media and window.output_cards.winfo_width()>=760
@@ -325,7 +375,7 @@ def build_tools(window,parent):
         def fit_job(event=None):
             window.job_name.max_width=max(1,top.winfo_width()-window.job_percent.winfo_reqwidth()-window.job_time.winfo_reqwidth()-24);window.job_name.draw()
         for item in (top,window.job_percent,window.job_time):item.bind('<Configure>',fit_job,add='+')
-    window.progress=ProgressBar(content,p,show_text=False,thickness=SIZES['detail_progress'],height=20);window.progress.pack(fill='x',pady=(8,4))
+    window.progress=ProgressBar(content,p,show_text=False,thickness=SIZES['detail_progress'],height=20,cells=40);window.progress.pack(fill='x',pady=(8,4))
     window.job_meta=label(content,palette=p,size=12,muted=True);window.job_meta.pack(anchor='w')
     window.status=tk.StringVar(window,'');label(content,variable=window.status,palette=p,size=12).pack(anchor='w',pady=(4,0))
     # Link check types into this list, so it needs an input's visible edge.
@@ -335,7 +385,7 @@ def build_tools(window,parent):
     # Durdur only means something while a job runs (A14).
     window.stop_button=action(window.actionbar,'Durdur',window.cancel.set,p,'danger_ghost');window.stop_button.configure(state='disabled')
     if pano:
-        window.footer_note=tk.Label(window.footer,text='İşlem bitince dosya klasörde seçili olarak açılır.',bg=p['footer'],fg=p['muted'],font=('Inter',text_px(12)),wraplength=852,justify='left',anchor='w')
+        window.footer_note=tk.Label(window.footer,text='İşlem bitince dosya klasörde seçili olarak açılır.',bg=p['footer'],fg=p['muted'],font=('Inter',text_px(12)),wraplength=852,justify='left',anchor='w',padx=0,pady=0,bd=0)
         window.footer.bind('<Configure>',lambda event:window.footer_note.configure(wraplength=max(1,event.width-48)),add='+')
     else:window.footer_note=label(window.actionbar,'İşlem bitince dosya klasörde seçili olarak açılır.',palette=p,muted=True)
     window.mode.trace_add('write',lambda *args:window.update_mode());window.update_mode()

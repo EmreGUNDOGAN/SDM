@@ -161,8 +161,11 @@ class ToolCard(RadioCard):
     Only the selected tool is raised as a card; the rest lie flat on the side panel.
     """
     def __init__(self,master,value,variable,tile,**kwargs):
-        if kwargs.get('palette',{}).get('design')=='pano':kwargs.setdefault('height',132)
-        self.tile=tile;super().__init__(master,value,variable,**kwargs)
+        design=kwargs.get('palette',{}).get('design')
+        if design=='pano':kwargs.setdefault('height',132)
+        if design=='yorunge':kwargs.setdefault('height',104)
+        # F14 numbers its five modules ('01'…'05'); the builder sets it.
+        self.tile=tile;self.number=None;super().__init__(master,value,variable,**kwargs)
 
     def draw(self):
         from ui_tokens import file_tile_colors
@@ -178,6 +181,15 @@ class ToolCard(RadioCard):
             text_on(image,(12,58),ellipsize(self.text,w-24,13,'Bold'),13,'Bold',p['on_accent'] if selected else p['text'])
             for index,line in enumerate(self.description.splitlines()[:2]):
                 text_on(image,(12,84+16*index),ellipsize(line,w-24,11),11,fill=p['on_accent'] if selected else p['muted'])
+            self.display(image);return
+        if p.get('design')=='yorunge':
+            from ui_tokens import YORUNGE_MONO_FAMILY as mono
+            image=surface(w,h,bg,p['accent_soft'] if selected else p['card'],p['accent'] if selected else p['input_border'] if self.hover else p['line'],0)
+            if self.number:text_on(image,(12,12),f'{self.number:02}',10,'Medium',p['accent'] if selected else p['dim'],family=mono)
+            title=self.text.replace('i','İ').replace('ı','I').upper()
+            text_on(image,(12,32),ellipsize(title,w-24,12,'Bold',mono),12,'Bold',p['accent'] if selected else p['text'],family=mono)
+            for index,line in enumerate(self.description.splitlines()[:2]):
+                text_on(image,(12,56+17*index),ellipsize(line,w-24,12),12,fill=p['text_2'] if selected else p['muted'])
             self.display(image);return
         fill=p['card'] if selected else p['subtle'] if self.hover else bg
         image=surface(w,h,bg,fill,p['line'] if selected else fill,self.radius)
