@@ -26,7 +26,7 @@ def main():
             app.apply_settings(dict(app.settings,design='odak',color_mode=mode,language='tr'));app.geometry(f'{width}x{height}+20+20');app.select_category('Tümü');app.select_status_filter('Tümü');app.update()
             w=app._atlas_workspace;assert w.rail.winfo_width()==68 and len(app.tree.get_children())==24
             assert app.data_view._image.height()==app.data_view.winfo_height() and app.data_view._image.width()==app.data_view.winfo_width()
-            assert list(w.rail_buttons)==['downloads','queues','video','tools','hud','settings']
+            assert list(w.rail_buttons)==['downloads','queues','video','tools','stats','hud','settings']
             shot('main',mode)
             w.sort.set('name');app.refresh_downloads();app.update()
             assert [int(app.tree.item(item,'values')[0]) for item in app.tree.get_children()]==ids
