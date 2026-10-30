@@ -148,6 +148,7 @@ class SettingsContent(tk.Frame):
         c=self.card('Araçlar','Yardımcılar')
         for key,title,description in [('mini_hud','Açılışta masaüstü HUD','Hızı ve aktif dosyaları küçük pencerede gösterir.'),('duplicate_warning','Yinelenen bağlantı uyarısı','Aynı bağlantıyı eklerken seçim sunar.'),('disk_check','Boş alanı kontrol et','İndirmeye eklemeden önce hedef diski kontrol eder.'),('auto_extract','Arşivleri otomatik çıkar','Tamamlanan ZIP/RAR dosyalarını çıkarır.')]:self.check(c,key,title,description)
         self.field(c,'extract_dir','Arşiv çıktı klasörü · boş = dosyanın yanı',actions=[('Klasör seç',self.pick_extract)])
+        self.field(c,'hud_text_size','Masaüstü HUD yazı boyutu',{'normal':'Normal','large':'Büyük','xlarge':'Çok büyük'})
         c=self.card('Araçlar','Kaspersky');self.av_status=self.text(c,'Kurulum durumu kontrol ediliyor…');self.text(c,'Tarama yalnız Tamamlandı penceresindeki Virüs tarat eylemiyle başlar. Otomatik tarama yapılmaz.')
         def work():
             try:

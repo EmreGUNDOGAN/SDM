@@ -105,6 +105,18 @@ def main():
             snapshot(graph,'graph',mode);graph.close()
             app.show_mini_hud();app.update();hud=app._mini_hud;assert hud.winfo_exists()
             snapshot(hud,'hud',mode);hud.close();assert hud._timer is None
+            # HUD text size (Ayarlar › Araçlar): text grows, width stays 340 px, the HUD grows taller.
+            from preferences import validate_settings
+            heights=[]
+            for size,scale in (('normal',1.0),('large',1.2),('xlarge',1.4)):
+                app.settings['hud_text_size']=size;app.show_mini_hud();app.update();hud=app._mini_hud
+                assert hud.speed.size==round(20*scale) and hud.status.size==round(12*scale),(size,hud.speed.size)
+                assert hud.winfo_width()==340 and hud.speed.winfo_rootx()+hud.speed.winfo_width()<=hud.spark.winfo_rootx(),size
+                heights.append(hud.winfo_height());snapshot(hud,f'hud-{size}',mode);hud.close();app.update()
+            assert heights==sorted(heights) and heights[0]<heights[-1],heights
+            app.settings['hud_text_size']='normal'
+            try:validate_settings(dict(app.settings,hud_text_size='huge'));raise AssertionError('invalid HUD size accepted')
+            except ValueError:pass
             completion=CompletionDialog(app,dict(app.db.get_download(did),status='Tamamlandı'))
             snapshot(completion,'completion',mode)
             # The real two-sentence clean verdict once ran under the scan button.
