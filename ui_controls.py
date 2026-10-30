@@ -7,7 +7,7 @@ import tkinter as tk
 from PIL import Image, ImageDraw
 from theme_widgets import Button, background
 from ui_surface import surface, photo, icon, text_on, font, ellipsize
-from ui_tokens import SIZES, RADII, SURFACE_SCALE, FONT_FAMILY, MONO_FAMILY, text_px, dimensions
+from ui_tokens import SIZES, RADII, SURFACE_SCALE, FONT_FAMILY, MONO_FAMILY, YORUNGE_MONO_FAMILY, text_px, dimensions
 
 
 def watch(widget, variable, callback):
@@ -237,7 +237,7 @@ class DesignCard(RadioCard):
             td.rectangle((5,5,thumb.width-6,thumb.height-6),outline=mini['accent'])
             td.line((thumb.width//3,6,thumb.width//3,thumb.height-7),fill=mini['line'])
         image.paste(thumb,(12,12))
-        title=ellipsize(self.text,w-24,13,'Bold');rest=ellipsize(' · '+self.description,w-24-font(13,'Bold').getlength(title),12)
+        title=ellipsize(self.text,w-24,13,'Bold');rest=ellipsize(' · '+self.description,w-24-font(13,'Bold').getlength(title),12) if self.description else ''
         text_on(image,(12,h-14),title,13,'Bold',p['text'],'ls')
         text_on(image,(12+font(13,'Bold').getlength(title),h-14),rest,12,fill=p['muted'],anchor='ls')
         self.display(image)
@@ -358,14 +358,15 @@ class NumberStepper(tk.Frame):
     """Bounded draft number: buttons/keys/wheel, double-click for native editing."""
     def __init__(self,master,variable,palette,minimum,maximum):
         super().__init__(master,bg=master.cget('bg'));self.variable=variable;self.minimum=minimum;self.maximum=maximum;self.error=''
+        yorunge=palette.get('design')=='yorunge'
         row=tk.Frame(self,bg=self.cget('bg'));row.pack()
-        self.minus=Button(row,'−',lambda:self.adjust(-1),palette=palette,kind='soft',width=34,height=34);self.minus.pack(side='left')
-        self.input=TextInput(row,variable=variable,palette=dict(palette,well=self.cget('bg')),width=112,height=54)
+        self.minus=Button(row,'−',lambda:self.adjust(-1),palette=palette,kind='outline_accent' if yorunge else 'soft',width=34,height=34);self.minus.pack(side='left')
+        self.input=TextInput(row,variable=variable,palette=dict(palette,well=self.cget('bg')),width=80 if yorunge else 112,height=54)
         self.input.pack(side='left',padx=8);self.entry=self.input.entry
-        self.entry.configure(justify='center',font=(FONT_FAMILY,text_px(26),'bold'),state='readonly',readonlybackground=self.cget('bg'))
+        self.entry.configure(justify='center',font=(YORUNGE_MONO_FAMILY if yorunge else FONT_FAMILY,text_px(26),'bold'),state='readonly',readonlybackground=self.cget('bg'))
         from tkinter import font as tkfont
         self.input.canvas.configure(height=max(54,tkfont.Font(font=self.entry.cget('font')).metrics('linespace')+20))
-        self.plus=Button(row,'+',lambda:self.adjust(1),palette=palette,kind='soft',width=34,height=34);self.plus.pack(side='left')
+        self.plus=Button(row,'+',lambda:self.adjust(1),palette=palette,kind='outline_accent' if yorunge else 'soft',width=34,height=34);self.plus.pack(side='left')
         self.problem=tk.Label(self,text='',bg=self.cget('bg'),fg=palette['danger_fg'],font=(FONT_FAMILY,text_px(12)),wraplength=200,justify='center')
         self.entry.bind('<Double-Button-1>',self.edit)
         self.entry.bind('<Return>',self.lock);self.entry.bind('<FocusOut>',self.lock,add='+')

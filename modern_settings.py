@@ -11,10 +11,10 @@ from preferences import export_settings,import_settings,validate_settings
 from capture_policy import normalize_domain
 from theme_catalog import migrate_settings,theme_key
 from theme_widgets import Button,Panel
-from ui_dialog import ScrollBody,AutoCard,label,field,step
+from ui_dialog import ScrollBody,AutoCard,label,field,step,caption
 from ui_controls import Switch,Select,SegmentedControl,DesignCard,ChipInput,TextInput,NumberStepper,watch
 from ui_surface import TextLabel
-from ui_tokens import text_px,DESIGNS,DESIGN_NAMES,FIXED_MODES
+from ui_tokens import text_px,DESIGNS,DESIGN_NAMES,FIXED_MODES,YORUNGE_MONO_FAMILY
 
 SECTIONS={'Genel':('sliders','Kayıt yeri, görünüm ve aktarım tercihleri'),
  'Tarayıcı':('globe','Yakalama, dosya türleri ve site istisnaları'),
@@ -37,7 +37,7 @@ class SectionDeck(tk.Frame):
 
 class SettingsContent(tk.Frame):
     def __init__(self,master,parent,embedded=False,on_saved=None,on_cancel=None):
-        self.app=parent;self.p=parent.palette;self.pano=self.p.get('design')=='pano';self.embedded=embedded;self.on_saved=on_saved;self.on_cancel=on_cancel
+        self.app=parent;self.p=parent.palette;self.pano=self.p.get('design')=='pano';self.yorunge=self.p.get('design')=='yorunge';self.panelled=self.pano or self.yorunge;self.embedded=embedded;self.on_saved=on_saved;self.on_cancel=on_cancel
         super().__init__(master,bg=self.p['dialog'])
         self.settings=migrate_settings(copy.deepcopy(dict(DEFAULT_SETTINGS,**parent.settings)))
         self.vars={};self.inputs={};self._traces=[];self._initializing=True;self._timer=None
@@ -60,16 +60,19 @@ class SettingsContent(tk.Frame):
             self.side_card.pack(side='left',fill='y',padx=(18,0),pady=18);self.side=self.side_card.content
         else:
             self.side=tk.Frame(self,bg=self.p['side'],width=232 if embedded else 200);self.side.pack(side='left',fill='y');self.side.pack_propagate(False)
-        label(self.side,'Ayarlar',palette=self.p,size=18,weight='Bold').pack(anchor='w',padx=20,pady=24)
+        if self.yorunge:TextLabel(self.side,caption('Sistem'),family=YORUNGE_MONO_FAMILY,size=10,fg=self.p['muted']).pack(anchor='w',padx=20,pady=(20,0))
+        label(self.side,'Ayarlar',palette=self.p,size=18,weight='Bold').pack(anchor='w',padx=20,pady=(8,24) if self.yorunge else 24)
         label(self.side,'SDM '+VERSION,palette=self.p,size=12,muted=True).pack(side='bottom',anchor='w',padx=20,pady=20)
         self.deck=SectionDeck(self,self.p,self.section_changed);self.deck.pack(side='left',fill='both',expand=True)
         self.tabs={};self.nav={}
-        for name,(glyph,description) in SECTIONS.items():
+        for index,(name,(glyph,description)) in enumerate(SECTIONS.items(),1):
             tab=ScrollBody(self.deck,self.p);self.tabs[name]=tab
             label(tab.content,name,palette=self.p,size=20,weight='Bold').pack(anchor='w',padx=24,pady=(24,6))
             title=label(tab.content,description,palette=self.p,size=12,muted=True);title.max_width=560;title.pack(anchor='w',padx=24,pady=(0,20))
-            button=Button(self.side,name,lambda n=name:self.show_section(n),palette=self.p,kind='ghost',width=168)
-            button.icon_name=glyph;button.pack(fill='x',padx=12,pady=3);self.nav[name]=button
+            button=Button(self.side,f'{index:02}  {name}' if self.yorunge else name,lambda n=name:self.show_section(n),palette=self.p,kind='ghost',width=168)
+            if self.yorunge:button.side_accent=True
+            else:button.icon_name=glyph
+            button.pack(fill='x',padx=0 if self.yorunge else 12,pady=3);self.nav[name]=button
         self.general();self.browser();self.queues();self.tools();self.update_page();self.backup()
         for variable in self.vars.values():self.watch(variable,self.changed)
         self.watch(self.site_values,self.changed);self.watch(self.extensions,self.extensions_changed)
@@ -77,9 +80,9 @@ class SettingsContent(tk.Frame):
         for key in ('design','color_mode'):self.watch(self.vars[key],self.request_preview)
         self.app._settings_editor=self
         self._focus_host=self.winfo_toplevel()
-        self._focus_binding=self._focus_host.bind('<FocusIn>',self.reveal_focus,add='+') if self.pano else None
+        self._focus_binding=self._focus_host.bind('<FocusIn>',self.reveal_focus,add='+') if self.panelled else None
         self._tab_bindings=[]
-        if self.pano:
+        if self.panelled:
             for sequence,backward in (('<Tab>',False),('<Shift-Tab>',True)):
                 self._tab_bindings.append((sequence,self._focus_host.bind(sequence,lambda event,backward=backward:self.tab_focus(event,backward),add='+')))
         self.bind('<Destroy>',self.dispose,add='+');self.update_status()
@@ -108,12 +111,18 @@ class SettingsContent(tk.Frame):
         p=self.p
         if self.pano and (section,title) in (('Tarayıcı','Yakalama'),('Yedekleme','Dışa aktar')):
             p=dict(p,card=p['accent'],line=p['accent'],text=p['on_accent'],muted=p['accent_soft'])
+        if self.yorunge and (section,title) in (('Tarayıcı','Yakalama'),('Güncelleme','Kurulu sürüm'),('Yedekleme','Dışa aktar')):
+            p=dict(p,card=p['accent_soft'],line=p['accent'])
         card=AutoCard(parent if parent is not None else self.tabs[section].content,p)
         if self.pano:card.radius=22
+        if self.yorunge:card.brackets=title in ('Kayıt yeri','Yakalama','Kurulu sürüm','Dışa aktar')
         if parent is not None:card.pack_configure(padx=0,fill='both',expand=True)
-        label(card.content,title,palette=p,weight='SemiBold').pack(anchor='w',pady=(0,12));return card.content
+        if self.yorunge:TextLabel(card.content,caption(title),family=YORUNGE_MONO_FAMILY,size=10,fg=p['muted']).pack(anchor='w',pady=(0,12))
+        else:label(card.content,title,palette=p,weight='SemiBold').pack(anchor='w',pady=(0,12))
+        return card.content
     def view_palette(self,parent):
-        return dict(self.p,card=self.p['accent'],text=self.p['on_accent'],muted=self.p['accent_soft']) if self.pano and parent.cget('bg')==self.p['accent'] else self.p
+        if self.pano and parent.cget('bg')==self.p['accent']:return dict(self.p,card=self.p['accent'],text=self.p['on_accent'],muted=self.p['accent_soft'])
+        return dict(self.p,card=parent.cget('bg')) if self.yorunge else self.p
     def card_row(self,section,titles):
         row=tk.Frame(self.tabs[section].content,bg=self.p['dialog']);row.pack(fill='x',padx=24)
         cells=[];holders=[]
@@ -148,7 +157,7 @@ class SettingsContent(tk.Frame):
         p=self.view_palette(parent);row=tk.Frame(parent,bg=p['card']);row.pack(fill='x',pady=6)
         switch_palette=dict(p,accent=self.p['on_accent'],accent_text=self.p['accent_soft'],on_accent=self.p['accent'],input_border=self.p['accent_text']) if p['card']==self.p['accent'] else p
         switch=Switch(row,self.value(key),palette=switch_palette);switch.pack(side='right')
-        if self.pano:
+        if self.panelled:
             text=tk.Label(row,text=title,bg=p['card'],fg=p['text'],font=('Inter',text_px(13)),wraplength=440,justify='left',anchor='w',padx=0,pady=0,bd=0,highlightthickness=0);text.pack(fill='x')
             row.bind('<Configure>',lambda event:text.configure(wraplength=max(1,event.width-switch.winfo_reqwidth()-8)),add='+')
         else:text=label(row,title,palette=p);text.max_width=440;text.pack(anchor='w')
@@ -159,9 +168,16 @@ class SettingsContent(tk.Frame):
         descriptions={'atlas':'kenar menü, ayrıntı paneli','odak':'kart satırlar','pano':'açık panolar','yorunge':'koyu kontrol paneli'}
         self.design_cards={}
         for index,key in enumerate(DESIGNS):
-            card=DesignCard(row,key,self.value('design'),text=DESIGN_NAMES[key],description=descriptions[key],palette=self.p,width=230)
+            card=DesignCard(row,key,self.value('design'),text=DESIGN_NAMES[key],description='' if self.yorunge else descriptions[key],palette=self.p,width=140 if self.yorunge else 230)
             card.grid(row=index//2,column=index%2,sticky='ew',padx=(12 if index%2 else 0,0),pady=(0,10))
             row.columnconfigure(index%2,weight=1,uniform='design');self.design_cards[key]=card
+        if self.yorunge:
+            def arrange_designs(event,design_row=row):
+                if event.widget is not design_row:return
+                columns=4 if event.width>=640 else 2
+                for index in range(4):design_row.columnconfigure(index,weight=1 if index<columns else 0,uniform='design' if index<columns else '')
+                for index,card in enumerate(self.design_cards.values()):card.grid_configure(row=index//columns,column=index%columns,padx=(8 if index%columns else 0,0))
+            row.bind('<Configure>',arrange_designs)
         # The displayed fixed mode never overwrites the user's saved preference.
         self.display_color_mode=tk.StringVar(self,self.value('color_mode').get())
         self.color_selector=SegmentedControl(c,{'light':'Açık','dark':'Koyu','system':'Sistem'},self.display_color_mode,
@@ -170,7 +186,7 @@ class SettingsContent(tk.Frame):
         self.color_note=self.text(c,'')
         for key in ('design','color_mode'):watch(self,self.value(key),self.sync_color_mode)
         self.sync_color_mode()
-        if self.pano:
+        if self.panelled:
             row=tk.Frame(self.tabs['Genel'].content,bg=self.p['dialog']);row.pack(fill='x',padx=24);row.columnconfigure((0,1),weight=1,uniform='stepper')
             self.steppers={}
             for index,(key,title) in enumerate((('default_connections','Paralel bağlantı'),('max_simultaneous_downloads','Eşzamanlı indirme'))):
@@ -182,7 +198,7 @@ class SettingsContent(tk.Frame):
             self.field(c,'language','Sayı biçimi · Türkçe (1,5) / English (1.5)',{'tr':'Türkçe (1,5)','en':'English (1.5)'})
             c=self.card('Genel','Aktarım');row=tk.Frame(c,bg=self.p['card']);row.pack(fill='x')
             for key,title,hint in [('default_connections','Paralel bağlantı','1–32 arası'),('max_simultaneous_downloads','Eşzamanlı indirme','1–10 arası'),('speed_limit_kbs','Toplam hız sınırı','KB/sn · 0 = sınırsız')]:self.field(row,key,title,side='left',hint=hint)
-        if self.pano:self.field(c,'language','Sayı biçimi · Türkçe (1,5) / English (1.5)',{'tr':'Türkçe (1,5)','en':'English (1.5)'})
+        if self.panelled:self.field(c,'language','Sayı biçimi · Türkçe (1,5) / English (1.5)',{'tr':'Türkçe (1,5)','en':'English (1.5)'})
         c=self.card('Genel','Davranış')
         for key,title in [('auto_open_details','Yeni indirmede ayrıntıları aç'),('completion_popup','Tamamlandı penceresini göster'),('notifications_enabled','Masaüstü bildirimi göster'),('clipboard_monitoring','Panodaki bağlantıları izle'),('start_minimized','Simge durumunda başlat')]:self.check(c,key,title)
     def sync_color_mode(self):
@@ -196,7 +212,7 @@ class SettingsContent(tk.Frame):
         self.browser_status=self.text(c,'Chrome / Opera · Henüz eklenti teması alınmadı.')
         Button(c,'Kurulum adımları',self.browser_help,palette=self.p,kind='soft').pack(anchor='w')
         self.client_status={}
-        if self.pano:
+        if self.panelled:
             for name,body in zip(('Chrome','Opera'),self.card_row('Tarayıcı',('Chrome','Opera'))):
                 self.client_status[name]=self.text(body,'Henüz eklenti teması alınmadı.')
                 Button(body,'Kurulum adımları',self.browser_help,palette=self.p,kind='soft').pack(anchor='w')
@@ -209,14 +225,18 @@ class SettingsContent(tk.Frame):
         Button(c,'Ekle',self.add_site,palette=self.p,kind='soft').pack(side='left');Button(c,'Seçili satırı kaldır',self.remove_site,palette=self.p,kind='ghost').pack(side='left',padx=8)
     def queues(self):
         from queue_ui import QueueEditor
-        self.queue_editor=QueueEditor(self.tabs['Kuyruk'].content,self.settings['queues'],palette=self.p,command=self.changed);self.queue_editor.pack(fill='both',expand=True,padx=24 if self.pano else 16)
+        self.queue_editor=QueueEditor(self.tabs['Kuyruk'].content,self.settings['queues'],palette=self.p,command=self.changed);self.queue_editor.pack(fill='both',expand=True,padx=24 if self.panelled else 16)
         c=self.card('Kuyruk','Tamamlanınca');self.check(c,'shutdown_after_queue','Kuyruk bitince bilgisayarı kapat','Kapatmadan önce 60 saniye iptal süresi verilir.')
     def tools(self):
         c=self.card('Araçlar','İnterneti rahatlat');self.field(c,'relax_limit_kbs','Hız · KB/sn')
         row=tk.Frame(c,bg=self.p['card']);row.pack(fill='x',pady=8)
-        for value,title in [(256,'256 KB/sn'),(512,'512 KB/sn'),(1024,'1 MB/sn'),(2048,'2 MB/sn')]:Button(row,title,lambda v=value:self.vars['relax_limit_kbs'].set(str(v)),palette=self.p,kind='soft').pack(side='left',padx=3)
+        for index,(value,title) in enumerate([(256,'256 KB/sn'),(512,'512 KB/sn'),(1024,'1 MB/sn'),(2048,'2 MB/sn')]):
+            button=Button(row,title,lambda v=value:self.vars['relax_limit_kbs'].set(str(v)),palette=self.p,kind='soft')
+            if self.yorunge:
+                button.grid(row=index//2,column=index%2,sticky='ew',padx=3,pady=3);row.columnconfigure(index%2,weight=1,uniform='speed')
+            else:button.pack(side='left',padx=3)
         helpers=[('mini_hud','Açılışta masaüstü HUD','Hızı ve aktif dosyaları küçük pencerede gösterir.'),('duplicate_warning','Yinelenen bağlantı uyarısı','Aynı bağlantıyı eklerken seçim sunar.'),('disk_check','Boş alanı kontrol et','İndirmeye eklemeden önce hedef diski kontrol eder.'),('auto_extract','Arşivleri otomatik çıkar','Tamamlanan ZIP/RAR dosyalarını çıkarır.')]
-        if self.pano:
+        if self.panelled:
             bodies=self.card_row('Araçlar',('Masaüstü HUD','Yinelenen bağlantı'))+self.card_row('Araçlar',('Disk alanı','Arşiv çıkarma'))
             for body,(key,title,description) in zip(bodies,helpers):self.check(body,key,title,description)
             c,av=self.card_row('Araçlar',('Arşiv klasörü ve HUD','Kaspersky'))
@@ -225,7 +245,7 @@ class SettingsContent(tk.Frame):
             for key,title,description in helpers:self.check(c,key,title,description)
         self.field(c,'extract_dir','Arşiv çıktı klasörü · boş = dosyanın yanı',actions=[('Klasör seç',self.pick_extract)])
         self.field(c,'hud_text_size','Masaüstü HUD yazı boyutu',{'normal':'Normal','large':'Büyük','xlarge':'Çok büyük'})
-        c=av if self.pano else self.card('Araçlar','Kaspersky');self.av_status=self.text(c,'Kurulum durumu kontrol ediliyor…');self.text(c,'Tarama yalnız Tamamlandı penceresindeki Virüs tarat eylemiyle başlar. Otomatik tarama yapılmaz.')
+        c=av if self.panelled else self.card('Araçlar','Kaspersky');self.av_status=self.text(c,'Kurulum durumu kontrol ediliyor…');self.text(c,'Tarama yalnız Tamamlandı penceresindeki Virüs tarat eylemiyle başlar. Otomatik tarama yapılmaz.')
         def work():
             try:
                 from antivirus import find_kaspersky
@@ -234,31 +254,41 @@ class SettingsContent(tk.Frame):
             self.app.post_ui(lambda:self.av_status.configure(text=text) if self.winfo_exists() else None)
         threading.Thread(target=work,daemon=True).start()
     def update_page(self):
-        c=self.card('Güncelleme','SDM '+VERSION);self.version_status=self.text(c,'Henüz denetlenmedi.')
+        c=self.card('Güncelleme','Kurulu sürüm' if self.yorunge else 'SDM '+VERSION)
+        if self.yorunge:TextLabel(c,'SDM '+VERSION,family=YORUNGE_MONO_FAMILY,size=28,weight='Bold',fg=self.p['text']).pack(anchor='w')
+        self.version_status=self.text(c,'Henüz denetlenmedi.')
         Button(c,'Güncellemeleri denetle',lambda:self.app.check_updates(False),palette=self.p,kind='primary').pack(anchor='w',pady=8)
-        if self.pano:
+        if self.panelled:
             self.check(self.card('Güncelleme','Açılışta denetle'),'update_check_on_start','Açılışta güncellemeleri kontrol et')
             for index,(body,title,description) in enumerate(zip(self.card_row('Güncelleme',('İndir','Doğrula','Kurulum')),('Setup','SHA-256','Onay ve kurulum'),
                     ('Yeni setup indirilir.','Setup özeti doğrulanır.','Onayınla indirmeler duraklatılır ve kurulum başlar.')),1):
-                step(body,index,title,self.p).pack(anchor='w');self.text(body,description)
+                if self.yorunge:TextLabel(body,f'{index:02}  '+title,family=YORUNGE_MONO_FAMILY,size=12,fg=self.p['accent']).pack(anchor='w')
+                else:step(body,index,title,self.p).pack(anchor='w')
+                self.text(body,description)
             c=self.card('Güncelleme','Kaynak')
         else:
             self.check(c,'update_check_on_start','Açılışta güncellemeleri kontrol et')
             c=self.card('Güncelleme','Güncelleme nasıl çalışır')
             self.text(c,'1  Yeni setup indirilir.\n2  SHA-256 doğrulanır.\n3  Onayınla indirmeler duraklatılır ve kurulum başlar.')
         self.text(c,'Kaynak: EmreGUNDOGAN/SDM-Updates · Token gerekmez. Kaynak kod özel SDM deposunda kalır.')
-        if self.pano:c=self.card('Güncelleme','Eski token')
+        if self.panelled:c=self.card('Güncelleme','Eski token')
         Button(c,'Kayıtlı tokenı sil',self.remove_token,palette=self.p,kind='danger_ghost').pack(anchor='w',pady=8)
     def backup(self):
-        if self.pano:export,restore=self.card_row('Yedekleme',('Dışa aktar','Geri yükle'))
-        c=export if self.pano else self.card('Yedekleme','Dışa aktar');self.text(c,'Ayarları JSON dosyasına kaydet. İndirme geçmişi taşınmaz.')
-        Button(c,'Ayarları dışa aktar',self.export,palette=self.p,kind='soft').pack(anchor='w')
-        c=restore if self.pano else self.card('Yedekleme','Geri yükle');self.text(c,'Yedek önce bu forma alınır. Kaydet’e basmadan uygulanmaz.')
+        if self.panelled:export,restore=self.card_row('Yedekleme',('Dışa aktar','Geri yükle'))
+        c=export if self.panelled else self.card('Yedekleme','Dışa aktar');self.text(c,'Ayarları JSON dosyasına kaydet. İndirme geçmişi taşınmaz.')
+        Button(c,'Ayarları dışa aktar',self.export,palette=self.p,kind='primary' if self.yorunge else 'soft').pack(anchor='w')
+        c=restore if self.panelled else self.card('Yedekleme','Geri yükle');self.text(c,'Yedek önce bu forma alınır. Kaydet’e basmadan uygulanmaz.')
         Button(c,'Yedekten geri yükle',self.restore,palette=self.p,kind='soft').pack(anchor='w')
-        if self.pano:included,excluded=self.card_row('Yedekleme',('Yedeğe girer','Yedeğe girmez'))
-        c=included if self.pano else self.card('Yedekleme','Yedeğe girer')
-        self.text(c,'Kayıt klasörü; kuyruklar ve zamanlamalar; aktarım sınırları; yakalama ve site istisnaları; uzantılar; görünür sütunlar; görünüm; sayı biçimi; davranış ve yardımcı tercihleri; HUD konumu. Geçici yakalama duraklatması sıfırlanır.')
-        c=excluded if self.pano else self.card('Yedekleme','Yedeğe girmez');self.text(c,'Token; eklenti bağlantı anahtarı; indirme veritabanı/geçmişi; indirilen dosyalar.')
+        if self.panelled:included,excluded=self.card_row('Yedekleme',('Yedeğe girer','Yedeğe girmez'))
+        c=included if self.panelled else self.card('Yedekleme','Yedeğe girer')
+        if self.yorunge:
+            for text in ('Kayıt klasörü','Kuyruklar ve zamanlamalar','Aktarım sınırları','Yakalama, site istisnaları ve uzantılar','Görünür sütunlar','Görünüm ve sayı biçimi','Davranış ve yardımcı tercihleri','HUD konumu'):self.text(c,'+  '+text)
+            self.text(c,'Geçici yakalama duraklatması sıfırlanır.')
+        else:self.text(c,'Kayıt klasörü; kuyruklar ve zamanlamalar; aktarım sınırları; yakalama ve site istisnaları; uzantılar; görünür sütunlar; görünüm; sayı biçimi; davranış ve yardımcı tercihleri; HUD konumu. Geçici yakalama duraklatması sıfırlanır.')
+        c=excluded if self.panelled else self.card('Yedekleme','Yedeğe girmez')
+        if self.yorunge:
+            for text in ('Token','Eklenti bağlantı anahtarı','İndirme veritabanı ve geçmişi','İndirilen dosyalar'):self.text(c,'−  '+text)
+        else:self.text(c,'Token; eklenti bağlantı anahtarı; indirme veritabanı/geçmişi; indirilen dosyalar.')
     def show_section(self,name):self.deck.select(self.tabs[name])
     def section_changed(self,tab):
         for name,button in self.nav.items():
