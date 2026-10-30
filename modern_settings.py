@@ -67,8 +67,11 @@ class SettingsContent(tk.Frame):
         self.tabs={};self.nav={}
         for index,(name,(glyph,description)) in enumerate(SECTIONS.items(),1):
             tab=ScrollBody(self.deck,self.p);self.tabs[name]=tab
-            label(tab.content,name,palette=self.p,size=20,weight='Bold').pack(anchor='w',padx=24,pady=(24,6))
-            title=label(tab.content,description,palette=self.p,size=12,muted=True);title.max_width=560;title.pack(anchor='w',padx=24,pady=(0,20))
+            # F08–F13 have no page heading: the numbered menu names the page.
+            if self.yorunge:tk.Frame(tab.content,height=18,bg=self.p['dialog']).pack(fill='x')
+            else:
+                label(tab.content,name,palette=self.p,size=20,weight='Bold').pack(anchor='w',padx=24,pady=(24,6))
+                title=label(tab.content,description,palette=self.p,size=12,muted=True);title.max_width=560;title.pack(anchor='w',padx=24,pady=(0,20))
             button=Button(self.side,f'{index:02}  {name}' if self.yorunge else name,lambda n=name:self.show_section(n),palette=self.p,kind='ghost',width=168)
             if self.yorunge:button.side_accent=True
             else:button.icon_name=glyph
@@ -184,8 +187,14 @@ class SettingsContent(tk.Frame):
         self.display_color_mode=tk.StringVar(self,self.value('color_mode').get())
         self.color_selector=SegmentedControl(c,{'light':'Açık','dark':'Koyu','system':'Sistem'},self.display_color_mode,
             command=lambda:self.vars['color_mode'].set(self.display_color_mode.get()),palette=self.p)
-        self.color_selector.pack(fill='x',pady=12)
-        self.color_note=self.text(c,'')
+        if self.yorunge:
+            # F08: one caption row; the selector appears only for a design with a free mode.
+            head=tk.Frame(c,bg=self.p['card']);head.pack(fill='x',pady=(12,0))
+            TextLabel(head,'RENK MODU',family=YORUNGE_MONO_FAMILY,size=11,weight='SemiBold',fg=self.p['text']).pack(side='left')
+            self.color_note=TextLabel(head,'',family=YORUNGE_MONO_FAMILY,size=10,fg=self.p['muted']);self.color_note.pack(side='right')
+        else:
+            self.color_selector.pack(fill='x',pady=12)
+            self.color_note=self.text(c,'')
         for key in ('design','color_mode'):watch(self,self.value(key),self.sync_color_mode)
         self.sync_color_mode()
         if self.panelled:
@@ -207,6 +216,11 @@ class SettingsContent(tk.Frame):
         design=self.vars['design'].get();fixed=FIXED_MODES.get(design)
         self.display_color_mode.set(fixed or self.vars['color_mode'].get())
         self.color_selector.set_enabled(fixed is None)
+        if self.yorunge:
+            self.color_note.configure(text=caption(f'{DESIGN_NAMES[design]} yalnız '+('açık' if fixed=='light' else 'koyu'))[3:] if fixed else '')
+            if fixed:self.color_selector.pack_forget()
+            else:self.color_selector.pack(fill='x',pady=(10,0))
+            return
         self.color_note.configure(text=(f'{DESIGN_NAMES[design]} yalnız '+('açık' if fixed=='light' else 'koyu')+
             ' görünür. Diğer tasarımlar için renk tercihin korunur.') if fixed else '')
     def browser(self):

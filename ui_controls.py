@@ -237,6 +237,11 @@ class DesignCard(RadioCard):
             td.rectangle((5,5,thumb.width-6,thumb.height-6),outline=mini['accent'])
             td.line((thumb.width//3,6,thumb.width//3,thumb.height-7),fill=mini['line'])
         image.paste(thumb,(12,12))
+        if p.get('design')=='yorunge':
+            # F08: mono capitals, accent when chosen; no description.
+            title=ellipsize(self.text.replace('i','İ').replace('ı','I').upper(),w-24,11,'Bold',YORUNGE_MONO_FAMILY)
+            text_on(image,(12,h-14),title,11,'Bold',p['accent'] if selected else p['text'],'ls',YORUNGE_MONO_FAMILY)
+            self.display(image);return
         title=ellipsize(self.text,w-24,13,'Bold');rest=ellipsize(' · '+self.description,w-24-font(13,'Bold').getlength(title),12) if self.description else ''
         text_on(image,(12,h-14),title,13,'Bold',p['text'],'ls')
         text_on(image,(12+font(13,'Bold').getlength(title),h-14),rest,12,fill=p['muted'],anchor='ls')

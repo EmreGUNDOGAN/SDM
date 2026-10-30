@@ -18,6 +18,7 @@ def main(design='pano'):
     from pathlib import Path
     from types import SimpleNamespace
     from unittest.mock import patch
+    import tkinter as tk
     from tkinter import font as tkfont
     from gui import MainWindow
     from modern_settings import SettingsDialog,BOUNDS
@@ -44,6 +45,11 @@ def main(design='pano'):
             assert len(editor.tabs)==6 and editor.change_count.get()==0
             assert editor.vars['color_mode'].get()=='system' and editor.display_color_mode.get()==('dark' if design=='yorunge' else 'light')
             assert all(button.disabled for button in editor.color_selector.buttons.values())
+            if design=='yorunge':
+                # F08: no page heading; a caption row replaces the disabled mode selector.
+                # (Choosing another design previews it, which rebuilds Settings in that design.)
+                assert not any(isinstance(child,tk.Label) and child.cget('text')=='Genel' for child in editor.tabs['Genel'].content.winfo_children())
+                assert editor.color_note.text=='YÖRÜNGE YALNIZ KOYU' and not editor.color_selector.winfo_ismapped()
             data['control_center_errors']=[]
             for key,control in editor.steppers.items():
                 if design=='yorunge':
