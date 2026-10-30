@@ -24,7 +24,7 @@ class OdakWorkspace(AtlasWorkspace):
         self.rail=tk.Frame(self.body,bg=p['side'],width=68);self.rail.pack(side='left',fill='y');self.rail.pack_propagate(False)
         logo=label(self.rail,'SDM',palette=p,size=16,weight='Bold');logo.pack(pady=24)
         self.rail_buttons={}
-        for key,title,glyph in [('downloads','İndirmeler','download'),('queues','Kuyruklar','queue'),('video','Video','video'),('tools','Araçlar','wrench'),('hud','Masaüstü HUD','monitor'),('settings','Ayarlar','settings')]:
+        for key,title,glyph in [('downloads','İndirmeler','download'),('queues','Kuyruklar','queue'),('video','Video','video'),('tools','Araçlar','wrench'),('stats','İstatistik','chart'),('hud','Masaüstü HUD','monitor'),('settings','Ayarlar','settings')]:
             b=Button(self.rail,'',lambda k=key:self.navigate(k),palette=p,kind='icon',width=44,height=44);b.icon_name=glyph;b.pack(pady=6);b.draw();self.rail_buttons[key]=b;self.tooltips.append(Tooltip(b,title,p))
         self.rail_buttons['downloads'].selected=True
         self.shell=tk.Frame(self.body,bg=p['bg']);self.shell.pack(side='left',fill='both',expand=True)
@@ -150,6 +150,7 @@ class OdakWorkspace(AtlasWorkspace):
             workspace=self.app._atlas_workspace
             if isinstance(workspace,OdakWorkspace):return workspace.navigate(key)
             if key=='tools':return self.app.open_tools()
+            if key=='stats':return self.app.open_stats()
             if key=='video':return self.app.select_category('Video')
             return
         if self.settings_page:self.settings_page.destroy();self.settings_page=None
@@ -164,6 +165,7 @@ class OdakWorkspace(AtlasWorkspace):
         elif key=='video':self.app.select_category('Video')
         elif key=='downloads':self.app.select_category('Tümü')
         elif key=='tools':self.app.open_tools()
+        elif key=='stats':self.app.open_stats()
         elif key=='hud':
             hud=getattr(self.app,'_mini_hud',None)
             if hud and hud.winfo_exists():hud.close()

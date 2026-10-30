@@ -86,10 +86,19 @@ def main():
                 wait(lambda:len(prompt.formats)==2)
                 assert prompt.quality.get()=='720' and len(prompt.quality_cards)==3
                 prompt.quality.set('audio');assert prompt.name.get().endswith('.mp3')
+                app.update();assert prompt.audio_row.winfo_ismapped(),'MP3 shows its quality and album options'
                 prompt.section_fields.enabled.set(True);prompt.section_fields.start.set('00:00:10');prompt.section_fields.end.set('00:03:00');app.update()
                 assert prompt.buttons['queue'].disabled
                 prompt.section_fields.end.set('00:00:20');app.update();assert not prompt.buttons['queue'].disabled
                 snapshot(prompt,'capture',mode);prompt.buttons['cancel'].invoke();assert decision==[('fixture-ticket','cancel')]
+                # The chosen MP3 options are stored with the download (music engine reads them).
+                mp3=CapturePrompt(app,dict(request,ticket='mp3-ticket',filename='Synthetic song'),lambda token,result:decision.append((token,result)))
+                wait(lambda:len(mp3.formats)==2);mp3.quality.set('audio');mp3.bitrate.set('320');mp3.album.set(True)
+                with patch('video_downloader.VideoDownloadTask.start'):mp3.choose('queue')
+                song=max((r for r in app.db.get_all_downloads() if r['filename'].startswith('Synthetic song')),key=lambda r:r['id'])
+                assert json.loads(song['options_json'])['audio']==dict(bitrate=320,album=True),song['options_json']
+                mp3=CapturePrompt(app,dict(request,ticket='video-ticket'),lambda token,result:None);wait(lambda:len(mp3.formats)==2)
+                assert not mp3.audio_row.winfo_ismapped();mp3.choose('cancel')
             # Real task snapshot; configured maximum never stands in for observed parts.
             did=app.add_download_from_dialog('https://example.invalid/range','synthetic-range.bin',str(folder/f'range-{mode}.bin'),auto_start=False)
             task=app.engine.get_task(did);task.filesize=1000000;task.supports_ranges=True;task.current_speed=50000;task.eta=15;task.status='İndiriliyor'
