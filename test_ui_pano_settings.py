@@ -1,6 +1,18 @@
 """P08–P13: bounded native counters and settings transactions in a fake profile."""
 
 
+def keyboard_focus(app,dialog,timeout=2):
+    """Wait for this fixture's actual focus; never steal or invent a target."""
+    import time
+    deadline=time.monotonic()+timeout
+    while True:
+        app.update();focus=app.focus_get()
+        if dialog.state()=='normal' and focus is not None and focus.winfo_toplevel() is dialog and focus.winfo_viewable():return focus
+        assert time.monotonic()<deadline,('Settings fixture lost keyboard focus',
+            dialog.state(),str(focus),dialog.tk.call('focus','-lastfor',dialog._w))
+        time.sleep(.01)
+
+
 def main(design='pano'):
     import copy,hashlib,json,time
     from pathlib import Path
@@ -83,10 +95,19 @@ def main(design='pano'):
                     square_cards(editor.tabs[section])
             if design=='yorunge':assert max(data['nav_text_x'])-min(data['nav_text_x'])<=1
             editor.show_section('Genel');settle();editor.tabs['Genel'].canvas.yview_moveto(0);editor.nav['Genel'].focus_force();settle()
+            # A missing focus must fail, while a delayed native restore must
+            # complete before Tab dispatch. Only this test-owned window moves.
+            dialog.withdraw();app.update()
+            try:keyboard_focus(app,dialog,timeout=.05)
+            except AssertionError:pass
+            else:raise AssertionError('Hidden settings fixture accepted keyboard focus')
+            dialog.after(500,lambda:(dialog.deiconify(),editor.nav['Genel'].focus_force()))
+            assert keyboard_focus(app,dialog) is editor.nav['Genel']
             control=editor.steppers['default_connections'];canvas=editor.tabs['Genel'].canvas
             for _ in range(60):
-                if app.focus_get() is control.entry:break
-                app.focus_get().event_generate('<Tab>');settle()
+                focus=keyboard_focus(app,dialog)
+                if focus is control.entry:break
+                focus.event_generate('<Tab>');settle()
             assert app.focus_get() is control.entry,'Tab did not reach the numeric field'
             assert canvas.winfo_rooty()<=control.entry.winfo_rooty()<canvas.winfo_rooty()+canvas.winfo_height(),('Focused counter is outside viewport',
                 str(app.focus_get()),str(control.entry),canvas.winfo_rooty(),canvas.winfo_height(),control.entry.winfo_rooty(),canvas.yview(),editor.tabs['Genel'].content.winfo_reqheight())
