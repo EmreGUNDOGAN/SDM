@@ -6,9 +6,32 @@ from PIL import Image,ImageColor
 from theme_catalog import THEMES,palette
 from tools.report_component_previews import validate_previews,validate_alignment
 from tools.report_dialog_previews import P06_SOURCES,validate_pano_completion
+from tools.report_settings_previews import PANO_SOURCES,PANO_STATES,validate_pano as validate_pano_settings
 
 
 class PreviewReportTests(unittest.TestCase):
+    def test_pano_settings_reject_stale_captures_and_invalid_counter_centres(self):
+        import copy,hashlib,json
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);sources={};previews={}
+            for name in PANO_SOURCES:
+                path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(b'fixture')
+                sources[name]=hashlib.sha256(b'fixture').hexdigest()
+            for state in PANO_STATES:
+                image=Image.new('RGB',(760,500),palette('pano_light')['dialog'])
+                for x in range(64):image.putpixel((x,20),(x,0,0))
+                path=root/f'pano-settings-{state}.png';image.save(path);previews[state]=hashlib.sha256(path.read_bytes()).hexdigest()
+            data=dict(sources=sources,previews=previews,control_center_errors=[0,.5,0,.5])
+            report=root/'pano-settings-layout.json';report.write_text(json.dumps(data))
+            self.assertEqual(len(validate_pano_settings(root,root)),len(PANO_STATES))
+            for values in ([0]*3,[0,0,0,1],[0,0,0,float('nan')],[0,0,0,float('inf')]):
+                bad=copy.deepcopy(data);bad['control_center_errors']=values;report.write_text(json.dumps(bad))
+                with self.assertRaisesRegex(ValueError,'alignment'):validate_pano_settings(root,root)
+            report.write_text(json.dumps(data));(root/'queue_ui.py').write_bytes(b'changed')
+            with self.assertRaisesRegex(ValueError,'sources'):validate_pano_settings(root,root)
+            (root/'queue_ui.py').write_bytes(b'fixture');(root/'pano-settings-0.png').write_bytes(b'corrupt')
+            with self.assertRaisesRegex(ValueError,'PNG'):validate_pano_settings(root,root)
+
     def test_pano_utilities_reject_shifted_cards_stale_sources_and_pngs(self):
         import copy,hashlib,json
         from tools.report_dialog_previews import UTILITY_SOURCES,UTILITY_STATES,validate_pano_utilities
