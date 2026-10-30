@@ -227,9 +227,12 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
 
     def apply_visible_columns(self):
         if self.theme_family=='odak':self.tree.configure(displaycolumns=('filename',));return
+        from atlas_view import column_preferences
+        key,defaults=column_preferences(self.theme_family)
         valid={c[0] for c in COLUMNS}
-        visible=[c for c in self.settings.get('visible_columns',[]) if c in valid]
+        visible=[c for c in self.settings.get(key,defaults) if c in valid]
         if 'filename' not in visible:visible.insert(0,'filename')
+        if self.theme_family=='pano':visible.append('actions')
         self.tree.configure(displaycolumns=visible)
 
     def show_column_menu(self):
@@ -246,7 +249,9 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         menu.tk_popup(self.winfo_pointerx(),self.winfo_pointery())
 
     def save_columns(self):
-        self.settings['visible_columns']=[name for name,var in self.column_vars.items() if var.get()]
+        from atlas_view import column_preferences
+        key,_=column_preferences(self.theme_family)
+        self.settings[key]=[name for name,var in self.column_vars.items() if var.get()]
         save_settings(self.settings)
         self.apply_visible_columns()
 

@@ -23,6 +23,10 @@ class TableSurface(tk.Canvas):
     def select(self,event):
         self._mouse_focus=True;self._keyboard_focus=False
         self.tree.focus_set();item=self.tree.identify_row(event.y)
+        column=self.tree.identify_column(event.x)
+        if item and self.app.theme_family=='pano' and column and self.tree.column(column,'id')=='actions':
+            if item not in self.tree.selection():self.tree.selection_set(item)
+            self.tree.focus(item);self.app._on_tree_right_click(event);self.schedule();return
         if item:
             if event.state&0x4:
                 if item in self.tree.selection():self.tree.selection_remove(item)
@@ -53,7 +57,7 @@ class TableSurface(tk.Canvas):
         columns=list(tree.cget('displaycolumns'));head_h=40
         visible=[(item,tree.bbox(item)) for item in tree.get_children() if tree.bbox(item)]
         if visible:head_h=visible[0][1][1] if visible[0][1][1]<70 else 40
-        if app.theme_family in ('atlas','odak'):
+        if app.theme_family in ('atlas','odak','pano'):
             signature=(w,h,head_h,tuple(columns),tuple(tree.selection()),tree.xview(),tree.yview(),
                 self._keyboard_focus and tree.focus_get() is tree,
                 tuple((item,box,tree.item(item,'values'),getattr(app,'_visible_records',{}).get(int(tree.item(item,'values')[0]),{})) for item,box in visible))

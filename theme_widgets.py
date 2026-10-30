@@ -190,7 +190,7 @@ class Search(tk.Canvas):
     def draw(self):
         from ui_surface import surface,photo,icon
         p=self.p;w=max(40,self.winfo_width() if self.winfo_width()>1 else 320)
-        image=surface(w,40,self.cget('bg'),p['control'],p['accent'] if self.focused else p['line'],7)
+        image=surface(w,40,self.cget('bg'),p['control'],p['accent'] if self.focused else p['line'],20 if p.get('design')=='pano' else 7)
         glyph=icon('search',18,p['muted']);image.paste(glyph,(12,11),glyph)
         if self.var.get():
             self.placeholder.place_forget();glyph=icon('x',16,p['muted']);image.paste(glyph,(w-27,12),glyph)
@@ -198,15 +198,23 @@ class Search(tk.Canvas):
         self._image=photo(image,self);self.delete('surface');self.create_image(0,0,image=self._image,anchor='nw',tags='surface');self.tag_lower('surface')
 
 class Panel(tk.Canvas):
-    def __init__(self,master,palette,padding=12,radius=8):
-        self.p=palette;self.padding=padding;self.radius=RADII[palette['design']]['card'] if palette.get('design') in ('pano','yorunge') else radius
+    def __init__(self,master,palette,padding=12,radius=None):
+        self.p=palette;self.padding=padding
+        design=palette.get('design','atlas')
+        if design=='yorunge':self.radius=0
+        elif radius is not None:self.radius=radius
+        else:self.radius=RADII['pano']['card'] if design=='pano' else 8
+        self.inset=4 if design=='pano' and palette['panel']==palette['card'] and self.radius>=20 else 0
         super().__init__(master,bg=master.cget('bg'),width=200,height=90,highlightthickness=0)
         self.content=tk.Frame(self,bg=palette['panel'])
-        self.window=self.create_window(padding,padding,window=self.content,anchor='nw')
+        self.window=self.create_window(padding+self.inset,padding+self.inset,window=self.content,anchor='nw')
         self.bind('<Configure>',self.resize)
     def resize(self,event):
         from ui_surface import surface,photo
         image=surface(max(1,event.width),max(1,event.height),self.cget('bg'),self.p['panel'],self.p['line'],self.radius)
+        if self.inset:
+            from ui_surface import pano_tile_surface
+            image=pano_tile_surface(event.width,event.height,self.cget('bg'),self.p['panel'],self.radius)
         if self.p.get('design')=='yorunge':
             from PIL import ImageDraw
             d=ImageDraw.Draw(image);w,h=image.size
@@ -214,4 +222,4 @@ class Panel(tk.Canvas):
             d.line((w-13,h-1,w-1,h-1,w-1,h-13),fill=self.p['accent'],width=2)
         self._surface=photo(image,self)
         self.delete('surface');self.create_image(0,0,image=self._surface,anchor='nw',tags='surface')
-        self.tag_lower('surface');self.itemconfigure(self.window,width=max(1,event.width-2*self.padding),height=max(1,event.height-2*self.padding))
+        self.tag_lower('surface');self.itemconfigure(self.window,width=max(1,event.width-2*(self.padding+self.inset)),height=max(1,event.height-2*(self.padding+self.inset)))
