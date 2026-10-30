@@ -12,23 +12,42 @@ def main():
     def descendants(widget):
         for child in widget.winfo_children():
             yield child;yield from descendants(child)
+    def disable_fixture_transitions(window):
+        # Per-window test setup; do not change the user's animation settings.
+        window.update_idletasks()
+        dwm=ctypes.WinDLL('dwmapi')
+        dwm.DwmSetWindowAttribute.argtypes=[wintypes.HWND,wintypes.DWORD,ctypes.c_void_p,wintypes.DWORD]
+        disabled=wintypes.BOOL(True)
+        result=dwm.DwmSetWindowAttribute(int(window.tk.call('wm','frame',window._w),0),3,
+            ctypes.byref(disabled),ctypes.sizeof(disabled))
+        assert result==0,('Could not disable fixture transitions',result)
     def title_bar_rgb(window):
         """Colour of the system caption between the title text and the buttons."""
-        # On top for the grab, so no other window's caption is measured.
-        window.attributes('-topmost',True);window.lift();window.update()
-        user=ctypes.WinDLL('user32');user.GetParent.restype=wintypes.HWND
-        rect=wintypes.RECT();user.GetWindowRect(user.GetParent(window.winfo_id()),ctypes.byref(rect))
-        top=window.winfo_rooty()-rect.top
-        image=ImageGrab.grab((rect.left,rect.top,rect.right,rect.top+top),all_screens=True)
-        window.attributes('-topmost',False)
+        # Lift alone leaves an iconic window at (-32000, -32000), with no
+        # caption pixels. Restore this process-owned fixture before measuring.
+        window.deiconify();window.attributes('-topmost',True);window.lift();window.update()
+        user=ctypes.WinDLL('user32',use_last_error=True)
+        user.GetWindowRect.argtypes=[wintypes.HWND,ctypes.POINTER(wintypes.RECT)]
+        user.GetWindowRect.restype=wintypes.BOOL
+        try:
+            handle=int(window.tk.call('wm','frame',window._w),0)
+            rect=wintypes.RECT()
+            if not user.GetWindowRect(handle,ctypes.byref(rect)):raise ctypes.WinError(ctypes.get_last_error())
+            top=window.winfo_rooty()-rect.top
+            assert window.winfo_ismapped() and rect.right>rect.left and top>0,(
+                'Caption fixture is not visible',window.state(),(rect.left,rect.top,rect.right,rect.bottom),top)
+            assert ctypes.WinDLL('dwmapi').DwmFlush()==0,'DWM composition did not complete'
+            image=ImageGrab.grab((rect.left,rect.top,rect.right,rect.top+top),all_screens=True)
+        finally:window.attributes('-topmost',False)
         return image.getpixel((round(image.width*.55),image.height//2))[:3]
     def close(rgb,color):
         expected=tuple(v//257 for v in app.winfo_rgb(color))
         return all(abs(a-b)<=6 for a,b in zip(rgb,expected)),(rgb,expected)
     try:
+        disable_fixture_transitions(app)
         for mode in ('light','dark'):
             app.apply_settings(dict(app.settings,design='atlas',color_mode=mode));app.update()
-            dialog=SettingsDialog(app);dialog.geometry('960x520+40+40');app.update()
+            dialog=SettingsDialog(app);disable_fixture_transitions(dialog);dialog.geometry('960x520+40+40');app.update()
             body=next(w for w in dialog.tabs.values() if isinstance(w,ScrollBody) and w.winfo_ismapped())
             app.update();assert body.bar.winfo_manager(),'Fixture must overflow to test scrolling'
             # A field deep inside the page, not the bare canvas the old binding needed.
@@ -48,7 +67,10 @@ def main():
                 ok,detail=close(title_bar_rgb(dialog),app.palette['dialog']);assert ok,('Settings title bar',mode,detail)
             dialog.destroy();app.update()
             if sys.getwindowsversion().build>=22000:
+                # Reproduce the zero-height capture precondition explicitly.
+                app.iconify();app.update();assert app.state()=='iconic'
                 ok,detail=close(title_bar_rgb(app),app.palette['bg']);assert ok,('Main title bar',mode,detail)
+                assert app.state()=='normal' and app.winfo_ismapped()
         assert not errors,errors
         print('Window frame: wheel and middle-drag over child widgets, Text keeps its wheel, title bar in design colours: OK')
     finally:
