@@ -124,6 +124,7 @@ def _icon(name,size,color):
     elif name=='speed':d.arc((3*unit,3*unit,21*unit,21*unit),180,360,fill=color,width=stroke);line([(4,16),(4,18),(20,18),(20,16)]);line([(12,13),(17,7)]);circle(12,13,1.5)
     elif name=='database':d.ellipse((4*unit,3*unit,20*unit,9*unit),outline=color,width=stroke);line([(4,6),(4,19)]);line([(20,6),(20,19)]);d.arc((4*unit,13*unit,20*unit,22*unit),0,180,fill=color,width=stroke);d.arc((4*unit,7*unit,20*unit,16*unit),0,180,fill=color,width=stroke)
     elif name=='columns':box(3,4,18,16);line([(9,4),(9,20)]);line([(15,4),(15,20)])
+    elif name=='chart':line([(3,3),(3,21),(21,21)]);line([(8,17),(8,12)]);line([(13,17),(13,7)]);line([(18,17),(18,10)])
     elif name=='search':circle(10,10,6);line([(15,15),(21,21)])
     elif name=='check':circle(12,12,9);line([(7,12),(11,16),(17,9)])
     elif name=='more':

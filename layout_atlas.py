@@ -69,7 +69,7 @@ class AtlasWorkspace:
         bottom=tk.Frame(side,bg=p['side']);bottom.pack(side='bottom',fill='x',padx=ATLAS['sidebar_padding'],pady=(0,ATLAS['sidebar_top']))
         tk.Frame(bottom,bg=p['line'],height=1).pack(fill='x',pady=(0,12))
         self.bottom_buttons={}
-        for label,glyph,command in (('Araçlar','wrench',app.open_tools),('Masaüstü HUD','monitor',app.show_mini_hud),('Ayarlar','settings',app.open_settings_dialog)):
+        for label,glyph,command in (('Araçlar','wrench',app.open_tools),('İstatistik','chart',app.open_stats),('Masaüstü HUD','monitor',app.show_mini_hud),('Ayarlar','settings',app.open_settings_dialog)):
             b=NavButton(bottom,label,command,p,glyph=glyph);b.pack(fill='x');self.bottom_buttons[label]=b
         app.style.configure('Atlas.Side.TFrame',background=p['side'])
         app.sidebar_scroll=ScrolledFrame(side,height=340,width=SIZES['sidebar']-2*ATLAS['sidebar_padding'],auto_hide=False,style='Atlas.Side.TFrame')

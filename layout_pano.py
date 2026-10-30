@@ -73,7 +73,7 @@ class PanoWorkspace(AtlasWorkspace):
         self.new_button=Button(header,'Yeni indirme',app.open_add_dialog,palette=p,kind='start',height=40,width=round(font(13,'SemiBold').getlength('Yeni indirme'))+52)
         self.new_button.icon_name='plus';self.new_button.draw();self.new_button.pack(side='right')
         self.bottom_buttons={}
-        for title,glyph,command in (('Ayarlar','settings',app.open_settings_dialog),('Masaüstü HUD','monitor',app.show_mini_hud),('Araçlar','wrench',app.open_tools)):
+        for title,glyph,command in (('Ayarlar','settings',app.open_settings_dialog),('Masaüstü HUD','monitor',app.show_mini_hud),('İstatistik','chart',app.open_stats),('Araçlar','wrench',app.open_tools)):
             button=Button(header,'',command,palette=p,kind='icon',width=40,height=40)
             button.icon_name=glyph;button.draw();button.pack(side='right',padx=(0,8))
             self.bottom_buttons[title]=button;self.tooltips.append(Tooltip(button,title,p))
