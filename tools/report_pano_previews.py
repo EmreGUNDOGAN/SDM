@@ -15,6 +15,33 @@ SOURCES=('layout_pano.py','pano_view.py','atlas_table.py','atlas_view.py','gui.p
     'layout_atlas.py','theme_widgets.py','ui_overlays.py','ui_table_surface.py',
     'ui_surface.py','ui_tokens.py','ui_indicators.py','theme_layouts.py','test_ui_pano.py','tools/report_pano_previews.py')
 STATES=('main','empty','compact','selection','menu','toast')
+HUD_SOURCES=('feature_windows.py','ui_dialog.py','theme_widgets.py','ui_surface.py','ui_tokens.py',
+    'ui_indicators.py','test_ui_pano_hud.py','tools/report_pano_previews.py')
+
+
+def validate_hud(directory,source_root=ROOT):
+    data=json.loads((directory/'pano-hud-layout.json').read_text(encoding='utf-8'))
+    expected={name:hashlib.sha256((source_root/name).read_bytes()).hexdigest() for name in HUD_SOURCES}
+    if data.get('sources')!=expected:raise ValueError('Stale Pano HUD source measurements')
+    heights=[];rows=[]
+    for size in ('normal','large','xlarge'):
+        value=data.get(size,{})
+        if value.get('card_width_delta') not in (0,1) or value.get('value_y_delta')!=0:
+            raise ValueError('Invalid Pano HUD alignment')
+        height=value.get('height')
+        if not isinstance(height,int) or height<=0:raise ValueError('Invalid Pano HUD height')
+        heights.append(height)
+    if heights!=sorted(heights) or heights[0]>=heights[-1]:raise ValueError('Pano HUD text size did not grow')
+    for state in ('normal','large','xlarge','empty'):
+        path=directory/f'pano-hud-{state}.png';payload=path.read_bytes();digest=hashlib.sha256(payload).hexdigest()
+        if data.get('previews',{}).get(state)!=digest:raise ValueError('Stale Pano HUD PNG')
+        with Image.open(path) as source:
+            source.load();image=source.convert('RGB');w,h=image.size
+            if source.format!='PNG' or w!=340 or h<150 or image.getpixel((w//2,4))!=ImageColor.getrgb(palette('pano_light')['bg']):
+                raise ValueError('Invalid Pano HUD dimensions/palette')
+            if image.getcolors(32) is not None:raise ValueError('Blank Pano HUD PNG')
+        rows.append((path.name,w,h,digest))
+    return rows
 
 
 def validate_measurements(data,source_root=ROOT):
@@ -61,9 +88,11 @@ def validate_previews(directory,source_root=ROOT):
 
 def main():
     rows,data=validate_previews(ROOT/'build')
+    rows.extend(validate_hud(ROOT/'build'))
     lines=['## Pano P01/P02/P18/P19: 6/6 previews validated','',
         f'Measured count centre error ≤ {max(data["count_center_errors"]):g} px; metric baseline spread {data["metric_baseline_spread"]:g} px.',
         'Current source hashes, wide/compact tile geometry and exact PNG bytes checked. Files stay on the runner.','',
+        'P15 HUD: 4/4 previews, three font sizes, equal cards and aligned values validated.','',
         '| Preview | Size | SHA-256 |','|---|---|---|']
     lines.extend(f'| {name} | {width}x{height} | `{digest}` |' for name,width,height,digest in rows)
     report='\n'.join(lines)+'\n';print(report)

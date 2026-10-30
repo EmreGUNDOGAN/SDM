@@ -3,10 +3,33 @@ import hashlib
 from pathlib import Path
 import tempfile
 import unittest
-from tools.report_pano_previews import SOURCES,validate_measurements
+from tools.report_pano_previews import SOURCES,HUD_SOURCES,validate_measurements,validate_hud
 
 
 class PanoReportTests(unittest.TestCase):
+    def test_hud_rejects_misalignment_stale_sources_and_modified_png(self):
+        import json
+        from PIL import Image
+        from theme_catalog import palette
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            for name in HUD_SOURCES:
+                path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(b'fixture')
+            data=dict(sources={name:hashlib.sha256(b'fixture').hexdigest() for name in HUD_SOURCES},previews={})
+            for size,height in (('normal',260),('large',280),('xlarge',340),('empty',260)):
+                image=Image.new('RGB',(340,height),palette('pano_light')['bg'])
+                for x in range(64):image.putpixel((x,20),(x,0,0))
+                path=root/f'pano-hud-{size}.png';image.save(path);data['previews'][size]=hashlib.sha256(path.read_bytes()).hexdigest()
+                if size!='empty':data[size]=dict(height=height,card_width_delta=0,value_y_delta=0)
+            path=root/'pano-hud-layout.json';path.write_text(json.dumps(data));self.assertEqual(len(validate_hud(root,root)),4)
+            for key,value in (('card_width_delta',2),('value_y_delta',1),('height',float('nan')),('height',100)):
+                bad=copy.deepcopy(data);bad['xlarge'][key]=value;path.write_text(json.dumps(bad))
+                with self.assertRaises(ValueError):validate_hud(root,root)
+            path.write_text(json.dumps(data));(root/'feature_windows.py').write_bytes(b'changed')
+            with self.assertRaisesRegex(ValueError,'Stale'):validate_hud(root,root)
+            (root/'feature_windows.py').write_bytes(b'fixture');(root/'pano-hud-normal.png').write_bytes(b'corrupt')
+            with self.assertRaisesRegex(ValueError,'Stale'):validate_hud(root,root)
+
     def test_source_drift_and_geometry_regressions_are_rejected(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder)

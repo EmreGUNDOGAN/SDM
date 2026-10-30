@@ -56,24 +56,28 @@ class MiniHUD(tb.Toplevel):
         self.p.update(subtle=tint(.1),control=tint(.06),accent_soft=tint(.18),input_border=tint(.2),track=tint(.14))
         self.configure(bg=self.p['hud']);self._timer=None;self._drag=None;self.points=[]
         size=lambda base:round(base*HUD_TEXT_SIZES.get(parent.settings.get('hud_text_size'),1.0))
-        head=tk.Frame(self,bg=self.p['hud']);head.pack(fill='x',padx=16,pady=(16,10))
-        self.ring=ProgressRing(head,self.p,size=48,stroke=5,value=0);self.ring.pack(side='left',padx=(0,14))
-        info=tk.Frame(head,bg=self.p['hud']);info.pack(side='left',fill='x',expand=True)
-        self.speed=label(info,'0 KB/sn',palette=self.p,size=size(20),weight='Bold');self.speed.pack(anchor='w')
-        self.status=label(info,'Aktif indirme yok',palette=self.p,size=size(12),muted=True);self.status.pack(anchor='w')
-        self.spark=Sparkline(head,self.p,width=80,height=24);self.spark.pack(side='right')
-        self.files=tk.Frame(self,bg=self.p['hud']);self.files.pack(fill='x',padx=16,pady=8)
-        self.file_rows=[]
-        for _ in range(3):
-            row=tk.Frame(self.files,bg=self.p['hud'])  # packed by tick() only while a file is active
-            text=label(row,'',palette=self.p,size=size(12));text.max_width=304;text.pack(fill='x')
-            bar=ProgressBar(row,self.p,width=304,height=10,thickness=3,show_text=False);bar.pack(fill='x')
-            self.file_rows.append((row,text,bar))
-        self.more=label(self.files,'',palette=self.p,size=size(12),muted=True)
-        foot=tk.Frame(self,bg=self.p['hud']);foot.pack(fill='x',padx=12,pady=(0,12))
-        Button(foot,'Tümünü duraklat',self.pause_all,palette=self.p,kind='soft').pack(side='left')
-        Button(foot,'SDM’yi aç',self.show_main,palette=self.p,quiet=True).pack(side='left',padx=4)
-        Button(foot,'×',self.close,palette=self.p,kind='icon',width=30).pack(side='right')
+        # P15: Pano's HUD is light tiles without a file list (approved: HUD stays simple).
+        self.pano=parent.palette.get('design')=='pano'
+        if self.pano:self.build_pano(size)
+        else:
+            head=tk.Frame(self,bg=self.p['hud']);head.pack(fill='x',padx=16,pady=(16,10))
+            self.ring=ProgressRing(head,self.p,size=48,stroke=5,value=0);self.ring.pack(side='left',padx=(0,14))
+            info=tk.Frame(head,bg=self.p['hud']);info.pack(side='left',fill='x',expand=True)
+            self.speed=label(info,'0 KB/sn',palette=self.p,size=size(20),weight='Bold');self.speed.pack(anchor='w')
+            self.status=label(info,'Aktif indirme yok',palette=self.p,size=size(12),muted=True);self.status.pack(anchor='w')
+            self.spark=Sparkline(head,self.p,width=80,height=24);self.spark.pack(side='right')
+            self.files=tk.Frame(self,bg=self.p['hud']);self.files.pack(fill='x',padx=16,pady=8)
+            self.file_rows=[]
+            for _ in range(3):
+                row=tk.Frame(self.files,bg=self.p['hud'])  # packed by tick() only while a file is active
+                text=label(row,'',palette=self.p,size=size(12));text.max_width=304;text.pack(fill='x')
+                bar=ProgressBar(row,self.p,width=304,height=10,thickness=3,show_text=False);bar.pack(fill='x')
+                self.file_rows.append((row,text,bar))
+            self.more=label(self.files,'',palette=self.p,size=size(12),muted=True)
+            foot=tk.Frame(self,bg=self.p['hud']);foot.pack(fill='x',padx=12,pady=(0,12))
+            Button(foot,'Tümünü duraklat',self.pause_all,palette=self.p,kind='soft').pack(side='left')
+            Button(foot,'SDM’yi aç',self.show_main,palette=self.p,quiet=True).pack(side='left',padx=4)
+            Button(foot,'×',self.close,palette=self.p,kind='icon',width=30).pack(side='right')
         self.bind('<ButtonPress-1>',self.drag_start);self.bind('<B1-Motion>',self.drag_move);self.bind('<ButtonRelease-1>',self.drag_end)
         self.bind('<Destroy>',self.dispose,add='+');self.protocol('WM_DELETE_WINDOW',self.close)
         self.geometry('340x280');self.update_idletasks()
@@ -89,9 +93,15 @@ class MiniHUD(tb.Toplevel):
         self.points=(self.points+[(time.monotonic(),speed)])[-60:];self.spark.set(self.points)
         total=sum(r['filesize'] for r in records);received=sum(r['downloaded_bytes'] for r in records)
         known=bool(records) and all(r['filesize']>0 for r in records)
-        self.ring.set(min(1,received/total) if known else None if records else 0)
         self.speed.configure(text=number(app,format_speed(speed)))
         eta=format_eta(max(0,total-received)/speed) if known and speed else 'Boyut bilinmiyor' if records and not known else '—'
+        if self.pano:
+            self.total_bar.set(min(1,received/total) if known else None if records else 0)
+            self.percent.configure(text=f'{min(100,round(received/total*100))}%' if known else '—')
+            self.eta.configure(text='Bilinmiyor' if records and not known else eta);self.count.configure(text=f'{len(records)} etkin')
+            self.arrange_speed()
+            return self.fit_and_repeat()
+        self.ring.set(min(1,received/total) if known else None if records else 0)
         self.status.configure(text=f'{len(records)} aktif · {eta}' if records else 'Aktif indirme yok')
         for index,(row,text,bar) in enumerate(self.file_rows):
             if index<len(records):
@@ -99,10 +109,73 @@ class MiniHUD(tb.Toplevel):
             else:row.pack_forget()
         if len(records)>3:self.more.configure(text=f'+{len(records)-3} daha');self.more.pack(anchor='w')
         else:self.more.pack_forget()
+        self.fit_and_repeat()
+
+    def fit_and_repeat(self):
         # Fit the shown rows; a fixed height left an empty block with no downloads.
         self.update_idletasks();height=self.winfo_reqheight()
         if self.winfo_ismapped() and height!=self.winfo_height():self.geometry(f'340x{height}')
         self._timer=self.after(1000,self.tick)
+
+    def fit_pano(self,event=None):
+        height=self.winfo_reqheight()
+        if self.winfo_ismapped() and height!=self.winfo_height():
+            self.geometry(f'340x{height}+{self.winfo_x()}+{max(0,min(self.winfo_y(),self.winfo_screenheight()-height))}')
+
+    def build_pano(self,size):
+        p=self.p=dict(self.parent.palette,hud=self.parent.palette['bg']);self.configure(bg=p['bg'])
+        self.attributes('-alpha',1.0)
+        self.bind('<Configure>',self.round_pano,add='+')
+        grid=tk.Frame(self,bg=p['bg']);grid.pack(fill='x',padx=10,pady=10);grid.columnconfigure((0,1),weight=1,uniform='hud')
+        grid.bind('<Configure>',self.fit_pano)
+        self.tiles=[]
+        def tile(row,column,span=1):
+            cell=tk.Frame(grid,bg=p['bg']);cell.grid(row=row,column=column,columnspan=span,sticky='nsew',padx=((0,4) if column==0 and span==1 else (4,0) if column==1 else 0),pady=(0,8))
+            card=AutoCard(cell,p,padding=12);card.radius=16;card.pack_configure(padx=0,pady=0,fill='both',expand=True)
+            self.tiles.append(card);return card.content
+        top=tile(0,0,2);self.speed_host=top;top.columnconfigure(0,weight=1)
+        info=tk.Frame(top,bg=p['card']);info.grid(row=0,column=0,sticky='w')
+        label(info,'TOPLAM HIZ',palette=p,size=size(11),weight='SemiBold',muted=True).pack(anchor='w')
+        self.speed=label(info,'0 KB/sn',palette=p,size=size(22),weight='Bold');self.speed.pack(anchor='w',pady=(2,0))
+        self.spark=Sparkline(top,p,width=84,height=34);self.spark.grid(row=0,column=1,sticky='e',padx=(12,0))
+        top.bind('<Configure>',lambda event:self.arrange_speed(),add='+')
+        left=tile(1,0);label(left,'Toplam',palette=p,size=size(11),muted=True).pack(anchor='w')
+        self.percent=label(left,'—',palette=p,size=size(17),weight='Bold');self.percent.pack(anchor='w',pady=(2,6))
+        self.total_bar=ProgressBar(left,p,width=130,height=8,thickness=5,show_text=False);self.total_bar.pack(fill='x')
+        right=tile(1,1);label(right,'Kalan',palette=p,size=size(11),muted=True).pack(anchor='w')
+        self.eta=label(right,'—',palette=p,size=size(17),weight='Bold');self.eta.max_width=130;self.eta.pack(anchor='w',pady=(2,2))
+        self.count=label(right,'Aktif indirme yok',palette=p,size=size(11),muted=True);self.count.max_width=130;self.count.pack(anchor='w')
+        foot=tk.Frame(self,bg=p['bg']);foot.pack(fill='x',padx=10,pady=(0,10))
+        Button(foot,'Tümünü duraklat',self.pause_all,palette=p,kind='primary').pack(side='left',fill='x',expand=True)
+        Button(foot,'SDM’yi aç',self.show_main,palette=p,kind='secondary').pack(side='left',fill='x',expand=True,padx=6)
+        Button(foot,'×',self.close,palette=p,kind='icon',width=34).pack(side='right')
+
+    def arrange_speed(self):
+        # Keep the actual speed and units readable at all HUD text sizes. A large
+        # value moves the chart below it instead of squeezing either control.
+        stacked=self.speed.winfo_reqwidth()+12+84>self.speed_host.winfo_width()
+        self.spark.grid_configure(row=1 if stacked else 0,column=0 if stacked else 1,
+            columnspan=2 if stacked else 1,padx=0 if stacked else (12,0),pady=(6,0) if stacked else 0)
+
+    def round_pano(self,event):
+        if event.widget is not self:return
+        import sys
+        if sys.platform!='win32':return
+        size=(event.width,event.height)
+        if size==getattr(self,'_region_size',None):return
+        import ctypes
+        from ctypes import wintypes
+        user=ctypes.WinDLL('user32',use_last_error=True);gdi=ctypes.WinDLL('gdi32',use_last_error=True)
+        gdi.CreateRoundRectRgn.argtypes=[ctypes.c_int]*6;gdi.CreateRoundRectRgn.restype=wintypes.HANDLE
+        gdi.DeleteObject.argtypes=[wintypes.HANDLE];gdi.DeleteObject.restype=wintypes.BOOL
+        user.SetWindowRgn.argtypes=[wintypes.HWND,wintypes.HANDLE,wintypes.BOOL];user.SetWindowRgn.restype=ctypes.c_int
+        region=gdi.CreateRoundRectRgn(0,0,event.width+1,event.height+1,44,44)
+        if not region:raise ctypes.WinError(ctypes.get_last_error())
+        hwnd=int(self.tk.call('wm','frame',self._w),0)
+        if not user.SetWindowRgn(hwnd,region,True):
+            error=ctypes.get_last_error();gdi.DeleteObject(region);raise ctypes.WinError(error)
+        # Successful SetWindowRgn transfers region ownership to Windows.
+        self._region_size=size
 
     def pause_all(self):
         for record in self.parent.db.get_all_downloads():
