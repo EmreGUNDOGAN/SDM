@@ -131,23 +131,43 @@ MEDIA_TOOLS=('Biçim dönüştürme','Video / ses kesme')
 
 def build_tools(window,parent):
     """Create A14 fields while retaining ToolsDialog's cancellable workers."""
-    p=window.p
+    p=window.p;pano=p.get('design')=='pano'
     window.cancel=__import__('threading').Event();window.busy=False
     window.mode=tk.StringVar(window,'Biçim dönüştürme');window.input=tk.StringVar(window,'');window.output=tk.StringVar(window,'')
     window.start=tk.StringVar(window,'00:00');window.end=tk.StringVar(window,'00:30');window.format=tk.StringVar(window,'mp4')
     window.bitrate=tk.StringVar(window,'192');window.duration=None
-    side=tk.Frame(window,bg=p['side'],width=SIDE);side.pack(side='left',fill='y',before=window.header);side.pack_propagate(False)
-    label(side,'Araçlar',palette=p,size=18,weight='Bold').pack(anchor='w',padx=24,pady=24)
+    if pano:
+        side=tk.Frame(window.body,bg=p['dialog']);side.pack(fill='x',padx=20,pady=(0,16))
+        window.description_label.pack_forget()
+        window.description_label=tk.Label(window.header,bg=p['dialog'],fg=p['muted'],font=('Inter',text_px(13)),justify='left',anchor='w',wraplength=852)
+        window.header.bind('<Configure>',lambda event:window.description_label.configure(wraplength=event.width),add='+')
+    else:
+        side=tk.Frame(window,bg=p['side'],width=SIDE);side.pack(side='left',fill='y',before=window.header);side.pack_propagate(False)
+        label(side,'Araçlar',palette=p,size=18,weight='Bold').pack(anchor='w',padx=24,pady=24)
     window.mode_buttons={}
-    for name,title,description,tile in TOOLS:
-        button=ToolCard(side,name,window.mode,tile,text=title,description=description,palette=p,width=SIDE-24)
-        button.pack(fill='x',padx=12,pady=2);window.mode_buttons[name]=button
+    for index,(name,title,description,tile) in enumerate(TOOLS):
+        if pano:
+            title=('Dönüştür','Kes','Bağlantılar','Klasörler','Altyazı')[index]
+            description=('MP4, MKV, MP3,\nM4A, WAV','Aralığı ayrı\ndosya yap','Listedeki\nadresleri sına','Dosyaları türe\ngöre ayır','Video altyazı\ndillerini indir')[index]
+        button=ToolCard(side,name,window.mode,tile,text=title,description=description,palette=p,width=160 if pano else SIDE-24,**({'height':132} if pano else {}))
+        if not pano:button.pack(fill='x',padx=12,pady=2)
+        window.mode_buttons[name]=button
+    if pano:
+        def arrange_tools(event):
+            columns=5 if event.width>=800 else 3 if event.width>=650 else 2
+            for index in range(5):side.columnconfigure(index,weight=1 if index<columns else 0,uniform='tools' if index<columns else '')
+            for index,button in enumerate(window.mode_buttons.values()):button.grid(row=index//columns,column=index%columns,sticky='ew',padx=4,pady=4)
+        side.bind('<Configure>',arrange_tools)
     # Steps lie on the window; only the source file and the result are cards (A14).
     def section(number,title):
-        frame=tk.Frame(window.body,bg=p['dialog']);frame.pack(fill='x',padx=24,pady=(0,20))
+        if pano and number in (1,3):
+            outer=AutoCard(window.body,p);outer.radius=22;frame=outer.content
+        else:
+            frame=tk.Frame(window.body,bg=p['dialog']);frame.pack(fill='x',padx=24,pady=(0,20))
         frame.step=step(frame,number,title,p);frame.step.pack(anchor='w',pady=(0,10));return frame
     source=section(1,'Kaynak')
-    window.source_card=AutoCard(source,p,padding=14);window.source_card.pack_forget()
+    window.source_card=AutoCard(source,p,padding=0 if pano else 14);window.source_card.pack_forget()
+    if pano:window.source_card.radius=0;window.source_card.p=dict(window.source_card.p,line=p['card'])
     card=window.source_card.content
     window.source_tile=FileTile(card,'FILE',palette=p,size=40);window.source_tile.pack(side='left')
     Button(card,'Değiştir',window.browse_file,palette=p,kind='soft',height=SIZES['small_button']).pack(side='right')
@@ -157,21 +177,42 @@ def build_tools(window,parent):
     window.source_input=field(source,'Dosya / klasör / video bağlantısı',window.input,p,
                               actions=[('Dosya seç',window.browse_file),('Klasör seç',window.browse_folder)])
     window.source_box=window.source_input.master.master
-    window.source_hint=label(source,'Dosya sürükleyip bırakabilir veya bir video bağlantısı yapıştırabilirsin.',palette=p,size=12,muted=True)
+    hint='Dosya sürükleyip bırakabilir veya bir video bağlantısı yapıştırabilirsin.'
+    if pano:
+        window.source_hint=tk.Label(source,text=hint,bg=p['card'],fg=p['muted'],font=('Inter',text_px(12)),wraplength=800,justify='left',anchor='w')
+        source.bind('<Configure>',lambda event:window.source_hint.configure(wraplength=event.width),add='+')
+        def fit_source(event):
+            for item in (window.source_name,window.source_meta):item.max_width=event.width;item.draw()
+        text.bind('<Configure>',fit_source)
+    else:window.source_hint=label(source,hint,palette=p,size=12,muted=True)
     window.source_hint.pack(anchor='w',pady=(8,0))
     output=section(2,'Çıktı biçimi');window.output_step=output.step
-    options=tk.Frame(output,bg=p['dialog']);options.pack(fill='x',pady=(0,12))
+    options_parent=output;settings_parent=output
+    if pano:
+        window.output_cards=tk.Frame(output,bg=p['dialog']);window.output_cards.pack(fill='x')
+        format_holder=tk.Frame(window.output_cards,bg=p['dialog']);settings_holder=tk.Frame(window.output_cards,bg=p['dialog'])
+        format_card=AutoCard(format_holder,p);format_card.radius=22;format_card.pack_configure(padx=0,pady=0,fill='both',expand=True)
+        settings_card=AutoCard(settings_holder,p);settings_card.radius=22;settings_card.pack_configure(padx=0,pady=0,fill='both',expand=True)
+        options_parent=format_card.content;settings_parent=settings_card.content
+        def arrange_output(event=None):
+            media=window.mode.get() in MEDIA_TOOLS;wide=media and window.output_cards.winfo_width()>=760
+            window.output_cards.columnconfigure(0,weight=3 if wide else 1);window.output_cards.columnconfigure(1,weight=2 if wide else 0)
+            if media:format_holder.grid(row=0,column=0,sticky='nsew',padx=(0,8) if wide else 0,pady=(0,0 if wide else 12))
+            else:format_holder.grid_remove()
+            settings_holder.grid(row=0 if wide or not media else 1,column=1 if wide else 0,sticky='nsew',padx=(8,0) if wide else 0)
+        window.arrange_pano_output=arrange_output;window.output_cards.bind('<Configure>',arrange_output)
+    options=tk.Frame(options_parent,bg=options_parent.cget('bg'));options.pack(fill='x',pady=(0,12))
     window.format_host=options
     for index,fmt in enumerate(('mp4','mkv','mp3','m4a','wav')):
-        RadioCard(options,fmt,window.format,text=fmt.upper(),description='Kayıpsız ses' if fmt=='wav' else 'Ses' if fmt in ('mp3','m4a') else 'Video',
+        RadioCard(options,fmt,window.format,text=fmt.upper(),description=('Kayıpsız' if pano else 'Kayıpsız ses') if fmt=='wav' else 'Ses' if fmt in ('mp3','m4a') else 'Video',
                   palette=p,width=82,align='center').pack(side='left',expand=True,fill='x',padx=(8 if index else 0,0))
-    window.output_row=tk.Frame(output,bg=p['dialog']);window.output_row.pack(fill='x')
-    window.quality_box=tk.Frame(window.output_row,bg=p['dialog'])
-    label(window.quality_box,'Ses kalitesi',palette=p,muted=True).pack(anchor='w',pady=(0,6))
+    window.output_row=tk.Frame(settings_parent,bg=settings_parent.cget('bg'));window.output_row.pack(fill='x')
+    window.quality_box=tk.Frame(window.output_row,bg=window.output_row.cget('bg'))
+    label(window.quality_box,'Ses kalitesi',palette=p,muted=True).pack(side='left' if pano else 'top',anchor='w',pady=0 if pano else (0,6))
     Select(window.quality_box,{str(rate):f'{rate} kb/sn' for rate in AUDIO_BITRATES},window.bitrate,palette=p,
-           width=180,height=SIZES['input']).pack(anchor='w')
+           width=180,height=SIZES['input']).pack(side='right' if pano else 'top',anchor='w')
     window.output_input=field(window.output_row,'Çıktı klasörü',window.output,p,actions=[('Değiştir',window.browse_output)],
-                              side='left',placeholder='Kaynakla aynı klasör')
+                              side=None if pano else 'left',placeholder='Kaynakla aynı klasör')
     window.output_box=window.output_input.master.master
     window.cut_fields=tk.Frame(output,bg=p['dialog'])
     window.timeline_host=tk.Frame(window.cut_fields,bg=p['dialog']);window.timeline_host.pack(fill='x')
@@ -179,13 +220,18 @@ def build_tools(window,parent):
     times=tk.Frame(window.cut_fields,bg=p['dialog']);times.pack(fill='x')
     field(times,'Başlangıç',window.start,p,width=120,side='left');field(times,'Bitiş',window.end,p,width=120,side='left')
     window.subtitle_host=tk.Frame(output,bg=p['dialog']);window.subtitle_host.pack(fill='x')
-    window.description_label.max_width=900-SIDE-48
+    window.description_label.max_width=900-48 if pano else 900-SIDE-48
     result=section(3,'Sonuç');window.result_step=result.step
-    card=AutoCard(result,p);card.pack_configure(padx=0,pady=0);content=card.content
+    card=AutoCard(result,p,padding=0 if pano else 16);card.pack_configure(padx=0,pady=0);content=card.content
+    if pano:card.radius=0;card.p=dict(card.p,line=p['card'])
     top=tk.Frame(content,bg=p['card']);top.pack(fill='x')
     window.job_name=label(top,palette=p,size=14,weight='SemiBold');window.job_name.max_width=360;window.job_name.pack(side='left')
     window.job_percent=label(top,palette=p,size=14,weight='Bold');window.job_percent.pack(side='right')
     window.job_time=label(top,palette=p,size=12,muted=True);window.job_time.pack(side='right',padx=(0,12))
+    if pano:
+        def fit_job(event=None):
+            window.job_name.max_width=max(1,top.winfo_width()-window.job_percent.winfo_reqwidth()-window.job_time.winfo_reqwidth()-24);window.job_name.draw()
+        for item in (top,window.job_percent,window.job_time):item.bind('<Configure>',fit_job,add='+')
     window.progress=ProgressBar(content,p,show_text=False,thickness=SIZES['detail_progress'],height=20);window.progress.pack(fill='x',pady=(8,4))
     window.job_meta=label(content,palette=p,size=12,muted=True);window.job_meta.pack(anchor='w')
     window.status=tk.StringVar(window,'');label(content,variable=window.status,palette=p,size=12).pack(anchor='w',pady=(4,0))
@@ -195,7 +241,10 @@ def build_tools(window,parent):
     window.run_button=action(window.actionbar,'Dönüştür',window.run,p,'primary')
     # Durdur only means something while a job runs (A14).
     window.stop_button=action(window.actionbar,'Durdur',window.cancel.set,p,'danger_ghost');window.stop_button.configure(state='disabled')
-    window.footer_note=label(window.actionbar,'İşlem bitince dosya klasörde seçili olarak açılır.',palette=p,muted=True)
+    if pano:
+        window.footer_note=tk.Label(window.footer,text='İşlem bitince dosya klasörde seçili olarak açılır.',bg=p['footer'],fg=p['muted'],font=('Inter',text_px(12)),wraplength=852,justify='left',anchor='w')
+        window.footer.bind('<Configure>',lambda event:window.footer_note.configure(wraplength=max(1,event.width-48)),add='+')
+    else:window.footer_note=label(window.actionbar,'İşlem bitince dosya klasörde seçili olarak açılır.',palette=p,muted=True)
     window.mode.trace_add('write',lambda *args:window.update_mode());window.update_mode()
     def source_changed(*args):
         window._probe_revision+=1;revision=window._probe_revision;source=window.input.get().strip()
