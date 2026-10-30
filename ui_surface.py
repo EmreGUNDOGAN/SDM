@@ -32,6 +32,26 @@ def surface(w,h,bg,fill,border=None,radius=7,scale=SURFACE_SCALE):
 
 
 @lru_cache(maxsize=96)
+def _pano_tile_surface(w,h,bg,fill,radius):
+    """Bounded double shadow inside a tile's own four-pixel layout inset."""
+    from PIL import ImageFilter
+    s=SURFACE_SCALE
+    image=Image.new('RGB',(w*s,h*s),bg)
+    if min(w,h)<16:return image.resize((w,h))
+    box=(4*s,2*s,(w-5)*s,(h-5)*s)
+    for offset,blur,alpha in ((1,1,12),(3,4,14)):
+        layer=Image.new('RGBA',image.size)
+        ImageDraw.Draw(layer).rounded_rectangle((box[0],box[1]+offset*s,box[2],box[3]+offset*s),radius=radius*s,fill=(15,23,42,alpha))
+        layer=layer.filter(ImageFilter.GaussianBlur(blur*s));image.paste(layer,(0,0),layer)
+    ImageDraw.Draw(image).rounded_rectangle(box,radius=radius*s,fill=fill)
+    return image.resize((w,h),Image.Resampling.LANCZOS)
+
+
+def pano_tile_surface(w,h,bg,fill,radius=22):
+    return _pano_tile_surface(max(1,round(w)),max(1,round(h)),bg,fill,radius).copy()
+
+
+@lru_cache(maxsize=96)
 def _chamfered_surface(w,h,bg,fill,border):
     """Yörünge primary control: antialiased cut corners, bounded static glow."""
     from PIL import ImageFilter

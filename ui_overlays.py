@@ -16,15 +16,25 @@ class MenuButton(Button):
         w=self.winfo_width() if self.winfo_width()>1 else int(self.cget('width'));h=int(self.cget('height'))
         bg=p['accent_nav'] if self.selected else p['subtle'] if self.hover else p['card']
         fg=p['danger_fg'] if spec['danger'] else p['text_2'];left=12
-        image=surface(w,h,self.cget('bg'),bg,radius=7);d=ImageDraw.Draw(image)
         variable=spec['variable']
+        checked=variable is not None and (bool(variable.get()) if spec['check'] else variable.get()==spec['value'])
+        pano=p.get('design')=='pano'
+        if pano:
+            if checked and not spec['check']:bg=p['accent'];fg=p['on_accent']
+            elif self.selected or self.hover:bg=p['accent_soft'];fg=p['accent_text']
+            elif spec['danger']:bg=p['danger_bg']
+            if self.disabled:fg=p['muted']
+        image=surface(w,h,self.cget('bg'),p['card'] if pano else bg,radius=14 if pano else 7);d=ImageDraw.Draw(image)
+        if pano:
+            if not spec.get('round_top',True):d.rectangle((0,0,w,h//2),fill=p['card'])
+            if not spec.get('round_bottom',True):d.rectangle((0,h//2,w,h),fill=p['card'])
+            if bg!=p['card']:d.rounded_rectangle((3,2,w-4,h-3),radius=12,fill=bg)
         if variable is not None:
-            checked=bool(variable.get()) if spec['check'] else variable.get()==spec['value']
             if spec['check']:
                 d.rounded_rectangle((9,h//2-8,25,h//2+8),radius=4,fill=p['accent'] if checked else p['card'],outline=p['accent'] if checked else p['input_border'])
                 if checked:
                     glyph=icon('check-small',12,p['on_accent']);image.paste(glyph,(11,h//2-6),glyph)
-            elif checked:d.ellipse((14,h//2-3,20,h//2+3),fill=p['accent'])
+            elif checked:d.ellipse((14,h//2-3,20,h//2+3),fill=p['on_accent'] if pano else p['accent'])
             left=35
         shortcut='›' if spec['submenu'] else spec['shortcut'];reserved=90 if shortcut else 16
         if spec['description']:text_on(image,(left,10),ellipsize(self.text,w-left-reserved,13),13,fill=fg)
@@ -39,11 +49,13 @@ class PopupMenu(tk.Toplevel):
         super().__init__(master)
         self.withdraw();self.overrideredirect(True);self.p=palette
         self.parent_menu=parent_menu;self.child_menu=None;self.items=[];self.active=-1
+        self._pano_group=[]
         self._previous_focus=None;self._previous_grab=None;self._closing=False;self._focus_check=None
-        self.configure(bg=palette['card'])
-        self.panel=Panel(self,dict(palette,panel=palette['card']),padding=SIZES['menu_padding'],radius=RADII[palette.get('design','atlas')]['menu'])
+        container=palette['bg'] if palette.get('design')=='pano' else palette['card']
+        self.configure(bg=container)
+        self.panel=Panel(self,dict(palette,panel=container),padding=SIZES['menu_padding'],radius=RADII[palette.get('design','atlas')]['menu'])
         self.panel.pack(fill='both',expand=True)
-        self.panel.content.configure(bg=palette['card'])
+        self.panel.content.configure(bg=container)
         self.bind('<Escape>',lambda e:self.close_root())
         self.bind('<Down>',lambda e:self.move(1));self.bind('<Up>',lambda e:self.move(-1))
         self.bind('<Right>',lambda e:self.open_submenu());self.bind('<Left>',self.back)
@@ -62,6 +74,11 @@ class PopupMenu(tk.Toplevel):
                       height=SIZES['menu_row']+(18 if description else 0))
         button.menu_spec=dict(shortcut=shortcut,submenu=submenu,variable=variable,value=value,
                               description=description,check=check,danger=danger)
+        if self.p.get('design')=='pano':
+            button.menu_spec.update(round_top=not self._pano_group,round_bottom=True)
+            if self._pano_group:
+                previous=self._pano_group[-1];previous.menu_spec['round_bottom']=False;previous.draw()
+            self._pano_group.append(button)
         button.pack(fill='x');button.configure(takefocus=0,state='disabled' if disabled else 'normal')
         item=dict(button=button,command=command,submenu=submenu,variable=variable,value=value,check=check)
         self.items.append(item)
@@ -69,9 +86,13 @@ class PopupMenu(tk.Toplevel):
         return button
 
     def add_caption(self,text):
+        self._pano_group=[]
         TextLabel(self.panel.content,text,size=11,weight='SemiBold',fg=self.p['muted']).pack(anchor='w',padx=12,pady=(8,6))
 
     def add_separator(self):
+        if self.p.get('design')=='pano':
+            self._pano_group=[]
+            tk.Frame(self.panel.content,bg=self.p['bg'],height=6).pack(fill='x');return
         tk.Frame(self.panel.content,bg=self.p['line'],height=1).pack(fill='x',pady=5)
 
     def popup(self,x,y):
@@ -269,7 +290,12 @@ class Toast(tk.Toplevel):
         super().__init__(manager.owner);self.withdraw();self.overrideredirect(True)
         self.manager=manager;self.p=manager.p;self._timer=None;self._deadline=0;self._remaining=0
         self.attributes('-topmost',True);self.configure(bg=self.p['toast'])
-        body=tk.Frame(self,bg=self.p['toast']);body.pack(fill='both',expand=True,padx=14,pady=12)
+        if self.p.get('design')=='pano':
+            self.configure(bg=self.p['bg'])
+            self.pano_panel=Panel(self,dict(self.p,panel=self.p['toast']),padding=14,radius=20)
+            self.pano_panel.pack(fill='both',expand=True);body=self.pano_panel.content
+        else:
+            body=tk.Frame(self,bg=self.p['toast']);body.pack(fill='both',expand=True,padx=14,pady=12)
         from ui_surface import surface,icon,photo
         role=tone if tone in ('success','warning','danger') else 'info'
         tile=surface(28,28,self.p['toast'],self.p[role+'_bg'],radius=7)
@@ -281,6 +307,10 @@ class Toast(tk.Toplevel):
             Button(body,label,lambda:self.perform(callback),palette=action_palette,kind='ghost').pack(side='right',padx=(10,0))
         TextLabel(body,title,size=13,weight='SemiBold',fg=self.p['toast_text']).pack(anchor='w')
         TextLabel(body,message,size=12,fg=self.p['toast_muted']).pack(anchor='w',pady=(4,0))
+        if hasattr(self,'pano_panel'):
+            self.update_idletasks()
+            inset=2*self.pano_panel.inset
+            self.pano_panel.configure(width=body.winfo_reqwidth()+28+inset,height=body.winfo_reqheight()+28+inset)
         self.bind('<Enter>',lambda e:self.pause());self.bind('<Leave>',lambda e:self.resume())
         self.bind('<Destroy>',self.dispose,add='+')
         self._remaining=TOAST_ACTION_DURATION if action else TOAST_DURATION

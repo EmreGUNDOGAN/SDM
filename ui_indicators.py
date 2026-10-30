@@ -165,7 +165,7 @@ class SpeedChart(Indicator):
         if len(self.points)>1:
             first=self.points[0][0];duration=max(1,self.points[-1][0]-first)
             coords=[((left+(stamp-first)/duration*(right-left))*s,(base-max(0,value)/peak*span_y)*s) for stamp,value in self.points]
-            if self.axes:
+            if self.axes or p.get('design')=='pano':
                 tint=Image.new('RGBA',image.size);td=ImageDraw.Draw(tint)
                 td.polygon([(left*s,base*s),*coords,(right*s,base*s)],fill=p['accent']+'20')
                 image.paste(tint,(0,0),tint);d=ImageDraw.Draw(image)

@@ -321,7 +321,9 @@ class AtlasWorkspace:
 
     def reset_columns(self):
         from utils import save_settings
-        self.app.settings['visible_columns']=list(DEFAULT_COLUMNS);save_settings(self.app.settings);self.app.apply_visible_columns();self.app.data_view.schedule()
+        from atlas_view import column_preferences
+        key,defaults=column_preferences(self.app.theme_family)
+        self.app.settings[key]=list(defaults);save_settings(self.app.settings);self.app.apply_visible_columns();self.app.data_view.schedule()
 
     def context_menu(self,event):
         app=self.app;caps=self.capabilities();menu=PopupMenu(app,self.p)
@@ -352,17 +354,23 @@ class AtlasWorkspace:
 
     def update_hud(self,speed):
         app=self.app
-        app.capture_label.configure(text='Tarayıcı yakalama açık' if __import__('capture_policy').capture_enabled(app.settings) else 'Tarayıcı yakalama kapalı')
-        self.capture_tip.text=app.capture_label.text
+        self.update_capture_and_rate()
         app.lbl_status_summary.configure(text=app.hud_active.get()+' aktif')
         self.speed_label.configure(text=app.hud_speed.get())
         self.received_label.configure(text='Bu oturum '+app.hud_received.get())
         self.speed_points.append((time.monotonic(),speed));self.sparkline.set(tuple(self.speed_points))
+        self.update_selection();self.update_disk()
+
+    def update_capture_and_rate(self):
+        app=self.app
+        app.capture_label.configure(text='Tarayıcı yakalama açık' if __import__('capture_policy').capture_enabled(app.settings) else 'Tarayıcı yakalama kapalı')
+        self.capture_tip.text=app.capture_label.text
         rate=app.settings.get('speed_limit_kbs',0)
         if app.settings.get('relax_mode'):label='Rahatlatıldı · '+number(app,app.settings['relax_limit_kbs'])+' KB/sn'
         else:label='Hız sınırı: '+(number(app,rate)+' KB/sn' if rate else 'Yok')
         app.relax_button.configure(text=label)
-        self.update_selection()
+    def update_disk(self):
+        app=self.app
         now=time.monotonic()
         if now>=self._disk_due and not self._disk_busy:
             self._disk_busy=True;self._disk_due=now+ATLAS['disk_refresh_seconds']
@@ -370,10 +378,12 @@ class AtlasWorkspace:
             def work():
                 try:
                     from utils import format_bytes
-                    value='Disk: '+number(app,format_bytes(shutil.disk_usage(folder).free))+' boş'
-                except OSError:value='Hazır'
+                    usage=shutil.disk_usage(folder)
+                    value='Disk: '+number(app,format_bytes(usage.free))+' boş'
+                except OSError:usage=None;value='Hazır'
                 def done():
                     self._disk_busy=False
+                    self.disk_usage=usage
                     if self.alive:app.lbl_status_info.configure(text=value)
                 app.post_ui(done)
             threading.Thread(target=work,daemon=True).start()

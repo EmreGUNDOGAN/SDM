@@ -9,6 +9,11 @@ CATEGORY_TILES={'Belgeler':('DOC','document'),'Resimler':('IMG','image'),
     'Programlar':('APP','program'),'Diğer':('…','other')}
 
 
+def column_preferences(design):
+    if design=='pano':return 'pano_visible_columns',('filename','progress','size','status')
+    return 'visible_columns',DEFAULT_COLUMNS
+
+
 def file_kind(record):
     if Path(record.get('filename','')).suffix.lower() in ('.iso','.img'):return 'disk'
     return CATEGORY_TILES.get(record.get('category'),('','other'))[1]
@@ -29,6 +34,9 @@ def subtitle(record):
 
 def matches_status(status,selected):
     # Keep the existing unfinished-download filter, and add the error view.
+    if selected=='Etkin':return status in ('İndiriliyor','Birleştiriliyor','Dönüştürülüyor')
+    if selected=='Kuyrukta':return status in ('Bekliyor','Kuyrukta')
+    if selected=='Duraklatılanlar':return status=='Duraklatıldı'
     if selected=='Devam Edenler':return status not in ('Tamamlandı','İptal Edildi')
     if selected=='Tamamlananlar':return status=='Tamamlandı'
     if selected=='Hatalı':return status not in ('Tamamlandı','Bekliyor','Kuyrukta',
