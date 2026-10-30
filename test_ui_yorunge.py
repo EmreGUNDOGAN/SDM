@@ -27,7 +27,8 @@ def main():
     def settle():
         for _ in range(6):app.update();time.sleep(.025)
         assert not errors,errors
-    def capture(name):settle();capture_client(app).save(Path('build')/f'yorunge-{name}.png')
+    def capture(name):
+        settle();image=capture_client(app);image.save(Path('build')/f'yorunge-{name}.png');return image
     try:
         app.apply_settings(dict(app.settings,design='yorunge',color_mode='system'))
         app.geometry('1440x900+20+20');settle();view=app._atlas_workspace
@@ -91,7 +92,13 @@ def main():
             if width==1080:
                 assert view.action_group.winfo_ismapped(),'Compact selection actions lost'
                 assert view.chart_box.grid_info()['row']==1
-                view.scroll.yview_moveto(0);settle();capture('compact-telemetry')
+                view.scroll.yview_moveto(0);settle();picture=capture('compact-telemetry')
+                footer=app.lbl_status_summary.master
+                y=footer.winfo_rooty()-app.winfo_rooty()+footer.winfo_height()//2
+                assert picture.getpixel((app.winfo_width()//2,y))[:3]==ImageColor.getrgb(app.palette['side']),'Off-screen actions cover the status footer'
+                view.actions['pause'].focus_force();settle()
+                button=view.actions['pause'];canvas=view.scroll._canvas
+                assert app.focus_get() is button and canvas.winfo_rooty()<=button.winfo_rooty() and button.winfo_rooty()+button.winfo_height()<=canvas.winfo_rooty()+canvas.winfo_height(),'Compact action focus outside viewport'
                 view.scroll.yview_moveto(1);settle();capture('compact')
             else:assert view.chart_box.grid_info()['row']==0
         view.scroll.yview_moveto(0);settle()
