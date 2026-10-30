@@ -126,7 +126,7 @@ class YorungeWorkspace(AtlasWorkspace):
         bottom=tk.Frame(side,bg=p['side']);bottom.pack(side='bottom',fill='x',padx=10,pady=10)
         self.bottom_buttons={}
         for text,glyph,command in (('Araçlar','wrench',app.open_tools),('İstatistik','chart',app.open_stats),('Masaüstü HUD','monitor',app.show_mini_hud),('Ayarlar','settings',app.open_settings_dialog)):
-            button=Button(bottom,'> '+text,command,palette=p,kind='link',height=30);button.pack(fill='x');self.bottom_buttons[text]=button
+            button=Button(bottom,'> '+text,command,palette=p,kind='link',height=30);button.side_accent=True;button.pack(fill='x');self.bottom_buttons[text]=button
         app.style.configure('Orbit.Side.TFrame',background=p['side'])
         app.sidebar_scroll=ScrolledFrame(side,width=218,auto_hide=True,style='Orbit.Side.TFrame');app.sidebar_scroll.pack(fill='both',expand=True)
         app.sidebar_scroll._canvas.configure(bg=p['side']);self.nav=tk.Frame(app.sidebar_scroll,bg=p['side']);self.nav.pack(fill='x',padx=10)
@@ -139,7 +139,7 @@ class YorungeWorkspace(AtlasWorkspace):
         for key,(_,kind) in CATEGORY_TILES.items():
             button=OrbitNav(self.nav,key,lambda value=key:app.select_category(value),p,color=file_tile_colors(kind,'dark','yorunge')[1])
             button.pack(fill='x');button.bind('<FocusIn>',self.reveal_nav,add='+');app.category_buttons[key]=button
-        Button(self.nav,'Tüm türler',lambda:app.select_category('Tümü'),palette=p,kind='link',height=30).pack(fill='x')
+        everything=Button(self.nav,'Tüm türler',lambda:app.select_category('Tümü'),palette=p,kind='link',height=30);everything.side_accent=True;everything.pack(fill='x')
         caption('KUYRUK');self.queue_buttons={}
         self.queue_selector=Button(self.nav,'Kuyruklar ▾',app.show_queue_menu,palette=p,kind='secondary',height=34);self.queue_selector.pack(fill='x')
         for queue in app.settings['queues']:
@@ -239,7 +239,8 @@ class YorungeWorkspace(AtlasWorkspace):
         self.target_measurements=tk.Frame(self.selection,bg=p['side']);self.target_measurements.pack(fill='x')
         self.ring=ProgressRing(self.target_measurements,p,0,size=182,stroke=9);self.ring.pack(pady=(16,0))
         self.amount=self.label(self.target_measurements,'',size=10,muted=True,max_width=300);self.amount.pack(pady=(0,14))
-        self.parts=ConnectionColumns(self.target_measurements,p);self.parts.pack(fill='x',pady=12)
+        self.label(self.target_measurements,'// BAĞLANTILAR',size=10,muted=True).pack(anchor='w',pady=(4,0))
+        self.parts=ConnectionColumns(self.target_measurements,p);self.parts.pack(fill='x',pady=(8,12))
         self.target_fields={}
         for title in ('HIZ','KALAN','KUYRUK','BAĞLANTI'):
             row=tk.Frame(self.target_measurements,bg=p['side']);row.pack(fill='x',pady=4)

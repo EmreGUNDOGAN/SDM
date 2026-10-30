@@ -137,7 +137,7 @@ class Button(tk.Canvas):
         display_text=title.lstrip('● ')[:-2] if dropdown else title.lstrip('● ')
         if getattr(self,'icon_only',False):display_text=''
         # Dropdowns read like inputs: value on the left, chevron on the right.
-        if not name and not self.image and not dropdown:x=round((w-face.getlength(display_text))/2)
+        if not name and not self.image and not dropdown and not self.side_accent:x=round((w-face.getlength(display_text))/2)
         if getattr(self,'status_badge',False):
             d.ellipse((11,h//2-4,19,h//2+4),fill=fg);x=26
         display_text=ellipsize(display_text,max(0,w-x-(24 if dropdown else 8)),13,'SemiBold' if solid or self.selected else 'Regular')

@@ -67,7 +67,8 @@ class ConnectionColumns(Indicator):
         w,h=self.size();p=self.p;s=SURFACE_SCALE
         image=Image.new('RGB',(w*s,h*s),self.cget('bg'));d=ImageDraw.Draw(image)
         if self.rows:
-            width=w/len(self.rows);gap=min(4,width/3)
+            # F01 draws eight slim columns; fewer parts keep that width, left-aligned.
+            width=w/max(8,len(self.rows));gap=min(4,width/3)
             for index,row in enumerate(self.rows):
                 left=index*width;ratio=min(1,max(0,row['received']/row['total'])) if row['total'] else 0
                 d.rectangle((left*s,0,(left+width-gap)*s,h*s),fill=p['track'])

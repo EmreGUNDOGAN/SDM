@@ -52,6 +52,15 @@ def main():
         with patch.object(app,'pause_selected') as action:
             view.update_selection();view.primary.invoke();action.assert_called_once()
         assert view.metrics['AKTİF'].text.startswith('1 / ')
+        # F01: one observed part is one slim column, not a full-width block; side links start at the left.
+        shot=capture_client(app).convert('RGB');track=ImageColor.getrgb(app.palette['track'])
+        def box(widget):
+            x=widget.winfo_rootx()-app.winfo_rootx();y=widget.winfo_rooty()-app.winfo_rooty();return x,y,widget.winfo_width(),widget.winfo_height()
+        x,y,w,h=box(view.parts);row=[shot.getpixel((xx,y+2)) for xx in range(x,x+w)]
+        assert sum(sum(abs(a-b) for a,b in zip(pixel,track))<12 for pixel in row)<=w/8,'F01 connection column is too wide'
+        x,y,w,h=box(view.bottom_buttons['Araçlar']);back=shot.getpixel((x+w-2,y+h//2))
+        ink=[xx for xx in range(x,x+w) if sum(abs(a-b) for a,b in zip(shot.getpixel((xx,y+h//2)),back))>60]
+        assert ink and ink[0]-x<=24,('F01 side link is not left-aligned',ink[:1],x)
         picture=capture_client(app);cell=app.tree.bbox(f'download-{active}','progress')
         x,y,w,h=cell;left=app.tree.winfo_rootx()-app.winfo_rootx()+x;middle=app.tree.winfo_rooty()-app.winfo_rooty()+y+h//2
         color=ImageColor.getrgb(app.palette['accent']);runs=0;inside=False

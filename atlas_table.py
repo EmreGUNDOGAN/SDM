@@ -18,13 +18,15 @@ def render(app,width,height,visible,head_height):
         d.text((round(x*s),round(y*s)),value,font=font(size*s,weight,family),fill=color or p['text'],anchor=anchor)
     columns=tuple(tree.cget('displaycolumns'));total=sum(tree.column(c,'width') for c in columns)
     cursor=-tree.xview()[0]*total
+    def upper(value):return str(value).replace('i','İ').replace('ı','I').upper()
     for column in columns:
         cell=tree.bbox(visible[0][0],column) if visible else None
         x,cw=(cell[0],cell[2]) if cell else (cursor,tree.column(column,'width'))
         right=column in ('size','downloaded','remaining','speed','eta')
         pad=ATLAS['file_padding'] if column=='filename' else ATLAS['cell_padding']
-        text(x+cw-pad if right else x+pad,head_height/2,tree.heading(column,'text'),
-             12,color=p['muted'],limit=cw-2*pad,anchor='rm' if right else 'lm')
+        # F01: mono capitals for headings and status words.
+        text(x+cw-pad if right else x+pad,head_height/2,upper(tree.heading(column,'text')) if yorunge else tree.heading(column,'text'),
+             10 if yorunge else 12,color=p['muted'],limit=cw-2*pad,anchor='rm' if right else 'lm')
         cursor+=cw
     rect((0,head_height-1,width,head_height),p['line'])
     for item,box in visible:
@@ -71,8 +73,10 @@ def render(app,width,height,visible,head_height):
                 state=values[8];_,bg,fg=status_colors(state,app.ui_theme,p.get('design','atlas'))
                 bw=min(cw-2*pad,font(12,'Medium','JetBrains Mono' if yorunge else 'Inter').getlength(state)+28);bh=SIZES['badge']
                 if not pano and not yorunge:rect((x+pad,y+(rh-bh)/2,x+pad+bw,y+(rh+bh)/2),bg,bh/2)
-                d.ellipse(((x+pad+8)*s,(y+rh/2-3)*s,(x+pad+14)*s,(y+rh/2+3)*s),fill=fg)
-                text(x+pad+20,y+rh/2,state,12,'Medium',fg,bw-24,'lm')
+                if yorunge:text(x+pad,y+rh/2,upper(state),11,'Bold',fg,cw-2*pad,'lm')
+                else:
+                    d.ellipse(((x+pad+8)*s,(y+rh/2-3)*s,(x+pad+14)*s,(y+rh/2+3)*s),fill=fg)
+                    text(x+pad+20,y+rh/2,state,12,'Medium',fg,bw-24,'lm')
             else:
                 index=tuple(tree.cget('columns')).index(column);value=values[index]
                 right=column in ('size','downloaded','remaining','speed','eta')
