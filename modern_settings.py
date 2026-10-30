@@ -176,7 +176,9 @@ class SettingsContent(tk.Frame):
                 if event.widget is not design_row:return
                 columns=4 if event.width>=640 else 2
                 for index in range(4):design_row.columnconfigure(index,weight=1 if index<columns else 0,uniform='design' if index<columns else '')
-                for index,card in enumerate(self.design_cards.values()):card.grid_configure(row=index//columns,column=index%columns,padx=(8 if index%columns else 0,0))
+                for index,card in enumerate(self.design_cards.values()):
+                    column=index%columns;left=8*column//columns;inset=8*(columns-1)//columns
+                    card.grid_configure(row=index//columns,column=column,padx=(left,inset-left))
             row.bind('<Configure>',arrange_designs)
         # The displayed fixed mode never overwrites the user's saved preference.
         self.display_color_mode=tk.StringVar(self,self.value('color_mode').get())

@@ -28,11 +28,19 @@ def main():
             assert editor.collect()['design']==design and editor.collect()['color_mode']=='system'
             assert editor.design_cards[design].radius==(22 if design=='pano' else 0)
             cards=editor.design_cards
+            dialog=editor.winfo_toplevel();dialog.geometry('960x760+20+20');app.update()
+            if design=='yorunge':
+                ordered=[cards[key] for key in DESIGNS]
+                assert len({card.winfo_rooty() for card in ordered})==1,'Wide Yörünge cards must share one row'
+                widths=[card.winfo_width() for card in ordered]
+                assert max(widths)-min(widths)<=1,('Unequal Yörünge design cards',widths)
+                for left,right in zip(ordered,ordered[1:]):assert left.winfo_rootx()+left.winfo_width()<right.winfo_rootx()
+                dialog.geometry('760x700+20+20');app.update()
             assert cards['atlas'].winfo_rootx()==cards['pano'].winfo_rootx()
             assert cards['odak'].winfo_rootx()==cards['yorunge'].winfo_rootx()
             assert cards['atlas'].winfo_rootx()+cards['atlas'].winfo_width()<cards['odak'].winfo_rootx()
             assert cards['atlas'].winfo_rooty()+cards['atlas'].winfo_height()<cards['pano'].winfo_rooty()
-            dialog=editor.winfo_toplevel();dialog.geometry('960x760+20+20');app.update()
+            dialog.geometry('960x760+20+20');app.update()
             capture_client(dialog).save(Path('build')/f'phase1-design-{design}-settings.png')
             editor.design_cards['atlas'].invoke();app.update();editor=app._settings_editor
             assert not any(b.disabled for b in editor.color_selector.buttons.values())
