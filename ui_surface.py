@@ -191,7 +191,7 @@ ICON_NAMES=['plus','play','pause','x','trash','settings','columns','folder','fil
 class TextLabel(tk.Canvas):
     def __init__(self,parent,text='',textvariable=None,size=13,weight='Regular',fg='#172331',**kwargs):
         self.text=text;self.var=textvariable;self.size=size;self.weight=weight;self.fg=fg
-        self.max_width=kwargs.pop('max_width',None)
+        self.max_width=kwargs.pop('max_width',None);self.family=kwargs.pop('family','Inter')
         super().__init__(parent,bg=parent.cget('bg'),highlightthickness=0,height=size+6)
         self._trace=textvariable.trace_add('write',lambda *args:self.draw()) if textvariable is not None else None
         self.bind('<Configure>',lambda e:self.draw());self.bind('<Destroy>',self.dispose);self.draw()
@@ -208,15 +208,15 @@ class TextLabel(tk.Canvas):
     config=configure
     def draw(self):
         text=self.var.get() if self.var is not None else self.text
-        if self.max_width is not None:text=ellipsize(text,self.max_width,self.size,self.weight)
-        signature=(text,self.size,self.weight,self.fg,self.cget('bg'))
+        if self.max_width is not None:text=ellipsize(text,self.max_width,self.size,self.weight,self.family)
+        signature=(text,self.size,self.weight,self.family,self.fg,self.cget('bg'))
         if signature==getattr(self,'_text_signature',None):return
         self._text_signature=signature
-        face=font(self.size,self.weight);ascent,descent=face.getmetrics()
+        face=font(self.size,self.weight,self.family);ascent,descent=face.getmetrics()
         # Text is drawn at 3x and downsampled; at 13 px hinting measures a few px
         # narrower than that, which clipped the last letter ('…indi', '~2,44 KE').
-        drawn=max(face.getlength(text),font(self.size*3,self.weight).getlength(text)/3)
+        drawn=max(face.getlength(text),font(self.size*3,self.weight,self.family).getlength(text)/3)
         w=max(1,math.ceil(drawn)+3);h=ascent+descent+4
         super().configure(width=w,height=h)
-        image=Image.new('RGB',(w*3,h*3),self.cget('bg'));d=ImageDraw.Draw(image);d.text((0,2*3),text,font=font(self.size*3,self.weight),fill=self.fg,anchor='la')
+        image=Image.new('RGB',(w*3,h*3),self.cget('bg'));d=ImageDraw.Draw(image);d.text((0,2*3),text,font=font(self.size*3,self.weight,self.family),fill=self.fg,anchor='la')
         self._image=photo(image.resize((w,h),Image.Resampling.LANCZOS),self);self.delete('all');self.create_image(0,0,image=self._image,anchor='nw')

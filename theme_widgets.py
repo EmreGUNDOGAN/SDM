@@ -200,6 +200,8 @@ class Search(tk.Canvas):
 class Panel(tk.Canvas):
     def __init__(self,master,palette,padding=12,radius=None):
         self.p=palette;self.padding=padding;self.focused=False
+        # Yörünge: brackets mark a featured panel; stripe is a 3 px left status bar.
+        self.brackets=True;self.stripe=None
         design=palette.get('design','atlas')
         if design=='yorunge':self.radius=0
         elif radius is not None:self.radius=radius
@@ -219,8 +221,10 @@ class Panel(tk.Canvas):
         if self.p.get('design')=='yorunge':
             from PIL import ImageDraw
             d=ImageDraw.Draw(image);w,h=image.size
-            d.line((0,12,0,0,12,0),fill=self.p['accent'],width=2)
-            d.line((w-13,h-1,w-1,h-1,w-1,h-13),fill=self.p['accent'],width=2)
+            if self.brackets:
+                d.line((0,12,0,0,12,0),fill=self.p['accent'],width=2)
+                d.line((w-13,h-1,w-1,h-1,w-1,h-13),fill=self.p['accent'],width=2)
+            if self.stripe:d.rectangle((0,0,2,h-1),fill=self.stripe)
         self._surface=photo(image,self)
         self.delete('surface');self.create_image(0,0,image=self._surface,anchor='nw',tags='surface')
         self.tag_lower('surface');self.itemconfigure(self.window,width=max(1,event.width-2*(self.padding+self.inset)),height=max(1,event.height-2*(self.padding+self.inset)))

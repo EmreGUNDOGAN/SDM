@@ -6,9 +6,10 @@ from tkinter import filedialog
 from ui_dialog import AppWindow,AutoCard,action,label,field
 from ui_controls import RadioCard,Select,Switch
 from file_tools import AUDIO_BITRATES
-from ui_tokens import SIZES
+from ui_tokens import SIZES,YORUNGE_MONO_FAMILY
 from ui_indicators import FileTile
 from theme_widgets import Button
+from ui_surface import TextLabel
 from utils import clean_filename,format_bytes,get_unique_filepath
 from atlas_view import domain,number
 
@@ -17,7 +18,11 @@ class CapturePrompt(AppWindow):
     def __init__(self,parent,request,decision):
         video=request['kind']=='video'
         super().__init__(parent,'İndirmeyi nasıl başlatalım?',720,800 if video else 450)
-        pano=self.p.get('design')=='pano'
+        pano=self.p.get('design')=='pano';orbit=self.p.get('design')=='yorunge'
+        # F04 has no window heading: the captured target panel opens the window.
+        if orbit:self.header.pack_forget()
+        def caption(parent,text,fg=None):
+            return TextLabel(parent,text,size=10,fg=fg or self.p['muted'],family=YORUNGE_MONO_FAMILY)
         self.request=dict(request);self.decision=decision;self.buttons={};self._done=False
         if request.get('audio'):self.request['audio_filesize']=request.get('audio_filesize') or request.get('filesize',0)
         self.name=tk.StringVar(self,clean_filename(request.get('filename') or 'Video'))
@@ -26,21 +31,27 @@ class CapturePrompt(AppWindow):
         self.quality=tk.StringVar(self,'audio' if request.get('audio') else str(request.get('height') or 'best'))
         self.formats=[];self.duration=request.get('duration');self.estimate=tk.StringVar(self,'')
         summary=AutoCard(self.body,self.p);self.summary_card=summary;row=summary.content
+        if orbit:summary.pack_configure(pady=(20,16))
         if pano:summary.radius=22
         if video:
             from ui_thumbnail import Thumbnail
             self.thumbnail=Thumbnail(row,parent,self.p,width=208,height=117,source=request.get('thumbnail'));self.thumbnail.pack(side='left',padx=(0,16))
         else:FileTile(row,Path(self.name.get()).suffix.lstrip('.') or 'FILE',palette=self.p,size=64).pack(side='left',padx=(0,16))
         info=tk.Frame(row,bg=self.p['card']);info.pack(fill='x',expand=True)
-        label(info,'Tarayıcıdan yakalandı · '+domain(request),palette=self.p,size=12,muted=True).pack(anchor='w')
+        if orbit:caption(info,'// TARAYICIDAN YAKALANDI · '+domain(request).upper(),self.p['accent']).pack(anchor='w')
+        else:label(info,'Tarayıcıdan yakalandı · '+domain(request),palette=self.p,size=12,muted=True).pack(anchor='w')
         title=label(info,request.get('filename') or 'Video',palette=self.p,size=16,weight='SemiBold');title.max_width=340 if video else 460;title.pack(anchor='w',pady=8)
-        label(info,variable=self.estimate,palette=self.p,size=12,muted=True).pack(anchor='w')
+        if orbit:TextLabel(info,textvariable=self.estimate,size=11,fg=self.p['muted'],family=YORUNGE_MONO_FAMILY).pack(anchor='w')
+        else:label(info,variable=self.estimate,palette=self.p,size=12,muted=True).pack(anchor='w')
         self.quality_host=None;self.section_fields=None
         if video:
             quality=AutoCard(self.body,self.p);self.quality_card=quality
             if pano:quality.radius=22
             heading=tk.Frame(quality.content,bg=self.p['card']);heading.pack(fill='x',pady=(0,12))
-            label(heading,'Kalite',palette=self.p,weight='SemiBold').pack(side='left');label(heading,'Boyutlar tahminidir',palette=self.p,size=12,muted=True).pack(side='right')
+            if orbit:
+                quality.brackets=False
+                caption(heading,'// KALİTE').pack(side='left');caption(heading,'BOYUTLAR TAHMİNİ').pack(side='right')
+            else:label(heading,'Kalite',palette=self.p,weight='SemiBold').pack(side='left');label(heading,'Boyutlar tahminidir',palette=self.p,size=12,muted=True).pack(side='right')
             self.quality_host=tk.Frame(quality.content,bg=self.p['card']);self.quality_host.pack(fill='x')
             self.render_qualities()
             # MP3 only: bitrate and the music-mode Artist/Album layout (same options as the YouTube Music button).
@@ -53,9 +64,12 @@ class CapturePrompt(AppWindow):
             if self.quality.get()=='audio':self.audio_row.pack(fill='x',pady=(12,0))
             section=AutoCard(self.body,self.p)
             if pano:section.radius=22
+            if orbit:section.brackets=False
             from video_section import SectionFields
             self.section_fields=SectionFields(section.content,duration=self.duration,palette=self.p,command=self.validate)
-        save=AutoCard(self.body,self.p);label(save.content,'Kaydet',palette=self.p,weight='SemiBold').pack(anchor='w')
+        save=AutoCard(self.body,self.p)
+        if orbit:save.brackets=False
+        else:label(save.content,'Kaydet',palette=self.p,weight='SemiBold').pack(anchor='w')
         if pano:save.radius=22
         self.name_input=field(save.content,'Dosya adı',self.name,self.p)
         field(save.content,'Klasör',self.folder,self.p,actions=[('Değiştir',self.browse)])
