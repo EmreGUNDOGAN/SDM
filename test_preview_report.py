@@ -5,9 +5,32 @@ import unittest
 from PIL import Image,ImageColor
 from theme_catalog import THEMES,palette
 from tools.report_component_previews import validate_previews,validate_alignment
+from tools.report_dialog_previews import P06_SOURCES,validate_pano_completion
 
 
 class PreviewReportTests(unittest.TestCase):
+    def test_pano_completion_rejects_misalignment_and_stale_sources_or_pngs(self):
+        import copy,hashlib,json
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);sources={};previews={}
+            for name in P06_SOURCES:
+                path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(b'fixture')
+                sources[name]=hashlib.sha256(path.read_bytes()).hexdigest()
+            for state in ('pano','pano-scanned'):
+                image=Image.new('RGB',(560,500),palette('pano_light')['dialog'])
+                for x in range(64):image.putpixel((x,20),(x,0,0))
+                path=root/f'p06-{state}.png';image.save(path);previews[state]=hashlib.sha256(path.read_bytes()).hexdigest()
+            data=dict(sources=sources,previews=previews,stat_width_spread=0,stat_value_y_spread=0,card_edge_delta=0)
+            path=root/'p06-layout.json';path.write_text(json.dumps(data))
+            rows,_=validate_pano_completion(root,root);self.assertEqual(len(rows),2)
+            for key,value in (('stat_width_spread',2),('stat_value_y_spread',1),('card_edge_delta',1),('stat_width_spread',float('nan'))):
+                bad=copy.deepcopy(data);bad[key]=value;path.write_text(json.dumps(bad))
+                with self.assertRaisesRegex(ValueError,'alignment'):validate_pano_completion(root,root)
+            path.write_text(json.dumps(data));(root/'completion_dialog.py').write_bytes(b'changed')
+            with self.assertRaisesRegex(ValueError,'Stale P06 source'):validate_pano_completion(root,root)
+            (root/'completion_dialog.py').write_bytes(b'fixture');(root/'p06-pano.png').write_bytes(b'corrupt')
+            with self.assertRaisesRegex(ValueError,'Stale P06 PNG'):validate_pano_completion(root,root)
+
     def test_alignment_rejects_missing_measurements_wrong_geometry_and_stale_source(self):
         import hashlib,json,copy
         with tempfile.TemporaryDirectory() as folder:
