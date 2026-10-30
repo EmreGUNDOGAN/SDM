@@ -1,8 +1,9 @@
 """Window frame checks in the runner's fake profile: wheel/middle-drag scrolling
 over child widgets and the Windows title bar painted in the design colours."""
 def main():
-    import ctypes,sys
+    import ctypes,sys,time
     from ctypes import wintypes
+    from unittest.mock import patch
     from PIL import ImageGrab
     from gui import MainWindow
     from modern_settings import SettingsDialog
@@ -31,11 +32,15 @@ def main():
         user.GetWindowRect.restype=wintypes.BOOL
         try:
             handle=int(window.tk.call('wm','frame',window._w),0)
-            rect=wintypes.RECT()
-            if not user.GetWindowRect(handle,ctypes.byref(rect)):raise ctypes.WinError(ctypes.get_last_error())
-            top=window.winfo_rooty()-rect.top
-            assert window.winfo_ismapped() and rect.right>rect.left and top>0,(
-                'Caption fixture is not visible',window.state(),(rect.left,rect.top,rect.right,rect.bottom),top)
+            deadline=time.monotonic()+2
+            while True:
+                window.update();rect=wintypes.RECT()
+                if not user.GetWindowRect(handle,ctypes.byref(rect)):raise ctypes.WinError(ctypes.get_last_error())
+                top=window.winfo_rooty()-rect.top
+                if window.state()=='normal' and window.winfo_ismapped() and rect.right>rect.left and top>0:break
+                assert time.monotonic()<deadline,(
+                    'Caption fixture is not visible',window.state(),(rect.left,rect.top,rect.right,rect.bottom),top)
+                time.sleep(.01)
             assert ctypes.WinDLL('dwmapi').DwmFlush()==0,'DWM composition did not complete'
             image=ImageGrab.grab((rect.left,rect.top,rect.right,rect.top+top),all_screens=True)
         finally:window.attributes('-topmost',False)
@@ -69,7 +74,11 @@ def main():
             if sys.getwindowsversion().build>=22000:
                 # Reproduce the zero-height capture precondition explicitly.
                 app.iconify();app.update();assert app.state()=='iconic'
-                ok,detail=close(title_bar_rgb(app),app.palette['bg']);assert ok,('Main title bar',mode,detail)
+                # Restoration is asynchronous on Windows. Force that delay so
+                # a single update() cannot accidentally satisfy the fixture.
+                restore=app.deiconify
+                with patch.object(app,'deiconify',side_effect=lambda:app.after(500,restore)):
+                    ok,detail=close(title_bar_rgb(app),app.palette['bg']);assert ok,('Main title bar',mode,detail)
                 assert app.state()=='normal' and app.winfo_ismapped()
         assert not errors,errors
         print('Window frame: wheel and middle-drag over child widgets, Text keeps its wheel, title bar in design colours: OK')
