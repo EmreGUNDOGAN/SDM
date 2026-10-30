@@ -2,10 +2,11 @@
   if (window.top !== window || document.getElementById('sdm-video-overlay')) return;
   const host = document.createElement('div');
   host.id = 'sdm-video-overlay';
+  host.lang = 'tr';  // Yörünge's uppercase needs Turkish casing: 'İLE', not 'ILE'
   host.style.cssText = 'position:fixed;z-index:2147483647;display:none;font:13px Inter,Segoe UI,sans-serif;';
   const root = host.attachShadow({mode: 'open'});
   root.innerHTML = `<style>
-    @font-face{font-family:Inter;src:url('${chrome.runtime.getURL('fonts/Inter-Regular.ttf')}')}@font-face{font-family:Inter;font-weight:600;src:url('${chrome.runtime.getURL('fonts/Inter-SemiBold.ttf')}')}
+    @font-face{font-family:Inter;src:url('${chrome.runtime.getURL('fonts/Inter-Regular.ttf')}')}@font-face{font-family:Inter;font-weight:600;src:url('${chrome.runtime.getURL('fonts/Inter-SemiBold.ttf')}')}@font-face{font-family:'JetBrains Mono';src:url('${chrome.runtime.getURL('fonts/JetBrainsMono-Regular.ttf')}')}@font-face{font-family:'JetBrains Mono';font-weight:700;src:url('${chrome.runtime.getURL('fonts/JetBrainsMono-Bold.ttf')}')}
     *{box-sizing:border-box}button{font:600 13px Inter,Segoe UI,sans-serif;cursor:pointer;border:0;border-radius:10px;padding:10px 14px}
     button:focus-visible{outline:2px solid #2156d9;outline-offset:2px}
     #toggle{color:#fff;background:#2156d9;box-shadow:0 6px 20px #0f172a29;display:flex;align-items:center;gap:8px}
@@ -17,8 +18,38 @@
     #choices button:hover{background:#eef3fe}#choices button.recommended{background:#eef3fe;color:#1a44ad}
     #foot{margin-top:12px;padding:10px;border-radius:8px;background:#f6f7f9;color:#5b6472;font-size:11px;line-height:1.5}
     button:disabled{opacity:.55;cursor:wait}[hidden]{display:none!important}
+    /* P07 Pano and F07 Yörünge; Atlas and Odak keep the base look above. */
+    :host([data-design=pano]) #toggle{background:#c2410c;border-radius:999px;font-weight:700;padding:0 16px;height:40px;box-shadow:0 6px 18px #00000059}
+    :host([data-design=pano]) #panel{background:#ffffff;border-radius:22px;border:0;box-shadow:0 18px 44px #00000080;color:#0f172a}
+    :host([data-design=pano]) #tabs{border-radius:999px;background:#f1f5f9}:host([data-design=pano]) #tabs button{border-radius:999px;color:#475569}
+    :host([data-design=pano]) #tabs button[aria-selected=true]{color:#0f172a}
+    :host([data-design=pano]) #choices button{border-radius:12px;color:#0f172a}:host([data-design=pano]) #choices button:hover{background:#f1f5f9}
+    :host([data-design=pano]) #choices button.recommended{background:#ccfbf1;color:#0f172a}
+    :host([data-design=pano]) #foot,:host([data-design=pano]) #status{background:transparent;color:#475569}
+    :host([data-design=yorunge]){font-family:'JetBrains Mono',Consolas,monospace}
+    :host([data-design=yorunge]) button{font-family:'JetBrains Mono',Consolas,monospace;border-radius:0;letter-spacing:1px}
+    :host([data-design=yorunge]) #toggle{background:#38e1ff;color:#00141c;text-transform:uppercase;font-weight:700;letter-spacing:1.5px;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px));box-shadow:0 0 22px #38e1ff8c}
+    :host([data-design=yorunge]) #panel{position:relative;background:#05080df5;color:#e6f6ff;border:1px solid #1f4456;border-radius:0;box-shadow:0 0 24px #38e1ff2e,0 18px 44px #0000008c}
+    :host([data-design=yorunge]) #panel::before,:host([data-design=yorunge]) #panel::after{content:'';position:absolute;width:12px;height:12px}
+    :host([data-design=yorunge]) #panel::before{left:-1px;top:-1px;border-left:2px solid #38e1ff;border-top:2px solid #38e1ff}
+    :host([data-design=yorunge]) #panel::after{right:-1px;bottom:-1px;border-right:2px solid #38e1ff;border-bottom:2px solid #38e1ff}
+    :host([data-design=yorunge]) #title{font-family:Inter,Segoe UI,sans-serif}
+    :host([data-design=yorunge]) #tabs{background:transparent;gap:6px;padding:0}
+    :host([data-design=yorunge]) #tabs button{flex:0 0 auto;border:1px solid #1f4456;background:transparent;color:#b9cad8;text-transform:uppercase;font-size:11px;height:26px;padding:0 12px}
+    :host([data-design=yorunge]) #tabs button[aria-selected=true]{border-color:#38e1ff;background:#38e1ff1a;color:#38e1ff;box-shadow:none}
+    :host([data-design=yorunge]) #choices button{background:transparent;color:#e6f6ff;font-size:12px}
+    :host([data-design=yorunge]) #choices button:hover{background:#0a1f28}
+    :host([data-design=yorunge]) #choices button.recommended{background:#38e1ff14;color:#38e1ff;box-shadow:inset 2px 0 0 #38e1ff}
+    :host([data-design=yorunge]) #status{color:#7d93a8}
+    :host([data-design=yorunge]) #foot{background:transparent;border-top:1px solid #173040;border-radius:0;color:#7d93a8;text-transform:uppercase;letter-spacing:1px;font-size:10px}
   </style><button id="toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v13m-5-5 5 5 5-5M4 17v4h16v-4"/></svg>SDM ile indir</button><div id="panel" hidden><p id="title">Video kalitesi</p><div id="tabs" role="tablist"><button id="video-tab" role="tab" aria-selected="true">Video</button><button id="audio-tab" role="tab" aria-selected="false">Yalnız ses (MP3)</button></div><div id="status" aria-live="polite"></div><div id="choices"></div><div id="foot">Boyutlar tahminidir. Ses ve görüntü MKV olarak birleştirilir.</div></div>`;
   document.documentElement.append(host);
+  // SDM's design as last stored by the extension; nothing here contacts SDM.
+  function applyDesign(design) {
+    if (['pano', 'yorunge'].includes(design)) host.dataset.design = design; else delete host.dataset.design;
+  }
+  chrome.storage.local.get('sdmDesign').then(value => applyDesign(value.sdmDesign)).catch(() => {});
+  chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.sdmDesign) applyDesign(changes.sdmDesign.newValue); });
   const toggle = root.getElementById('toggle'), panel = root.getElementById('panel');
   const status = root.getElementById('status'), choices = root.getElementById('choices');
   let previousUrl = '', busy = false, mediaMode = 'video';
@@ -104,6 +135,7 @@
     status.textContent = 'Videodaki kullanılabilir kaliteler alınıyor…'; toggle.disabled = true;
     try {
       const info = await send({type: 'formats', url: pageUrl()});
+      if (info.design) applyDesign(info.design);
       root.getElementById('title').textContent = info.title;
       const preferred=info.qualities.find(q=>q.height===1080)||info.qualities.find(q=>q.height<=1080)||info.qualities[0];
       for (const quality of info.qualities) {

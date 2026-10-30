@@ -32,6 +32,8 @@ async function request(path, body) {
   }
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || 'SDM isteği başarısız');
+  // Page buttons read the stored design, so opening a video page never starts SDM.
+  if (typeof result.design === 'string') chrome.storage.local.set({sdmDesign: result.design});
   return result;
 }
 
