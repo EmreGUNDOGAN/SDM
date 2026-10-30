@@ -21,17 +21,37 @@ class SpeedGraph(AppWindow):
     def __init__(self,parent,did):
         record=parent.db.get_download(did)
         super().__init__(parent,'Hız grafiği',760,440,record['filename'] if record else 'Gerçek aktarım ölçümleri')
+        pano=self.p.get('design')=='pano'
         self.did=did;self.span=tk.StringVar(self,'300')
         # A16: the span choice sits on the file-name line, right-aligned.
         line=tk.Frame(self.header,bg=self.p['dialog']);line.pack(fill='x',pady=(6,0))
         # Re-packed into a later sibling, the label must be raised above it.
         self.description_label.pack_forget();self.description_label.pack(in_=line,side='left');tk.Misc.tkraise(self.description_label,line)
-        SegmentedControl(self.header,{'60':'1 dk','300':'5 dk','all':'Tümü'},self.span,palette=self.p).pack(in_=line,side='right')
+        spans=SegmentedControl(self.header,{'60':'1 dk','300':'5 dk','all':'Tümü'},self.span,palette=self.p);spans.pack(in_=line,side='right')
+        if pano:
+            line.bind('<Configure>',lambda event:(setattr(self.description_label,'max_width',max(1,event.width-spans.winfo_reqwidth()-12)),self.description_label.draw()),add='+')
         stats=tk.Frame(self.body,bg=self.p['dialog']);stats.pack(fill='x',padx=24,pady=(0,16))
-        self.stats={}
+        self.stats={};self.stat_cards=[]
         for key,title in (('now','Şimdi'),('average','Ortalama'),('peak','En yüksek'),('active','Aktif süre')):
-            self.stats[key]=tk.StringVar(self,'—');Summary(stats,title,self.stats[key],self.p).pack(side='left',fill='x',expand=True)
-        self.chart=SpeedChart(self.body,self.p,width=700,height=220,formatter=lambda text:number(parent,text));self.chart.pack(fill='both',expand=True,padx=24)
+            self.stats[key]=tk.StringVar(self,'—')
+            if pano:
+                holder=tk.Frame(stats,bg=self.p['dialog']);card=AutoCard(holder,self.p,padding=12);card.radius=18
+                card.pack_configure(padx=0,pady=0,fill='both',expand=True);self.stat_cards.append(card)
+                label(card.content,title,palette=self.p,size=12,muted=True).pack(anchor='w')
+                label(card.content,variable=self.stats[key],palette=self.p,size=16,weight='Bold').pack(anchor='w',pady=(4,0))
+            else:Summary(stats,title,self.stats[key],self.p).pack(side='left',fill='x',expand=True)
+        if pano:
+            def arrange(event):
+                columns=2 if event.width<640 else 4
+                for index in range(4):stats.columnconfigure(index,weight=1 if index<columns else 0,uniform='graph' if index<columns else '')
+                for index,card in enumerate(self.stat_cards):
+                    left=8*(index%columns)//columns;inset=8*(columns-1)//columns
+                    card.master.grid(row=index//columns,column=index%columns,sticky='nsew',padx=(left,inset-left),pady=(0,8))
+            stats.bind('<Configure>',arrange)
+        chart_parent=self.body
+        if pano:
+            self.chart_card=AutoCard(self.body,self.p);self.chart_card.radius=22;chart_parent=self.chart_card.content
+        self.chart=SpeedChart(chart_parent,self.p,width=700,height=220,formatter=lambda text:number(parent,text));self.chart.pack(fill='both',expand=True,padx=0 if pano else 24)
         self.canvas=self.chart
         label(self.actionbar,'Anlık hız · kesikli çizgi: gerçek aktarım ortalaması',palette=self.p,size=12,muted=True).pack(side='left')
         self.tick()

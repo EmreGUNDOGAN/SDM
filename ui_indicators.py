@@ -172,7 +172,7 @@ class SpeedChart(Indicator):
             d.line(coords,fill=p['accent'],width=2*s,joint='curve')
         if self.average is not None and self.axes:
             y=(base-max(0,self.average)/peak*span_y)*s
-            for x in range(left*s,right*s,8*s):d.line((x,y,min(x+4*s,right*s),y),fill=p['muted'],width=s)
+            for x in range(left*s,right*s,8*s):d.line((x,y,min(x+4*s,right*s),y),fill=p['start'] if p.get('design')=='pano' else p['muted'],width=s)
         image=image.resize((w,h),Image.Resampling.LANCZOS)
         if self.axes:
             precision=2 if peak<1048576 else 1
