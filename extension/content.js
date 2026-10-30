@@ -31,6 +31,18 @@
     if (event.key === 'Escape') panel.hidden = true;
   });
   const pageUrl = () => location.href;
+  // YouTube Music: MP3 only, quality picked here, added to SDM without a dialog.
+  const MUSIC = location.hostname === 'music.youtube.com';
+  const MUSIC_BITRATES = [320, 256, 192, 128], MUSIC_DEFAULT = 192;
+  function musicPage() {
+    const query = new URLSearchParams(location.search);
+    return {song: query.get('v'), list: query.get('list'), albumPage: location.pathname === '/playlist'};
+  }
+  if (MUSIC) {
+    toggle.lastChild.textContent = 'SDM ile MP3';
+    root.getElementById('tabs').hidden = true;
+    host.style.flexDirection = 'column-reverse';  // the menu opens upwards, above the player bar
+  }
   async function send(message) {
     const reply = await chrome.runtime.sendMessage(message);
     if (!reply || reply.error) throw new Error(reply?.error || 'SDM eklentisi yanıt vermedi');
@@ -54,8 +66,40 @@
     };
     choices.append(button);
   }
+  function musicChoices() {
+    const page = musicPage();
+    root.getElementById('title').textContent = document.title.replace(/ - YouTube Music$/, '') || 'YouTube Music';
+    let whole = null;
+    if (page.list) {
+      const row = document.createElement('label');whole = document.createElement('input');
+      whole.type = 'checkbox';whole.checked = page.albumPage || !page.song;whole.disabled = !page.song;
+      row.append(whole, ' Albümün / listenin tamamı');row.style.cssText = 'display:flex;gap:8px;align-items:center;margin:4px 0 6px';
+      choices.append(row);
+    }
+    for (const bitrate of MUSIC_BITRATES) {
+      const button = document.createElement('button');
+      button.textContent = `MP3 · ${bitrate} kb/sn` + (bitrate === MUSIC_DEFAULT ? ' · önerilen' : '');
+      if (bitrate === MUSIC_DEFAULT) button.className = 'recommended';
+      button.onclick = async (event) => {
+        if (!event.isTrusted || busy) return;
+        const list = Boolean(whole && whole.checked);
+        const url = list ? `https://music.youtube.com/playlist?list=${encodeURIComponent(page.list)}`
+          : `https://music.youtube.com/watch?v=${encodeURIComponent(page.song)}`;
+        busy = true; button.disabled = true; status.textContent = 'SDM’ye gönderiliyor…';
+        try {
+          await send({type: 'music', url, bitrate, list});
+          status.textContent = list ? 'Liste SDM’de açılıyor; parçalar sırayla eklenecek.' : 'SDM indirmeye ekledi.';
+        } catch(error) { status.textContent = error.message; }
+        finally { busy = false; button.disabled = false; }
+      };
+      choices.append(button);
+    }
+    root.getElementById('foot').textContent = 'Sanatçı / Albüm klasörüne, etiket ve kapakla kaydedilir.';
+    status.textContent = 'Ses kalitesini seç.';
+  }
   async function openPicker() {
     if (!panel.hidden) { panel.hidden = true; return; }
+    if (MUSIC) { panel.hidden = false; choices.replaceChildren(); musicChoices(); return; }
     panel.hidden = false; choices.replaceChildren();setMode('video');
     status.textContent = 'Videodaki kullanılabilir kaliteler alınıyor…'; toggle.disabled = true;
     try {
@@ -79,6 +123,14 @@
   });
   function position() {
     if (previousUrl !== pageUrl()) { panel.hidden = true; previousUrl = pageUrl(); }
+    if (MUSIC) {
+      // Songs often play behind cover art with no visible <video>; anchor above the player bar.
+      const page = musicPage();
+      host.style.display = page.song || (page.albumPage && page.list) ? 'flex' : 'none';
+      host.style.top = 'auto';host.style.bottom = '96px';host.style.right = '24px';
+      panel.style.maxWidth = Math.min(380, innerWidth - 24) + 'px';
+      return;
+    }
     const videos = [...document.querySelectorAll('video')].filter(video => {
       const r = video.getBoundingClientRect();
       return r.width > 180 && r.height > 100 && r.bottom > 0 && r.top < innerHeight;

@@ -1,9 +1,11 @@
 <!doctype html><html lang="tr"><meta charset="utf-8"><title>SDM</title>
-<style>body{width:300px;font:14px system-ui;padding:16px;color:#172331;background:#fff}h2{margin:0 0 8px}button{width:100%;padding:10px;margin:4px 0;border:1px solid #dbe4f0;border-radius:8px;color:#253449;background:#f8fafd;cursor:pointer}#status{color:#62748c;font-size:12px;min-height:32px}</style>
-<h2>SDM</h2><p>Tarayıcı yakalaması</p>
+<style>body{width:300px;font:14px system-ui;padding:16px;color:#172331;background:#fff}h2{margin:0 0 8px}button{width:100%;padding:10px;margin:4px 0;border:1px solid #dbe4f0;border-radius:8px;color:#253449;background:#f8fafd;cursor:pointer}#status{color:#62748c;font-size:12px;min-height:32px}h3{margin:14px 0 6px;font-size:14px}#found label{display:flex;justify-content:space-between;padding:4px 2px;font-size:13px}#send{color:#fff;background:#2156d9;border-color:#2156d9}</style>
+<h2>SDM</h2>
+<h3>Sayfa tarayıcı</h3><button id="scan">Bu sayfayı tara</button><div id="found"></div><button id="send" hidden>SDM’ye gönder</button>
+<h3>Tarayıcı yakalaması</h3>
 <button data-minutes="15">15 dakika durdur</button><button data-minutes="60">1 saat durdur</button>
 <button data-minutes="-1">Tekrar açana kadar durdur</button><button data-minutes="0">Yakalamayı yeniden aç</button>
 <button id="exclude">Bu sitede yakalamayı kapat</button><p id="status"></p>
 <button id="refresh">Eklentiyi yenile</button>
-<script src="popup.js"></script>
+<script src="scan.js"></script><script src="popup.js"></script>
 </html>

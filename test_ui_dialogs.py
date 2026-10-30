@@ -58,6 +58,28 @@ def main():
                 records=app.db.get_all_downloads();assert len(records)==before+2
                 added=next(r for r in records if r['url']=='https://example.invalid/video' and json.loads(r['options_json']).get('section'))
                 assert added['status']=='Kuyrukta' and json.loads(added['options_json'])['section']['end']==20
+                # Extension page scan: links open in the same batch window for selection, nothing starts.
+                links=['https://example.invalid/file','https://example.invalid/video']
+                scan=app.browser_request(dict(kind='batch',urls=links,ticket='scan-ticket'),lambda *args:None)
+                assert isinstance(scan,BatchDialog) and scan.links.get().split()==links
+                wait(lambda:len(scan.items)==2 and not scan.inspecting);assert len(app.db.get_all_downloads())==before+2
+                scan.close()
+                # YouTube Music button: no dialog; album tracks numbered in list order with the chosen bitrate.
+                album='https://music.youtube.com/playlist?list=OLAK5uy_synthetic'
+                tracks=[f'https://music.youtube.com/watch?v=t{i}' for i in (1,2,3)]
+                count=len(app.db.get_all_downloads());last=max([r['id'] for r in app.db.get_all_downloads()],default=0)
+                # Real tasks are created but never reach the network in this fixture.
+                started=patch('video_downloader.VideoDownloadTask.start');started.start()
+                with patch('dialog_inspection.inspect_url',return_value=dict(kind='playlist',entries=[(u,'Track') for u in tracks])):
+                    app.browser_request(dict(kind='music',url=album,bitrate=320,list=True,ticket='music-ticket'),lambda *args:None)
+                    wait(lambda:len(app.db.get_all_downloads())==count+3)
+                music=sorted((r for r in app.db.get_all_downloads() if r['url'] in tracks and r['id']>last),key=lambda r:r['url'])
+                assert [json.loads(r['options_json'])['audio'] for r in music]==[dict(bitrate=320,album=True,track=i) for i in (1,2,3)]
+                app.browser_request(dict(kind='music',url='https://music.youtube.com/watch?v=single',bitrate=128,list=False,ticket='song'),lambda *args:None)
+                single=next(r for r in app.db.get_all_downloads() if r['url'].endswith('v=single') and r['id']>last)
+                assert json.loads(single['options_json'])['audio']==dict(bitrate=128,album=True,track=None) and single['download_type']=='video'
+                for record in music+[single]:app.cancel_download(record['id'])
+                started.stop()
                 decision=[]
                 request=dict(kind='video',url='https://example.invalid/video',filename='Synthetic capture',height=720,filesize=60000,ticket='fixture-ticket')
                 prompt=CapturePrompt(app,request,lambda token,result:decision.append((token,result)))
