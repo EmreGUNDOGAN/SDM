@@ -14,7 +14,7 @@ from theme_widgets import Button
 from ui_dialog import ScrollBody,AutoCard,label,field
 from ui_controls import Switch,Select,SegmentedControl,DesignCard,ChipInput,TextInput,watch
 from ui_surface import TextLabel
-from ui_tokens import text_px
+from ui_tokens import text_px,DESIGNS,DESIGN_NAMES,FIXED_MODES
 
 SECTIONS={'Genel':('sliders','Kayıt yeri, görünüm ve aktarım tercihleri'),
  'Tarayıcı':('globe','Yakalama, dosya türleri ve site istisnaları'),
@@ -100,14 +100,32 @@ class SettingsContent(tk.Frame):
     def general(self):
         c=self.card('Genel','Kayıt yeri');self.field(c,'download_dir','Kayıt klasörü',actions=[('Klasör seç',self.browse)])
         c=self.card('Genel','Görünüm');row=tk.Frame(c,bg=self.p['card']);row.pack(fill='x')
-        for index,(key,title,description) in enumerate([('atlas','Atlas Pro','kenar menü, ayrıntı paneli'),('odak','Odak Akışı','kart satırlar')]):DesignCard(row,key,self.value('design'),text=title,description=description,palette=self.p,width=230).pack(side='left',fill='x',expand=True,padx=(12 if index else 0,0))
-        SegmentedControl(c,{'light':'Açık','dark':'Koyu','system':'Sistem'},self.value('color_mode'),palette=self.p).pack(fill='x',pady=12)
+        descriptions={'atlas':'kenar menü, ayrıntı paneli','odak':'kart satırlar','pano':'açık panolar','yorunge':'koyu kontrol paneli'}
+        self.design_cards={}
+        for index,key in enumerate(DESIGNS):
+            card=DesignCard(row,key,self.value('design'),text=DESIGN_NAMES[key],description=descriptions[key],palette=self.p,width=230)
+            card.grid(row=index//2,column=index%2,sticky='ew',padx=(12 if index%2 else 0,0),pady=(0,10))
+            row.columnconfigure(index%2,weight=1,uniform='design');self.design_cards[key]=card
+        # The displayed fixed mode never overwrites the user's saved preference.
+        self.display_color_mode=tk.StringVar(self,self.value('color_mode').get())
+        self.color_selector=SegmentedControl(c,{'light':'Açık','dark':'Koyu','system':'Sistem'},self.display_color_mode,
+            command=lambda:self.vars['color_mode'].set(self.display_color_mode.get()),palette=self.p)
+        self.color_selector.pack(fill='x',pady=12)
+        self.color_note=self.text(c,'')
+        for key in ('design','color_mode'):watch(self,self.value(key),self.sync_color_mode)
+        self.sync_color_mode()
         self.field(c,'language','Sayı biçimi · Türkçe (1,5) / English (1.5)',{'tr':'Türkçe (1,5)','en':'English (1.5)'})
         c=self.card('Genel','Aktarım')
         row=tk.Frame(c,bg=self.p['card']);row.pack(fill='x')
         for key,title,hint in [('default_connections','Paralel bağlantı','1–32 arası'),('max_simultaneous_downloads','Eşzamanlı indirme','1–10 arası'),('speed_limit_kbs','Toplam hız sınırı','KB/sn · 0 = sınırsız')]:self.field(row,key,title,side='left',hint=hint)
         c=self.card('Genel','Davranış')
         for key,title in [('auto_open_details','Yeni indirmede ayrıntıları aç'),('completion_popup','Tamamlandı penceresini göster'),('notifications_enabled','Masaüstü bildirimi göster'),('clipboard_monitoring','Panodaki bağlantıları izle'),('start_minimized','Simge durumunda başlat')]:self.check(c,key,title)
+    def sync_color_mode(self):
+        design=self.vars['design'].get();fixed=FIXED_MODES.get(design)
+        self.display_color_mode.set(fixed or self.vars['color_mode'].get())
+        self.color_selector.set_enabled(fixed is None)
+        self.color_note.configure(text=(f'{DESIGN_NAMES[design]} yalnız '+('açık' if fixed=='light' else 'koyu')+
+            ' görünür. Diğer tasarımlar için renk tercihin korunur.') if fixed else '')
     def browser(self):
         c=self.card('Tarayıcı','Yakalama');self.check(c,'browser_capture','Tarayıcı indirmelerini yakala')
         self.browser_status=self.text(c,'Chrome / Opera · Henüz eklenti teması alınmadı.')

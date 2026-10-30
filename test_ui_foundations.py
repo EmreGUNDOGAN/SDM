@@ -7,7 +7,7 @@ from unittest.mock import patch
 import utils
 from preferences import validate_settings,import_settings,export_settings
 from theme_catalog import migrate_settings,theme_key,palette,system_color_mode
-from ui_tokens import PALETTES,DESIGNS,RADII,dimensions,status_colors
+from ui_tokens import PALETTES,DESIGNS,RADII,FIXED_MODES,dimensions,status_colors
 from ui_surface import surface,icon,NEW_ICON_NAMES
 
 
@@ -32,7 +32,7 @@ class MigrationTests(unittest.TestCase):
             self.assertEqual((values['design'],values['color_mode']),(design,'system'))
             for mode in ('light','dark'):
                 with patch('theme_catalog.system_color_mode',return_value=mode):
-                    self.assertEqual(theme_key(values),f'{design}_{mode}')
+                    self.assertEqual(theme_key(values),f'{design}_{FIXED_MODES.get(design,mode)}')
                     self.assertEqual(values['color_mode'],'system')
 
     def test_windows_system_read_and_missing_registry_fallback(self):
@@ -80,6 +80,45 @@ class MigrationTests(unittest.TestCase):
 
 
 class RenderingTokenTests(unittest.TestCase):
+    def test_mono_button_capitals_preserve_turkish_letters(self):
+        from types import SimpleNamespace
+        from theme_widgets import Button
+        self.assertEqual(Button.label_text(SimpleNamespace(p={'design':'yorunge'}),'Şimdi indir'),'ŞİMDİ İNDİR')
+        self.assertEqual(Button.label_text(SimpleNamespace(p={'design':'pano'}),'Şimdi indir'),'Şimdi indir')
+
+    def test_fixed_design_modes_preserve_saved_color_and_backup(self):
+        for design,fixed in FIXED_MODES.items():
+            for saved in ('light','dark','system'):
+                settings=dict(utils.DEFAULT_SETTINGS,design=design,color_mode=saved)
+                self.assertEqual(theme_key(settings),f'{design}_{fixed}')
+                self.assertEqual(validate_settings(settings)['color_mode'],saved)
+                for returning in ('atlas','odak'):
+                    with patch('theme_catalog.system_color_mode',return_value='dark'):
+                        self.assertEqual(theme_key(dict(settings,design=returning)),f'{returning}_{"dark" if saved=="system" else saved}')
+                with tempfile.TemporaryDirectory() as folder:
+                    path=Path(folder)/'backup.json';export_settings(path,settings)
+                    restored=import_settings(path)
+                    self.assertEqual((restored['design'],restored['color_mode']),(design,saved))
+            with self.assertRaises(ValueError):palette(f'{design}_{"dark" if fixed=="light" else "light"}')
+
+    def test_design_palette_and_embedded_mono_font(self):
+        from ui_surface import font,ellipsize,text_on
+        from PIL import Image
+        from theme_catalog import THEMES
+        self.assertEqual(set(THEMES),{'atlas_light','atlas_dark','odak_light','odak_dark','pano_light','yorunge_dark'})
+        self.assertEqual(palette('pano_light')['accent'],'#0f766e')
+        self.assertEqual(palette('yorunge_dark')['accent'],'#38e1ff')
+        for weight in ('Regular','Medium','SemiBold','Bold'):
+            face=font(13,weight,'JetBrains Mono')
+            self.assertEqual(face.getname()[0],'JetBrains Mono')
+            self.assertEqual(face.size,round(13*1.15))
+            self.assertEqual(face.getlength('1111'),face.getlength('8888'))
+        title=ellipsize('BÜYÜK DEĞER 1234',80,family='JetBrains Mono')
+        self.assertLessEqual(font(13,family='JetBrains Mono').getlength(title),80)
+        image=Image.new('RGB',(160,40),'white');before=image.tobytes()
+        text_on(image,(8,8),'İNDİR 123',family='JetBrains Mono')
+        self.assertNotEqual(image.tobytes(),before)
+
     def test_focused_button_survives_transient_tiny_layout_sizes(self):
         from types import SimpleNamespace
         from PIL import Image

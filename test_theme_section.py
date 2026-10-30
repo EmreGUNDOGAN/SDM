@@ -3,17 +3,18 @@ import unittest
 from theme_catalog import THEMES,theme_key,theme_name,palette,migrate_settings
 from video_section import parse_time,validate_section
 from preferences import validate_settings
+from ui_tokens import DESIGN_NAMES
 
 class ThemeTests(unittest.TestCase):
     def test_four_design_mode_combinations_and_names(self):
-        self.assertEqual(len(THEMES),4)
+        self.assertEqual(set(THEMES),{'atlas_light','atlas_dark','odak_light','odak_dark','pano_light','yorunge_dark'})
         for key in THEMES:
             design,mode=key.split('_')
             values=validate_settings({'design':design,'color_mode':mode})
             self.assertEqual(theme_key(values),key)
             self.assertIn('Açık' if mode=='light' else 'Koyu',theme_name(key,'tr'))
             self.assertIn(mode.title(),theme_name(key,'en'))
-            self.assertIn('Pro' if design=='atlas' else 'Akışı',theme_name(key,'en'))
+            self.assertIn(DESIGN_NAMES[design],theme_name(key,'en'))
         self.assertEqual(theme_key({'theme':'dark'}),'atlas_dark')
         self.assertEqual(palette('atlas_dark')['accent'],palette('odak_dark')['accent'])
         self.assertNotEqual(palette('atlas_light')['bg'],palette('atlas_dark')['bg'])

@@ -4,10 +4,28 @@ import tempfile
 import unittest
 from PIL import Image,ImageColor
 from theme_catalog import THEMES,palette
-from tools.report_component_previews import validate_previews
+from tools.report_component_previews import validate_previews,validate_alignment
 
 
 class PreviewReportTests(unittest.TestCase):
+    def test_alignment_rejects_missing_measurements_wrong_geometry_and_stale_source(self):
+        import hashlib,json,copy
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);path=root/'alignment.json'
+            with self.assertRaises(FileNotFoundError):validate_alignment(path,root)
+            sources={}
+            for name in ('ui_surface.py','theme_widgets.py','ui_controls.py'):
+                (root/name).write_bytes(b'fixture')
+                sources[name]=hashlib.sha256(b'fixture').hexdigest()
+            metric=dict(center_errors=[.5]*12,baseline_spreads=[0,0],form_x_delta=0,action_y_delta=0,footer_gap=24)
+            report=dict(sources=sources,themes={theme:copy.deepcopy(metric) for theme in THEMES})
+            path.write_text(json.dumps(report));self.assertEqual(set(validate_alignment(path,root)),set(THEMES))
+            for key,value in (('center_errors',[2]*12),('baseline_spreads',[0,1]),('form_x_delta',1),('action_y_delta',1),('footer_gap',23)):
+                bad=copy.deepcopy(report);bad['themes']['yorunge_dark'][key]=value;path.write_text(json.dumps(bad))
+                with self.assertRaisesRegex(ValueError,'alignment'):validate_alignment(path,root)
+            path.write_text(json.dumps(report));(root/'ui_surface.py').write_bytes(b'changed')
+            with self.assertRaisesRegex(ValueError,'Stale'):validate_alignment(path,root)
+
     def fixtures(self,root):
         for theme in THEMES:
             p=palette(theme)
@@ -20,7 +38,7 @@ class PreviewReportTests(unittest.TestCase):
         import hashlib
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);self.fixtures(root);rows=validate_previews(root)
-            self.assertEqual(len(rows),8)
+            self.assertEqual(len(rows),len(THEMES)*2)
             for name,width,height,digest in rows:
                 self.assertEqual((width,height),(64,48))
                 self.assertEqual(digest,hashlib.sha256((root/name).read_bytes()).hexdigest())

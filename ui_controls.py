@@ -7,7 +7,7 @@ import tkinter as tk
 from PIL import Image, ImageDraw
 from theme_widgets import Button, background
 from ui_surface import surface, photo, icon, text_on, font, ellipsize
-from ui_tokens import SIZES, RADII, SURFACE_SCALE, FONT_FAMILY, MONO_FAMILY, text_px
+from ui_tokens import SIZES, RADII, SURFACE_SCALE, FONT_FAMILY, MONO_FAMILY, text_px, dimensions
 
 
 def watch(widget, variable, callback):
@@ -42,18 +42,21 @@ class Switch(Button):
         scale = SURFACE_SCALE
         image = Image.new('RGB', (w*scale, h*scale), self.cget('bg'))
         draw = ImageDraw.Draw(image)
-        sw, sh = SIZES['switch_width'], SIZES['switch_height']
+        sizes=dimensions(self.p.get('design','atlas'));sw,sh=sizes['switch_width'],sizes['switch_height']
         x, y = (w-sw)//2, (h-sh)//2
         selected = self.variable.get()
         fill = self.p['accent'] if selected else self.p['input_border']
         if self.hover:
             fill = self.p['accent_text'] if selected else self.p['muted']
+        square=self.p.get('design')=='yorunge'
         draw.rounded_rectangle((x*scale, y*scale, (x+sw)*scale, (y+sh)*scale),
-                               radius=sh*scale/2, fill=fill)
+                               radius=0 if square else sh*scale/2, fill=self.p['card'] if square else fill,
+                               outline=fill if square else None,width=scale)
         knob = sh-4
         kx = x+sw-knob-2 if selected else x+2
-        draw.ellipse((kx*scale, (y+2)*scale, (kx+knob)*scale, (y+2+knob)*scale),
-                     fill=self.p['on_accent'] if selected else self.p['card'])
+        shape=draw.rectangle if square else draw.ellipse
+        shape((kx*scale, (y+2)*scale, (kx+knob)*scale, (y+2+knob)*scale),
+              fill=(self.p['accent'] if selected else self.p['dim']) if square else self.p['on_accent'] if selected else self.p['card'])
         self.display(image.resize((w,h), Image.Resampling.LANCZOS))
 
 
@@ -77,7 +80,7 @@ class CheckBox(Button):
         image = Image.new('RGB', (w,h), p['subtle'] if self.hover else self.cget('bg'))
         size = SIZES['checkbox']; selected = self.variable.get()
         mark = surface(size,size,image.getpixel((0,0)),p['accent'] if selected else p['card'],
-                       None if selected else p['input_border'],4)
+                       None if selected else p['input_border'],0 if p.get('design')=='yorunge' else 4)
         if selected:
             glyph = icon('check-small',size,p['on_accent']);mark.paste(glyph,(0,0),glyph)
         image.paste(mark,(6,(h-size)//2))
@@ -128,6 +131,7 @@ class RadioCard(Button):
         self.value=value;self.variable=variable;self.description=description;self.on_change=command;self.align=align
         super().__init__(master,text,command=self.choose,palette=palette,height=kwargs.pop('height',58),
                          width=kwargs.pop('width',160),**kwargs)
+        if palette.get('design')=='pano':self.radius=RADII['pano']['card']
         watch(self,variable,self.refresh);self.refresh()
 
     def choose(self):
@@ -141,12 +145,13 @@ class RadioCard(Button):
         w=self.winfo_width() if self.winfo_width()>1 else int(self.cget('width'))
         h=int(self.cget('height'));p=self.p
         selected=self.variable.get()==self.value
-        image=surface(w,h,self.cget('bg'),p['accent_soft'] if selected else p['subtle'] if self.hover else p['card'],
+        filled=selected and p.get('design')=='pano'
+        image=surface(w,h,self.cget('bg'),p['accent'] if filled else p['accent_soft'] if selected else p['subtle'] if self.hover else p['card'],
                       p['accent'] if selected else p['input_border'],self.radius)
         # Short choices (MP4 / Video) sit centred in their card (A14).
         x,anchor=(w/2,'ma') if self.align=='center' else (12,'la')
-        text_on(image,(x,10),ellipsize(self.text,w-24,14,'SemiBold'),14,'SemiBold',p['accent_text'] if selected else p['text'],anchor)
-        text_on(image,(x,32),ellipsize(self.description,w-24,12),12,fill=p['muted'],anchor=anchor)
+        text_on(image,(x,10),ellipsize(self.text,w-24,14,'SemiBold'),14,'SemiBold',p['on_accent'] if filled else p['accent_text'] if selected else p['text'],anchor)
+        text_on(image,(x,32),ellipsize(self.description,w-24,12),12,fill=p['on_accent'] if filled else p['muted'],anchor=anchor)
         self.display(image)
 
 
@@ -165,7 +170,7 @@ class ToolCard(RadioCard):
         selected=self.variable.get()==self.value
         fill=p['card'] if selected else p['subtle'] if self.hover else bg
         image=surface(w,h,bg,fill,p['line'] if selected else fill,self.radius)
-        label,kind=self.tile;tile_bg,tile_fg=file_tile_colors(kind,p['mode'])
+        label,kind=self.tile;tile_bg,tile_fg=file_tile_colors(kind,p['mode'],p.get('design','atlas'))
         top=(h-32)//2
         ImageDraw.Draw(image).rounded_rectangle((12,top,48,top+32),radius=RADII[p.get('design','atlas')]['tile'],fill=tile_bg)
         text_on(image,(30,top+16),label,10,'Bold',tile_fg,'mm')
@@ -184,16 +189,30 @@ class DesignCard(RadioCard):
         super().__init__(master,value,variable,height=kwargs.pop('height',110),**kwargs)
 
     def draw(self):
-        from ui_tokens import PALETTES
+        from theme_catalog import palette
+        from ui_tokens import FIXED_MODES
         w=self.winfo_width() if self.winfo_width()>1 else int(self.cget('width'))
         h=int(self.cget('height'));p=self.p
         selected=self.variable.get()==self.value
         image=surface(w,h,self.cget('bg'),p['accent_soft'] if selected else p['subtle'] if self.hover else p['card'],
                       p['accent'] if selected else p['input_border'],self.radius)
-        mini=PALETTES['light' if self.value=='atlas' else 'dark'];right,bottom=w-12,h-42
+        mini=palette(self.value+'_'+FIXED_MODES.get(self.value,'light' if self.value=='atlas' else 'dark'));right,bottom=w-12,h-42
         rail=round((right-12)*(.3 if self.value=='atlas' else .12))
         thumb=surface(right-12,bottom-12,p['card'],mini['card' if self.value=='atlas' else 'bg'],mini['line'],6)
         ImageDraw.Draw(thumb).rectangle((1,1,rail,thumb.height-2),fill=mini['side'])
+        td=ImageDraw.Draw(thumb)
+        if self.value=='pano':
+            td.rectangle((1,1,thumb.width-2,thumb.height-2),fill=mini['bg'])
+            gap=4;tw=(thumb.width-3*gap)//2;th=(thumb.height-3*gap)//2
+            for col,row in ((0,0),(1,0),(0,1),(1,1)):
+                x=gap+col*(tw+gap);y=gap+row*(th+gap)
+                td.rounded_rectangle((x,y,x+tw,y+th),radius=5,fill=mini['card'])
+            td.rounded_rectangle((gap+4,gap+4,gap+tw-4,gap+7),radius=1,fill=mini['accent'])
+        elif self.value=='yorunge':
+            for x in range(0,thumb.width,12):td.line((x,0,x,thumb.height),fill=mini['grid_line'])
+            for y in range(0,thumb.height,12):td.line((0,y,thumb.width,y),fill=mini['grid_line'])
+            td.rectangle((5,5,thumb.width-6,thumb.height-6),outline=mini['accent'])
+            td.line((thumb.width//3,6,thumb.width//3,thumb.height-7),fill=mini['line'])
         image.paste(thumb,(12,12))
         title=ellipsize(self.text,w-24,13,'Bold');rest=ellipsize(' · '+self.description,w-24-font(13,'Bold').getlength(title),12)
         text_on(image,(12,h-14),title,13,'Bold',p['text'],'ls')
@@ -260,7 +279,8 @@ class TextInput(tk.Frame):
         self.variable=variable if variable is not None else tk.StringVar(self,'')
         self.canvas=tk.Canvas(self,width=width,height=height,bg=self.cget('bg'),highlightthickness=0)
         self.canvas.pack(fill='both',expand=True)
-        options=dict(bg=palette['card'],fg=palette['text'],insertbackground=palette['text'],
+        fill=palette.get('well',palette['card'])
+        options=dict(bg=fill,fg=palette['text'],insertbackground=palette['text'],
                      relief='flat',borderwidth=0,font=(MONO_FAMILY if multiline else FONT_FAMILY,text_px(13)),
                      highlightthickness=0)
         self.entry=tk.Text(self.canvas,wrap='word',**options) if multiline else tk.Entry(self.canvas,textvariable=self.variable,**options)
@@ -269,7 +289,7 @@ class TextInput(tk.Frame):
         if unit:
             self.unit_label=tk.Label(self.canvas,text=unit,bg=palette['subtle'],fg=palette['muted'],font=(FONT_FAMILY,text_px(12)))
             self.unit_label.place(relx=1,x=-64,y=1,width=63,relheight=1,height=-2)
-        self.placeholder=tk.Label(self.canvas,text=placeholder,bg=palette['card'],fg=palette['muted'],font=(FONT_FAMILY,text_px(13)))
+        self.placeholder=tk.Label(self.canvas,text=placeholder,bg=fill,fg=palette['muted'],font=(FONT_FAMILY,text_px(13)))
         self.placeholder.bind('<Button-1>',lambda e:self.entry.focus_set())
         self.error_label=tk.Label(self,text='',bg=self.cget('bg'),fg=palette['danger_fg'],font=(FONT_FAMILY,text_px(12)),anchor='w')
         self.entry.bind('<FocusIn>',lambda e:self.focus(True));self.entry.bind('<FocusOut>',lambda e:self.focus(False))
@@ -303,7 +323,8 @@ class TextInput(tk.Frame):
     def draw(self):
         p=self.p;w=max(self.canvas.winfo_width(),int(self.canvas.cget('width')) if self.canvas.winfo_width()<=1 else 1)
         h=max(self.canvas.winfo_height(),int(self.canvas.cget('height')) if self.canvas.winfo_height()<=1 else 1)
-        image=surface(w,h,self.cget('bg'),p['card'],p['danger'] if self.error else p['accent'] if self.focused else p['input_border'],RADII[p.get('design','atlas')]['input'])
+        edge=p['danger'] if self.error else p['accent'] if self.focused else None if p.get('design')=='pano' else p['input_border']
+        image=surface(w,h,self.cget('bg'),p.get('well',p['card']),edge,RADII[p.get('design','atlas')]['input'])
         self._image=photo(image,self.canvas);self.canvas.delete('surface')
         self.canvas.create_image(0,0,image=self._image,anchor='nw',tags='surface');self.canvas.tag_lower('surface')
         if not self.variable.get() and not self.focused:self.placeholder.place(x=12,y=10)

@@ -1,7 +1,7 @@
 """Solid, rounded controls with mouse and keyboard state feedback."""
 import tkinter as tk
 from tkinter import font
-from ui_tokens import SIZES,RADII,FOCUS_WIDTH,FOCUS_GAP,DISABLED_OPACITY,text_px
+from ui_tokens import SIZES,RADII,FOCUS_WIDTH,FOCUS_GAP,DISABLED_OPACITY,text_px,YORUNGE_MONO_FAMILY
 
 def background(master,palette):
     try:return master.cget('bg')
@@ -26,10 +26,11 @@ class Button(tk.Canvas):
         self.kind=kind or ('primary' if primary else 'ghost' if quiet else 'secondary')
         self.radius=RADII[palette.get('design','atlas')]['button']
         self.underline=False;self.side_accent=False
-        self.font=font.Font(family='Inter',size=text_px(15))
+        self.text_family=YORUNGE_MONO_FAMILY if palette.get('design')=='yorunge' else 'Inter'
+        self.font=font.Font(family=self.text_family,size=text_px(15))
         self._auto_width=width is None
         from ui_surface import font as measure_font
-        width=width or round(measure_font(13,'SemiBold' if primary else 'Regular').getlength(text))+(52 if image else 28)
+        width=width or round(measure_font(13,'SemiBold' if primary else 'Regular',self.text_family).getlength(self.label_text(text)))+(52 if image else 28)
         height=kwargs.pop('height',SIZES['button'])
         super().__init__(master,width=width,height=height,bg=background(master,palette),highlightthickness=0,takefocus=1,cursor='hand2',**kwargs)
         self.bind('<Configure>',lambda e:self.draw())
@@ -51,10 +52,13 @@ class Button(tk.Canvas):
         if pressed and 0<=event.x<self.winfo_width() and 0<=event.y<self.winfo_height():self.invoke()
     def invoke(self):
         if not self.disabled and self.command:self.command()
+    def label_text(self,text):
+        return text.replace('i','İ').replace('ı','I').upper() if self.p.get('design')=='yorunge' else text
     def configure(self,cnf=None,**kw):
         if 'text' in kw and 'width' not in kw and self._auto_width:
             from ui_surface import font as measure_font
-            kw['width']=round(measure_font(13,'SemiBold' if self.primary else 'Regular').getlength(kw['text']))+(52 if self.image or getattr(self,'icon_name',None) else 28)
+            title=self.label_text(kw['text'])
+            kw['width']=round(measure_font(13,'SemiBold' if self.primary else 'Regular',self.text_family).getlength(title))+(52 if self.image or getattr(self,'icon_name',None) else 28)
         for key in ('text','image','command'):
             if key in kw:setattr(self,key,kw.pop(key))
         if 'state' in kw:
@@ -77,9 +81,17 @@ class Button(tk.Canvas):
         if getattr(self,'_draw_signature',None)==signature:return
         self._draw_signature=signature
         kind=self.kind
-        solid=kind in ('primary','danger_solid')
+        design=p.get('design','atlas');family=self.text_family
+        # Local wrappers keep measurement, truncation and drawing on one font.
+        base_font,base_text,base_ellipsize=text_font,text_on,ellipsize
+        text_font=lambda size=13,weight='Regular':base_font(size,weight,family)
+        text_on=lambda *args,**kw:base_text(*args,**kw,family=family)
+        ellipsize=lambda *args,**kw:base_ellipsize(*args,**kw,family=family)
+        title=self.label_text(self.text)
+        solid=kind in ('primary','danger_solid','start')
         bg=p['accent'] if kind=='primary' else p['danger_solid'] if kind=='danger_solid' else p['subtle'] if kind=='soft' else self.cget('bg') if kind in ('ghost','link','danger_ghost','icon') else p['control']
         fg=p['on_accent'] if kind=='primary' else p['on_danger'] if kind=='danger_solid' else p['accent'] if kind=='link' else p['danger_fg'] if kind=='danger_ghost' else p['text_2']
+        if kind=='start':bg=p.get('start',p['accent']);fg=p.get('on_start',p['on_accent'])
         from PIL import ImageColor
         def mix(a,b,amount):
             return '#'+''.join(f'{round(x*(1-amount)+y*amount):02x}' for x,y in zip(ImageColor.getrgb(a),ImageColor.getrgb(b)))
@@ -93,7 +105,17 @@ class Button(tk.Canvas):
             bg=p['success_bg'] if enabled else p['queued_bg']
             fg=p['success_fg'] if enabled else p['queued_fg']
         edge=p['input_border'] if kind in ('secondary','segment') else None
-        image=surface(w,h,self.cget('bg'),bg,edge,self.radius)
+        if design=='yorunge':
+            if kind in ('outline_accent','danger_outline'):
+                edge=p['danger'] if kind=='danger_outline' else p['accent'];fg=edge;bg=p['accent_soft'] if kind=='outline_accent' else self.cget('bg')
+            elif kind in ('secondary','segment','icon'):edge=p['input_border']
+            if self.selected and getattr(self,'segment_choice',False):edge=p['accent'];fg=p['accent']
+            if self.disabled and kind=='primary':bg=p['disabled_accent'];fg=p['disabled_on_accent']
+        if design=='pano' and kind=='secondary':bg=p['well'] if self.cget('bg')==p['card'] else p['card'];edge=None
+        if design=='yorunge' and kind in ('primary','start','danger_solid'):
+            from ui_surface import chamfered_surface
+            image=chamfered_surface(w,h,self.cget('bg'),bg,edge)
+        else:image=surface(w,h,self.cget('bg'),bg,edge,min(self.radius,h/2))
         d=ImageDraw.Draw(image)
         if self.selected and self.underline:d.rectangle((0,h-3,w,h),fill=p['accent'])
         elif self.selected and self.side_accent:d.rectangle((0,7,3,h-7),fill=p['accent'])
@@ -102,22 +124,28 @@ class Button(tk.Canvas):
         shortcut=getattr(self,'shortcut','')
         if (shortcut or getattr(self,'centered',False)) and name and not getattr(self,'icon_only',False):
             # Wide action: icon, label and any muted shortcut centred as one group.
-            group=26+text_font(13,'SemiBold' if solid else 'Regular').getlength(self.text)+(10+text_font(11).getlength(shortcut) if shortcut else 0)
+            group=26+text_font(13,'SemiBold' if solid else 'Regular').getlength(title)+(10+text_font(11).getlength(shortcut) if shortcut else 0)
             x=max(x,round((w-group)/2))
         if name:
             glyph_x=(w-18)//2 if not self.text or getattr(self,'icon_only',False) else x
             image.paste(icon(name,18,fg),(glyph_x,(h-18)//2),icon(name,18,fg));x+=26
         elif self.image:x+=24
         face=text_font(13,'SemiBold' if solid or self.selected else 'Regular')
-        dropdown=self.text.endswith(' ▾')
-        display_text=self.text.lstrip('● ')[:-2] if dropdown else self.text.lstrip('● ')
+        dropdown=title.endswith(' ▾')
+        display_text=title.lstrip('● ')[:-2] if dropdown else title.lstrip('● ')
         if getattr(self,'icon_only',False):display_text=''
         # Dropdowns read like inputs: value on the left, chevron on the right.
         if not name and not self.image and not dropdown:x=round((w-face.getlength(display_text))/2)
         if getattr(self,'status_badge',False):
             d.ellipse((11,h//2-4,19,h//2+4),fill=fg);x=26
         display_text=ellipsize(display_text,max(0,w-x-(24 if dropdown else 8)),13,'SemiBold' if solid or self.selected else 'Regular')
-        text_on(image,(x,h/2),display_text,13,'SemiBold' if solid or self.selected else 'Regular',fg,'lm')
+        weight='SemiBold' if solid or self.selected else 'Regular'
+        if design=='yorunge':
+            # Mono's ascender/descender midpoint is above its capital ink.
+            # Anchor capitals by their baseline; keep the invariant per label.
+            cap=-text_font(13,weight).getbbox('H',anchor='ls')[1]
+            text_on(image,(x,h/2+cap/2),display_text,13,weight,fg,'ls')
+        else:text_on(image,(x,h/2),display_text,13,weight,fg,'lm')
         if shortcut and display_text:
             after=x+face.getlength(display_text)+10
             text_on(image,(after,h/2),shortcut,11,fill=mix(fg,bg,0.3),anchor='lm')
@@ -171,13 +199,19 @@ class Search(tk.Canvas):
 
 class Panel(tk.Canvas):
     def __init__(self,master,palette,padding=12,radius=8):
-        self.p=palette;self.padding=padding;self.radius=radius
+        self.p=palette;self.padding=padding;self.radius=RADII[palette['design']]['card'] if palette.get('design') in ('pano','yorunge') else radius
         super().__init__(master,bg=master.cget('bg'),width=200,height=90,highlightthickness=0)
         self.content=tk.Frame(self,bg=palette['panel'])
         self.window=self.create_window(padding,padding,window=self.content,anchor='nw')
         self.bind('<Configure>',self.resize)
     def resize(self,event):
         from ui_surface import surface,photo
-        self._surface=photo(surface(max(1,event.width),max(1,event.height),self.cget('bg'),self.p['panel'],self.p['line'],self.radius),self)
+        image=surface(max(1,event.width),max(1,event.height),self.cget('bg'),self.p['panel'],self.p['line'],self.radius)
+        if self.p.get('design')=='yorunge':
+            from PIL import ImageDraw
+            d=ImageDraw.Draw(image);w,h=image.size
+            d.line((0,12,0,0,12,0),fill=self.p['accent'],width=2)
+            d.line((w-13,h-1,w-1,h-1,w-1,h-13),fill=self.p['accent'],width=2)
+        self._surface=photo(image,self)
         self.delete('surface');self.create_image(0,0,image=self._surface,anchor='nw',tags='surface')
         self.tag_lower('surface');self.itemconfigure(self.window,width=max(1,event.width-2*self.padding),height=max(1,event.height-2*self.padding))

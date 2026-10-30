@@ -4,6 +4,7 @@ This is a required validation step, not an ignored artifact-upload error.
 Images stay local to the runner; only their checks and SHA-256 enter the summary.
 """
 import hashlib
+import json
 import os
 from pathlib import Path
 import sys
@@ -37,9 +38,11 @@ def validate_previews(directory):
 
 def main():
     rows=validate_previews(ROOT/'build')
-    lines=['## Native component previews: 8/8 validated','',
+    alignment=validate_alignment(ROOT/'build/design-alignment.json',ROOT)
+    lines=[f'## Native component previews: {len(rows)}/{len(THEMES)*2} validated','',
            'Palette/background/marker checks passed; screenshots remain on the runner.',
            'No artifact upload or storage quota is required.','',
+           f'Alignment: {len(alignment)} appearances; text centre ≤1.5 px, shared baselines, form/action alignment and 24 px footer gap.','',
            '| Preview | Size | SHA-256 |','|---|---|---|']
     lines.extend(f'| {name} | {width}×{height} | `{digest}` |' for name,width,height,digest in rows)
     report='\n'.join(lines)+'\n';print(report)
@@ -47,6 +50,21 @@ def main():
     if summary:
         with open(summary,'a',encoding='utf-8') as file:file.write(report)
     return 0
+
+
+def validate_alignment(path,root):
+    report=json.loads(path.read_text(encoding='utf-8'))
+    if set(report['themes'])!=set(THEMES):raise ValueError('Missing alignment appearance')
+    required={'ui_surface.py','theme_widgets.py','ui_controls.py'}
+    if set(report['sources'])!=required:raise ValueError('Missing alignment source')
+    for name,digest in report['sources'].items():
+        if hashlib.sha256((root/name).read_bytes()).hexdigest()!=digest:raise ValueError('Stale alignment source: '+name)
+    for theme,m in report['themes'].items():
+        if (len(m['center_errors'])!=12 or max(m['center_errors'])>1.5 or
+            len(m['baseline_spreads'])!=2 or any(m['baseline_spreads']) or
+            m['form_x_delta']!=0 or m['action_y_delta']!=0 or m['footer_gap']!=24):
+            raise ValueError('Wrong measured alignment: '+theme)
+    return report['themes']
 
 
 if __name__=='__main__':

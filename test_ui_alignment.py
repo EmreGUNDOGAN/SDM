@@ -8,10 +8,12 @@ buttons on the window edge and centred dropdown values.
 
 
 def main():
+    import hashlib,json
+    from pathlib import Path
     import tkinter as tk
     from types import SimpleNamespace
     import ui_surface
-    from theme_catalog import palette
+    from theme_catalog import palette,THEMES
     from theme_widgets import Button
     from ui_surface import register_fonts,font,TextLabel
     from ui_controls import Select
@@ -26,18 +28,24 @@ def main():
         drawn[master]=image.convert('RGB');return original(image,master)
     ui_surface.photo=capture
 
-    def ink(image,box):
+    def ink(image,box,foreground=None):
         """Rows/columns inside box that differ clearly from the box's left-middle fill."""
         left,top,right,bottom=box;fill=image.getpixel((left,(top+bottom)//2))
-        def far(x,y):return sum(abs(a-b) for a,b in zip(image.getpixel((x,y)),fill))>150
+        def far(x,y):
+            pixel=image.getpixel((x,y))
+            if foreground is not None:
+                from PIL import ImageColor
+                return sum(abs(a-b) for a,b in zip(pixel,ImageColor.getrgb(foreground)))<70
+            return sum(abs(a-b) for a,b in zip(pixel,fill))>150
         rows=[y for y in range(top,bottom) if any(far(x,y) for x in range(left,right))]
         cols=[x for x in range(left,right) if any(far(x,y) for y in range(top,bottom))]
         return rows,cols
 
-    cap=-font(13).getbbox('H',anchor='ls')[1]
+    measurements={}
     try:
-        for mode in ('light','dark'):
-            p=palette('atlas_'+mode);root.configure(bg=p['bg'])
+        for mode in THEMES:
+            p=palette(mode);root.configure(bg=p['bg'])
+            measurements[mode]={'center_errors':[],'baseline_spreads':[]}
             frame=tk.Frame(root,bg=p['bg']);frame.pack(fill='both',expand=True)
             # 1. Button labels share one baseline whatever their letters ('İ', capitals) and sit centred.
             #    Words without descenders, so the lowest ink row is the baseline.
@@ -46,10 +54,17 @@ def main():
                 for text in ('Devam','Duraklat','İndir','Kaldır','Önizle','Tümü'):
                     button=Button(frame,text,palette=p,kind=kind,width=120);button.pack();root.update()
                     image=drawn[button];w,h=image.size
-                    rows,_=ink(image,(8,3,w-8,h-3));baselines[text]=max(rows)
-                    centre=max(rows)-cap/2
+                    foreground=p['on_accent'] if kind=='primary' else p['text_2']
+                    # The cut corners share the dark label colour closely;
+                    # measure the text area, excluding the decorative corners.
+                    box=(16,5,w-16,h-5) if p['design']=='yorunge' else (8,3,w-8,h-3)
+                    rows,_=ink(image,box,foreground if p['design'] in ('pano','yorunge') else None);baselines[text]=max(rows)
+                    label_cap=-font(13,'Regular',button.text_family).getbbox('H',anchor='ls')[1]
+                    centre=max(rows)-label_cap/2
+                    measurements[mode]['center_errors'].append(abs(centre-h/2))
                     assert abs(centre-h/2)<=1.5,(mode,kind,text,'label not vertically centred',centre,h/2)
                 assert len(set(baselines.values()))==1,(mode,kind,'button labels on different baselines',baselines)
+                measurements[mode]['baseline_spreads'].append(max(baselines.values())-min(baselines.values()))
             # 2. Menu rows: same baseline for every label.
             menu=PopupMenu(root,p)
             for text in ('Devam et','Duraklat','İndirme hızı','Sıfırdan indir','SHA-256 kontrolü'):menu.add_item(text,lambda:None)
@@ -75,6 +90,8 @@ def main():
             assert caption.winfo_rootx()==first.winfo_rootx(),(mode,'label and input not aligned')
             action=first.buttons[0]
             assert action.winfo_rooty()==first.winfo_rooty() and action.winfo_height()==first.winfo_height(),(mode,'action button off the input row')
+            measurements[mode].update(form_x_delta=first.winfo_rootx()-second.winfo_rootx(),
+                action_y_delta=action.winfo_rooty()-first.winfo_rooty())
             # 5. Dropdown values are left-aligned like inputs.
             select=Select(frame,{'tr':'Türkçe (1,5)','en':'English (1.5)'},palette=p,width=260);select.pack();root.update()
             image=drawn[select];_,cols=ink(image,(4,4,image.width-30,image.height-4))
@@ -89,6 +106,7 @@ def main():
             last=dialog.actions['delete']
             gap=dialog.winfo_rootx()+dialog.winfo_width()-(last.winfo_rootx()+last.winfo_width())
             assert gap==24,(mode,'footer button not 24 px from the edge',gap)
+            measurements[mode]['footer_gap']=gap
             dialog.finish(None)
         # 7. Display numbers: decimal comma and 'KB/sn' exactly once.
         app=SimpleNamespace(settings={'language':'tr'})
@@ -96,6 +114,9 @@ def main():
             assert number(app,raw)==shown,(raw,number(app,raw))
         assert number(SimpleNamespace(settings={'language':'en'}),'48.83 KB/s')=='48.83 KB/s'
         assert not errors,errors
+        sources={name:hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in ('ui_surface.py','theme_widgets.py','ui_controls.py')}
+        Path('build').mkdir(exist_ok=True)
+        Path('build/design-alignment.json').write_text(json.dumps(dict(themes=measurements,sources=sources)),encoding='utf-8')
         print('Alignment: shared baselines, centred labels, unclipped text, form rows, dialog edges and number formats: OK')
     finally:
         ui_surface.photo=original;root.destroy()

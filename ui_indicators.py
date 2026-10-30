@@ -46,7 +46,7 @@ class StatusBadge(Indicator):
 
     def draw(self):
         w,h=self.size();p=self.p
-        _,bg,fg=status_colors(self.status,p.get('mode','light'))
+        _,bg,fg=status_colors(self.status,p.get('mode','light'),p.get('design','atlas'))
         image=surface(w,h,self.cget('bg'),bg,radius=h/2)
         d=ImageDraw.Draw(image);d.ellipse((10,h//2-3,16,h//2+3),fill=fg)
         text_on(image,(23,h/2),ellipsize(self.status,w-29,12),12,'Medium',fg,'lm')
@@ -59,8 +59,8 @@ class FileTile(Indicator):
         super().__init__(master,palette,width=size,height=size,**kwargs);self.draw()
 
     def draw(self):
-        w,h=self.size();bg,fg=file_tile_colors(self.kind,self.p.get('mode','light'))
-        image=surface(w,h,self.cget('bg'),bg,radius=RADII[self.p.get('design','atlas')]['tile'])
+        w,h=self.size();bg,fg=file_tile_colors(self.kind,self.p.get('mode','light'),self.p.get('design','atlas'))
+        image=surface(w,h,self.cget('bg'),bg,fg if self.p.get('design')=='yorunge' else None,radius=RADII[self.p.get('design','atlas')]['tile'])
         text_on(image,(w/2,h/2),self.extension,10,'Bold',fg,'mm');self.present(image)
 
 
@@ -78,10 +78,20 @@ class ProgressBar(Indicator):
         w,h=self.size();p=self.p;scale=SURFACE_SCALE
         image=Image.new('RGB',(w*scale,h*scale),self.cget('bg'));d=ImageDraw.Draw(image)
         bar=max(1,w-(46 if self.show_text else 0));y=(h-self.thickness)//2
+        if p.get('design')=='yorunge':
+            cells=20;gap=2;cell=max(0,(bar-gap*(cells-1))/cells)
+            filled=round((self.value or 0)*cells)
+            color=status_colors(self.status,p.get('mode','dark'),'yorunge')[0]
+            for index in range(cells):
+                x=index*(cell+gap)
+                if cell>0:d.rectangle((x*scale,y*scale,(x+cell)*scale,(y+self.thickness)*scale),fill=color if index<filled else p['track'])
+            image=image.resize((w,h),Image.Resampling.LANCZOS)
+            if self.show_text:text_on(image,(w,h/2),'—' if self.value is None else f'{self.value:.0%}',12,fill=p['text'],anchor='rm',family='JetBrains Mono')
+            self.present(image);return
         d.rounded_rectangle((0,y*scale,bar*scale,(y+self.thickness)*scale),radius=self.thickness*scale/2,fill=p['track'])
         value=self.value
         if value:
-            color=status_colors(self.status,p.get('mode','light'))[0]
+            color=status_colors(self.status,p.get('mode','light'),p.get('design','atlas'))[0]
             d.rounded_rectangle((0,y*scale,max(1,bar*value)*scale,(y+self.thickness)*scale),radius=min(self.thickness/2,bar*value/2)*scale,fill=color)
         image=image.resize((w,h),Image.Resampling.LANCZOS)
         if self.show_text:text_on(image,(w,h/2),'—' if value is None else f'{value:.0%}',12,fill=p['text'],anchor='rm')

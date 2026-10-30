@@ -41,6 +41,6 @@ def build_ui(app):
     if design=='odak':
         from layout_odak import build
         return build(app)
-    if design=='atlas':
-        from layout_atlas import build
-        return build(app)
+    # Foundation PR: dedicated Pano/Yörünge workspaces follow in P-2/Y-2.
+    from layout_atlas import build
+    return build(app)

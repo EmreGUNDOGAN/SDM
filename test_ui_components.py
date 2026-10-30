@@ -174,7 +174,12 @@ def main():
         menu=PopupMenu(root,p);menu.add_item('More',submenu=lambda child:child.add_item('Child',lambda:actions.append('child')))
         menu.popup(50,50);root.update()
         assert menu.child_menu is None
+        # Generated keyboard events require the intended native focus owner,
+        # just like the timeline check above. Keep submenu/grab assertions.
+        menu.focus_force()
+        wait_for(lambda:root.focus_get() is menu,f'{theme}: menu did not receive keyboard focus')
         menu.event_generate('<Right>');root.update();assert menu.child_menu.winfo_exists()
+        wait_for(lambda:root.focus_get() is menu.child_menu,f'{theme}: submenu did not receive keyboard focus')
         menu.child_menu.activate(0);root.update();assert actions[-1]=='child' and not menu.winfo_exists()
         dialog=MessageDialog(root,'Hata','İşlem tamamlanamadı',p,technical='Synthetic HTTP error')
         dialog.add_action('retry','Tekrar dene','primary');dialog.show();root.update()

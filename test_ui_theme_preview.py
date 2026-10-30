@@ -26,7 +26,8 @@ def main():
         if key=='design':
             button=next(w for w in descendants(editor) if isinstance(w,RadioCard) and w.value==value and w.variable is editor.vars[key])
         else:
-            segment=next(w for w in descendants(editor) if isinstance(w,SegmentedControl) and w.variable is editor.vars[key])
+            segment=editor.color_selector
+            assert isinstance(segment,SegmentedControl) and segment.variable is editor.display_color_mode
             button=segment.buttons[value]
         click(button)
         return app._settings_editor

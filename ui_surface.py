@@ -15,8 +15,9 @@ def register_fonts():
             ctypes.windll.gdi32.AddFontResourceExW(str(path),0x10,0)
 
 @lru_cache(maxsize=80)
-def font(size=13,weight='Regular'):
-    return ImageFont.truetype(str(ROOT/'assets/fonts'/f'Inter-{weight}.ttf'),round(size*TEXT_SCALE))
+def font(size=13,weight='Regular',family='Inter'):
+    prefix={'Inter':'Inter','JetBrains Mono':'JetBrainsMono'}[family]
+    return ImageFont.truetype(str(ROOT/'assets/fonts'/f'{prefix}-{weight}.ttf'),round(size*TEXT_SCALE))
 
 def photo(image,master):return ImageTk.PhotoImage(image,master=master)
 @lru_cache(maxsize=96)
@@ -30,7 +31,26 @@ def surface(w,h,bg,fill,border=None,radius=7,scale=SURFACE_SCALE):
     return _surface(max(1,round(w)),max(1,round(h)),bg,fill,border,radius,scale).copy()
 
 
-def text_on(image,xy,text,size=13,weight='Regular',fill='#111827',anchor='la'):
+@lru_cache(maxsize=96)
+def _chamfered_surface(w,h,bg,fill,border):
+    """Yörünge primary control: antialiased cut corners, bounded static glow."""
+    from PIL import ImageFilter
+    s=SURFACE_SCALE;w=max(1,w);h=max(1,h);cut=min(10,w/3,h/3)
+    image=Image.new('RGB',(w*s,h*s),bg)
+    points=[(2,2),(w-cut-2,2),(w-2,cut+2),(w-2,h-2),(cut+2,h-2),(2,h-cut-2)]
+    points=[(round(x*s),round(y*s)) for x,y in points]
+    glow=Image.new('RGBA',image.size);ImageDraw.Draw(glow).polygon(points,fill=fill)
+    glow=glow.filter(ImageFilter.GaussianBlur(3*s));glow.putalpha(glow.getchannel('A').point(lambda a:round(a*.45)))
+    image.paste(glow,(0,0),glow)
+    ImageDraw.Draw(image).polygon(points,fill=fill,outline=border)
+    return image.resize((w,h),Image.Resampling.LANCZOS)
+
+
+def chamfered_surface(w,h,bg,fill,border=None):
+    return _chamfered_surface(w,h,bg,fill,border).copy()
+
+
+def text_on(image,xy,text,size=13,weight='Regular',fill='#111827',anchor='la',family='Inter'):
     """Supersample text independently of its canvas/surface (no Tk text raster).
 
     The default anchor is the font's ascender line, not the ink top ('lt'):
@@ -39,13 +59,13 @@ def text_on(image,xy,text,size=13,weight='Regular',fill='#111827',anchor='la'):
     scale=SURFACE_SCALE
     layer=Image.new('RGBA',(image.width*scale,image.height*scale))
     ImageDraw.Draw(layer).text(tuple(round(v*scale) for v in xy),str(text),
-                              font=font(round(size*scale),weight),fill=fill,anchor=anchor)
+                              font=font(round(size*scale),weight,family),fill=fill,anchor=anchor)
     layer=layer.resize(image.size,Image.Resampling.LANCZOS)
     image.paste(layer,(0,0),layer)
 
 
-def ellipsize(text,width,size=13,weight='Regular'):
-    face=font(size,weight)
+def ellipsize(text,width,size=13,weight='Regular',family='Inter'):
+    face=font(size,weight,family)
     if face.getlength(text)<=width:return text
     if face.getlength('…')>width:return ''
     low,high=0,len(text)

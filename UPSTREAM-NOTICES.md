@@ -13,3 +13,12 @@ its inspiration: https://github.com/mstcvk/mc-download-manager
 
 Application branding changes do not transfer authorship of upstream code.
 Third-party dependencies retain their respective licenses.
+
+## JetBrains Mono
+
+JetBrains Mono 2.304 (Regular, Medium, SemiBold, Bold) is bundled unmodified
+under the SIL Open Font License 1.1. Copyright and full license:
+`assets/fonts/JetBrainsMono-OFL.txt` (included in the application assets).
+Official source: https://github.com/JetBrains/JetBrainsMono
+Pinned revision: `cd5227bd1f61dff3bbd6c814ceaf7ffd95e947d9`.
+The fonts are registered privately by SDM, without a system font installation.
