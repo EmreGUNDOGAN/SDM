@@ -73,8 +73,12 @@ def main():
         with patch.object(app,'open_add_dialog') as add:
             app.search_var.set('https://example.invalid/orbit-complete');settle();add.assert_not_called()
         assert app.tree.get_children()==(f'download-{complete}',)
+        app.geometry('1080x640+20+20');settle()
         app.search_var.set('no-orbit-match');settle();assert app.empty_label.text=='Aramanızla eşleşen indirme bulunamadı'
+        canvas=view.scroll._canvas
+        assert app.empty_clear.winfo_ismapped() and canvas.winfo_rooty()<=app.empty_clear.winfo_rooty() and app.empty_clear.winfo_rooty()+app.empty_clear.winfo_height()<=canvas.winfo_rooty()+canvas.winfo_height(),'Search reset outside compact viewport'
         app.empty_clear.invoke();settle();assert len(app.tree.get_children())==3
+        app.geometry('1440x900+20+20');settle()
         app.tree.selection_set(f'download-{active}');settle()
         menu=view.context_menu(SimpleNamespace(x_root=500,y_root=350));settle()
         capture_client(menu).save('build/yorunge-menu.png');menu.close_root();settle()

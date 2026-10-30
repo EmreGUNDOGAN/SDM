@@ -223,7 +223,7 @@ class YorungeWorkspace(AtlasWorkspace):
                 button=Button(group,title,command,palette=p,kind='secondary',height=34,width=90)
                 button.grid(row=index//columns,column=index%columns,sticky='ew',padx=2,pady=3)
                 group.columnconfigure(index%columns,weight=1,uniform='actions')
-                button.bind('<FocusIn>',self.reveal_action,add='+');buttons[key]=button;app.action_buttons.append(button)
+                button.bind('<FocusIn>',self.reveal_action,add='+');buttons[key]=button
             self.action_bars[compact]=(group,buttons)
         self.action_group,self.actions=self.action_bars[False];self.queue_button=self.actions['queue']
         self.system=tk.Frame(self.right,bg=p['side']);self.system.pack(fill='both',expand=True,padx=18,pady=18)
@@ -271,17 +271,20 @@ class YorungeWorkspace(AtlasWorkspace):
         else:
             self.content.pack_forget();self.empty.pack(fill='both',expand=True)
             app.empty_label.configure(text='Aramanızla eşleşen indirme bulunamadı' if app.search_term else 'Bu görünümde henüz indirme yok' if all_records else 'Henüz indirme yok')
-            if app.search_term:app.empty_clear.pack(pady=8)
+            if app.search_term:app.empty_clear.pack(before=self.drop_zone,pady=8)
             else:app.empty_clear.pack_forget()
-        self.telemetry.grid_remove() if not all_records else self.telemetry.grid()
+            self.scroll.yview_moveto(0)
+        self.telemetry.grid_remove() if not records else self.telemetry.grid()
         self.list_card.configure(height=600 if not records else 440)
         self.update_selection()
 
     def update_selection(self):
         if not self.alive or not hasattr(self,'action_group'):return
         app=self.app;items=app.tree.selection();caps=self.capabilities()
+        changed=items!=getattr(self,'_selection_key',None);self._selection_key=items
         records=[app._visible_records[int(app.tree.item(item,'values')[0])] for item in items if int(app.tree.item(item,'values')[0]) in app._visible_records]
         self.action_group,self.actions=self.action_bars[bool(self._compact)];self.queue_button=self.actions['queue']
+        app.action_buttons=list(self.actions.values())
         for group,buttons in self.action_bars.values():
             group.pack_forget()
             for key,button in buttons.items():button.configure(state='normal' if caps[key] else 'disabled')
@@ -301,13 +304,18 @@ class YorungeWorkspace(AtlasWorkspace):
                 for value in self.target_fields.values():value.configure(text='—')
             if self._compact or len(records)>1:
                 self.action_group.pack(fill='x',pady=(0,8))
-            else:self.single_actions.pack(fill='x')
+                if self._compact and changed:
+                    self.action_group.update_idletasks();self.reveal_action(widget=self.actions['pause'])
+            else:
+                self.single_actions.pack(fill='x');app.action_buttons=[self.primary,self.detail_button,self.more]
         else:
+            self.primary.configure(state='disabled')
             self.target_snapshot=None;self.selection.pack_forget();self.system.pack(fill='both',expand=True,padx=18,pady=18);self.ring.set(0)
 
-    def reveal_action(self,event):
-        if not self._compact:return
-        canvas=self.scroll._canvas;widget=event.widget;top=widget.winfo_rooty()-canvas.winfo_rooty()
+    def reveal_action(self,event=None,widget=None):
+        if not self.alive or not self._compact:return
+        widget=widget if widget is not None else event.widget
+        canvas=self.scroll._canvas;top=widget.winfo_rooty()-canvas.winfo_rooty()
         if top<0 or top+widget.winfo_height()>canvas.winfo_height():
             offset=widget.winfo_rooty()-self.dashboard.winfo_rooty()
             self.scroll.yview_moveto(offset/max(1,self.dashboard.winfo_height()))
@@ -333,6 +341,7 @@ class YorungeWorkspace(AtlasWorkspace):
         compact=event.width<1280
         if compact==self._compact:return
         self._compact=compact
+        self._selection_key=None
         if compact:self.right.grid_remove()
         else:self.right.grid()
         self.gauge.grid_forget();self.chart_box.grid_forget()

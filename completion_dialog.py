@@ -7,7 +7,7 @@ from ui_dialog import AppWindow,AutoCard,label,action
 from ui_indicators import FileTile
 from ui_controls import CheckBox
 from ui_surface import TextLabel,surface,photo,icon,ellipsize
-from ui_tokens import SIZES
+from ui_tokens import SIZES,YORUNGE_MONO_FAMILY
 from theme_widgets import Button
 from utils import format_bytes,format_speed,save_settings
 from atlas_view import file_kind,number
@@ -15,22 +15,34 @@ from atlas_view import file_kind,number
 
 class CompletionDialog(AppWindow):
     def __init__(self,parent,record):
-        pano=parent.palette.get('design')=='pano'
+        design=parent.palette.get('design');orbit=design=='yorunge'
+        # Yörünge F06 keeps Pano's P06 cards: green success panel, stripe metrics.
+        pano=design in ('pano','yorunge')
         super().__init__(parent,'İndirme tamamlandı',560,500 if pano else 440);self.record=record;p=self.p
         # A06 header: tile with a success mark, a green caption and the file name.
         top=self.title_label.master;self.title_label.pack_forget()
         if pano:
             self.minsize(560,500);top.pack_forget()
             self.header.pack_configure(padx=0,pady=(10,4))
-            self.file_card=AutoCard(self.header,p,padding=16)
+            self.file_card=AutoCard(self.header,dict(p,accent=p['success'],line=p['success']) if orbit else p,padding=16)
             self.file_card.pack_configure(padx=14,pady=0);top=self.file_card.content
         header_bg=p['card'] if pano else p['dialog']
-        tile=FileTile(top,Path(record['filename']).suffix.lstrip('.') or 'FILE',file_kind(record),p,size=54);tile.pack(side='left',padx=(0,18),pady=(0,4))
-        mark=tk.Canvas(top,width=22,height=22,bg=header_bg,highlightthickness=0)
-        image=surface(22,22,header_bg,p['success'],header_bg,7);glyph=icon('check-small',14,p['on_accent']);image.paste(glyph,(4,4),glyph)
-        mark.image=photo(image,mark);mark.create_image(0,0,image=mark.image,anchor='nw');mark.place(in_=tile,relx=1,rely=1,x=6,y=6,anchor='se')
+        if orbit:
+            # F06: a check inside a green diamond instead of the file tile.
+            from PIL import ImageDraw
+            mark=tk.Canvas(top,width=64,height=64,bg=header_bg,highlightthickness=0)
+            image=surface(64,64,header_bg,header_bg,None,0);draw=ImageDraw.Draw(image)
+            draw.polygon(((32,2),(62,32),(32,62),(2,32)),outline=p['success'],width=2)
+            glyph=icon('check-small',22,p['success']);image.paste(glyph,(21,21),glyph)
+            mark.image=photo(image,mark);mark.create_image(0,0,image=mark.image,anchor='nw');mark.pack(side='left',padx=(0,18))
+        else:
+            tile=FileTile(top,Path(record['filename']).suffix.lstrip('.') or 'FILE',file_kind(record),p,size=54);tile.pack(side='left',padx=(0,18),pady=(0,4))
+            mark=tk.Canvas(top,width=22,height=22,bg=header_bg,highlightthickness=0)
+            image=surface(22,22,header_bg,p['success'],header_bg,7);glyph=icon('check-small',14,p['on_accent']);image.paste(glyph,(4,4),glyph)
+            mark.image=photo(image,mark);mark.create_image(0,0,image=mark.image,anchor='nw');mark.place(in_=tile,relx=1,rely=1,x=6,y=6,anchor='se')
         text=tk.Frame(top,bg=header_bg);text.pack(side='left',fill='x',expand=True)
-        TextLabel(text,'İNDİRME TAMAMLANDI' if pano else 'İndirme tamamlandı',size=12,weight='SemiBold',fg=p['success_fg']).pack(anchor='w')
+        if orbit:TextLabel(text,'// AKTARIM TAMAMLANDI',size=11,weight='SemiBold',fg=p['success'],family=YORUNGE_MONO_FAMILY).pack(anchor='w')
+        else:TextLabel(text,'İNDİRME TAMAMLANDI' if pano else 'İndirme tamamlandı',size=12,weight='SemiBold',fg=p['success_fg']).pack(anchor='w')
         if pano:
             filename=record['filename'];prefix=ellipsize(filename,380,14,'SemiBold')
             self.name_lines=[]
@@ -62,13 +74,18 @@ class CompletionDialog(AppWindow):
                 stats.columnconfigure(index,weight=1,uniform='completion')
                 holder=tk.Frame(stats,bg=p['dialog']);holder.grid(row=0,column=index,sticky='nsew',padx=4)
                 card=AutoCard(holder,p,padding=12);card.pack_configure(fill='both',expand=True,padx=0,pady=0)
+                if orbit:card.brackets=False;card.stripe=p[('accent','violet','success')[index]]
                 self.stat_cards.append(card);cell=card.content
                 if title=='Ortalama hız':title='Ortalama'
             else:
                 if index:tk.Frame(cells,bg=p['line'],width=1).pack(side='left',fill='y')
                 cell=tk.Frame(cells,bg=p['card']);cell.pack(side='left',fill='x',expand=True,padx=(14 if index else 4,14))
-            label(cell,title,palette=p,size=12,muted=True).pack(anchor='w')
-            label(cell,value,palette=p,size=15,weight='Bold').pack(anchor='w',pady=(4,0))
+            if orbit:
+                TextLabel(cell,title.replace('i','İ').replace('ı','I').upper(),size=10,fg=p['muted'],family=YORUNGE_MONO_FAMILY).pack(anchor='w')
+                TextLabel(cell,value,size=15,weight='Bold',fg=p['text'],family=YORUNGE_MONO_FAMILY).pack(anchor='w',pady=(4,0))
+            else:
+                label(cell,title,palette=p,size=12,muted=True).pack(anchor='w')
+                label(cell,value,palette=p,size=15,weight='Bold').pack(anchor='w',pady=(4,0))
         row=tk.Frame(self.body,bg=p['dialog']);row.pack(fill='x',padx=14 if pano else 24,pady=(0,12 if pano else 16))
         media=Path(record['filename']).suffix.lower() in ('.mp4','.mkv','.webm','.avi','.mp3','.m4a','.wav','.flac')
         for index,(text,glyph,command,kind) in enumerate(((('Oynat' if media else 'Aç'),'play' if media else 'file',lambda:self.open(record['filepath']),'primary'),
@@ -76,7 +93,8 @@ class CompletionDialog(AppWindow):
             button=Button(row,text,command,palette=p,kind=kind,height=44);button.icon_name=glyph;button.centered=True;button.draw()
             button.pack(side='left',fill='x',expand=True,padx=(8 if index else 0,0))
         scan_bg=p['card'] if pano else p['subtle']
-        scan=AutoCard(self.body,dict(p,card=scan_bg,line=scan_bg),padding=14)
+        scan=AutoCard(self.body,dict(p,card=scan_bg,line=p['line'] if orbit else scan_bg),padding=14)
+        if orbit:scan.brackets=False
         if pano:scan.pack_configure(padx=14,pady=(0,12))
         self.scan_button=Button(scan.content,'Virüs tarat',self.scan,palette=p,kind='secondary',height=SIZES['small_button']+2);self.scan_button.pack(side='right')
         shield=tk.Canvas(scan.content,width=32,height=32,bg=scan_bg,highlightthickness=0)
