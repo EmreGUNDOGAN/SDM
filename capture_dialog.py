@@ -4,7 +4,9 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog
 from ui_dialog import AppWindow,AutoCard,action,label,field
-from ui_controls import RadioCard
+from ui_controls import RadioCard,Select,Switch
+from file_tools import AUDIO_BITRATES
+from ui_tokens import SIZES
 from ui_indicators import FileTile
 from theme_widgets import Button
 from utils import clean_filename,format_bytes,get_unique_filepath
@@ -37,6 +39,14 @@ class CapturePrompt(AppWindow):
             label(heading,'Kalite',palette=self.p,weight='SemiBold').pack(side='left');label(heading,'Boyutlar tahminidir',palette=self.p,size=12,muted=True).pack(side='right')
             self.quality_host=tk.Frame(quality.content,bg=self.p['card']);self.quality_host.pack(fill='x')
             self.render_qualities()
+            # MP3 only: bitrate and the music-mode Artist/Album layout (same options as the YouTube Music button).
+            self.bitrate=tk.StringVar(self,'192');self.album=tk.BooleanVar(self,False)
+            self.audio_row=tk.Frame(quality.content,bg=self.p['card'])
+            label(self.audio_row,'Ses kalitesi',palette=self.p,muted=True).pack(side='left',padx=(0,10))
+            Select(self.audio_row,{str(rate):f'{rate} kb/sn' for rate in AUDIO_BITRATES},self.bitrate,palette=self.p,width=150,height=SIZES['input']).pack(side='left')
+            Switch(self.audio_row,self.album,palette=self.p).pack(side='right')
+            label(self.audio_row,'Sanatçı / Albüm klasörü',palette=self.p).pack(side='right',padx=(0,8))
+            if self.quality.get()=='audio':self.audio_row.pack(fill='x',pady=(12,0))
             section=AutoCard(self.body,self.p)
             from video_section import SectionFields
             self.section_fields=SectionFields(section.content,duration=self.duration,palette=self.p,command=self.validate)
@@ -86,6 +96,9 @@ class CapturePrompt(AppWindow):
         audio=self.quality.get()=='audio'
         name=self.name.get();stem=Path(name).stem if Path(name).suffix.lower() in ('.mkv','.mp3','.mp4','.webm') else name
         self.name.set(stem+('.mp3' if audio else '.mkv'));self.update_estimate()
+        if hasattr(self,'audio_row'):
+            if audio:self.audio_row.pack(fill='x',pady=(12,0))
+            else:self.audio_row.pack_forget()
 
     def update_estimate(self):
         size=self.request.get('filesize',0)
@@ -125,7 +138,8 @@ class CapturePrompt(AppWindow):
                 audio=self.quality.get()=='audio';height=int(self.quality.get()) if self.quality.get().isdigit() else self.request.get('height')
                 did=self.parent.add_download_from_dialog(self.request['url'],filename,str(dest),
                     is_video=self.request['kind']=='video',auto_start=action=='start',video_quality='Yalnızca Ses (MP3)' if audio else 'En İyi',selected_height=height,
-                    from_browser=action=='start',expected_size=0 if self.section_fields and self.section_fields.enabled.get() else self.selected_size,section=self.section_fields.collect() if self.section_fields else None)
+                    from_browser=action=='start',expected_size=0 if self.section_fields and self.section_fields.enabled.get() else self.selected_size,section=self.section_fields.collect() if self.section_fields else None,
+                    audio=dict(bitrate=int(self.bitrate.get()),album=self.album.get()) if audio else None)
                 if did is None:action='cancel'
             except Exception as error:self.error.set(str(error));return
         self._done=True;self.decision(self.request['ticket'],action);self.destroy()
