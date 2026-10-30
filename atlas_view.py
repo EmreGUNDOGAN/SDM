@@ -11,6 +11,7 @@ CATEGORY_TILES={'Belgeler':('DOC','document'),'Resimler':('IMG','image'),
 
 def column_preferences(design):
     if design=='pano':return 'pano_visible_columns',('filename','progress','size','status')
+    if design=='yorunge':return 'yorunge_visible_columns',('filename','progress','speed','eta','status')
     return 'visible_columns',DEFAULT_COLUMNS
 
 

@@ -49,6 +49,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "disk_check": True,
     "shutdown_after_queue": False,
     "visible_columns": ['filename', 'size', 'progress', 'speed', 'eta', 'status'],
+    "yorunge_visible_columns": ['filename', 'progress', 'speed', 'eta', 'status'],
     "monitored_extensions": [
         "zip", "rar", "7z", "tar", "gz", "exe", "msi", "iso",
         "mp4", "mkv", "avi", "mov", "mp3", "flac", "wav",
