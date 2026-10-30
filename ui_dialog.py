@@ -3,7 +3,7 @@ import tkinter as tk
 import ttkbootstrap as tb
 from theme_widgets import Button,Panel
 from ui_surface import TextLabel
-from ui_tokens import SIZES
+from ui_tokens import SIZES,YORUNGE_MONO_FAMILY
 
 SCROLL_TAG='SDMScrollBody'
 OWN_WHEEL=('Text','Listbox','Treeview')
@@ -73,20 +73,26 @@ class ScrollBody(tk.Frame):
 
 
 class AppWindow(tb.Toplevel):
-    def __init__(self,parent,title,width=760,height=760,description=''):
+    def __init__(self,parent,title,width=760,height=760,description='',kicker=''):
         super().__init__(parent);self.parent=parent;self.p=parent.palette;self._owned_timers=set()
+        # Yörünge heads a window with a '// KICKER' line and no description.
+        orbit=self.p.get('design')=='yorunge' and bool(kicker)
         self.title('SDM · '+title);self.configure(bg=self.p['dialog'])
         self._size=(min(width,self.winfo_screenwidth()-80),min(height,self.winfo_screenheight()-100))
         self.geometry('%dx%d'%self._size)
         self.minsize(min(560,self.winfo_screenwidth()-80),min(420,self.winfo_screenheight()-100))
         self.header=tk.Frame(self,bg=self.p['dialog']);self.header.pack(fill='x',padx=24,pady=(20,16))
+        if orbit:
+            self.kicker_label=TextLabel(self.header,'// '+kicker,size=10,fg=self.p['muted'],family=YORUNGE_MONO_FAMILY)
+            self.kicker_label.pack(anchor='w',pady=(0,2))
         # × shares the title's row; packed beside the whole header it slid
         # between the title and the description line.
         top=tk.Frame(self.header,bg=self.p['dialog']);top.pack(fill='x')
         Button(top,'×',self.close,palette=self.p,kind='icon',width=34).pack(side='right')
         self.title_label=TextLabel(top,title,size=18,weight='Bold',fg=self.p['text'],max_width=width-110);self.title_label.pack(side='left')
         self.description_label=TextLabel(self.header,description,size=13,fg=self.p['muted'],max_width=width-100)
-        if description:self.description_label.pack(anchor='w',pady=(6,0))
+        if description and not orbit:self.description_label.pack(anchor='w',pady=(6,0))
+        if orbit:tk.Frame(self,bg=self.p['line'],height=1).pack(fill='x',pady=(0,16))
         self._fit_pending=None
         self.footer=tk.Frame(self,bg=self.p['footer']);self.footer.pack(side='bottom',fill='x')
         tk.Frame(self.footer,bg=self.p['line'],height=1).pack(fill='x')
