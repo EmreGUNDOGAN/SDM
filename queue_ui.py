@@ -20,6 +20,7 @@ class QueueList(tk.Frame):
             self.buttons=[]
             for index,name in enumerate(values):
                 button=Button(self,name,lambda n=index:self.choose(n),palette=self.p,kind='ghost',width=160)
+                if self.p.get('design')=='yorunge':button.side_accent=True
                 button.pack(fill='x',pady=2);self.buttons.append(button)
             self.current(min(self.index,len(self.buttons)-1))
         return super().configure(cnf,**kwargs)
@@ -37,14 +38,14 @@ class QueueEditor(tk.Frame):
     def __init__(self,parent,queues,palette=None,command=None):
         self.p=palette or parent.winfo_toplevel().p
         super().__init__(parent,bg=self.p['dialog']);self.queues=copy.deepcopy(queues);self.index=0;self.renames={};self.command=command;self._loading=True;self._traces=[]
-        pano=self.p.get('design')=='pano'
-        if pano:
-            catalog=AutoCard(self,self.p,padding=12);catalog.radius=22;catalog.configure(width=176);catalog.pack_configure(side='left',fill='y',padx=(0,12),pady=0);side=catalog.content
+        pano=self.p.get('design')=='pano';panelled=pano or self.p.get('design')=='yorunge'
+        if panelled:
+            catalog=AutoCard(self,self.p,padding=12);catalog.radius=22 if pano else 0;catalog.configure(width=176);catalog.pack_configure(side='left',fill='y',padx=(0,12),pady=0);side=catalog.content
         else:side=tk.Frame(self,bg=self.p['dialog'],width=176);side.pack(side='left',fill='y',padx=(0,8))
-        self.names=QueueList(side,[q['name'] for q in self.queues],dict(self.p,dialog=self.p['card']) if pano else self.p,self.select);self.names.pack(fill='x')
+        self.names=QueueList(side,[q['name'] for q in self.queues],dict(self.p,dialog=self.p['card']) if panelled else self.p,self.select);self.names.pack(fill='x')
         Button(side,'+ Yeni kuyruk',self.add,palette=self.p,kind='soft',width=160).pack(fill='x',pady=8)
         body=tk.Frame(self,bg=self.p['dialog']);body.pack(side='left',fill='both',expand=True)
-        if pano:
+        if panelled:
             def arrange(event):
                 if event.widget is not self:return
                 narrow=event.width<650
@@ -55,7 +56,7 @@ class QueueEditor(tk.Frame):
         self.problem=tk.StringVar(self,'')
         info=AutoCard(body,self.p,padding=12);field(info.content,'Kuyruk adı',self.name,self.p,width=180)
         row=tk.Frame(info.content,bg=self.p['card']);row.pack(fill='x',pady=8);label(row,'Aynı anda',palette=self.p).pack(side='left')
-        if pano:self.limit_stepper=NumberStepper(row,self.limit,self.p,1,10);self.limit_stepper.pack(side='right')
+        if panelled:self.limit_stepper=NumberStepper(row,self.limit,self.p,1,10);self.limit_stepper.pack(side='right')
         else:Select(row,{str(n):str(n) for n in range(1,11)},self.limit,palette=self.p,width=80).pack(side='right')
         daily=AutoCard(body,self.p,padding=12);head=tk.Frame(daily.content,bg=self.p['card']);head.pack(fill='x',pady=(0,8))
         label(head,'Seçilen günlerde tekrarla',palette=self.p,weight='SemiBold').pack(side='left');Switch(head,self.enabled,palette=self.p).pack(side='right')
@@ -80,9 +81,9 @@ class QueueEditor(tk.Frame):
         row=tk.Frame(once.content,bg=self.p['card']);row.pack(fill='x',pady=8)
         for title,days in [('Bugün',0),('Yarın',1)]:Button(row,title,lambda d=days:self.quick_date(d),palette=self.p,kind='soft').pack(side='left',padx=(0,8))
         footer=AutoCard(body,self.p,padding=12);self.summary=label(footer.content,'',palette=self.p,size=12,muted=True);self.summary.max_width=420;self.summary.pack(anchor='w')
-        if pano:
+        if panelled:
             # Editor and catalog share the page's 24 px card edge.
-            for card in (info,daily,once,footer):card.radius=22;card.pack_configure(padx=0)
+            for card in (info,daily,once,footer):card.radius=22 if pano else 0;card.pack_configure(padx=0)
         problem=label(footer.content,variable=self.problem,palette=self.p,size=12);problem.fg=self.p['danger_fg'];problem.pack(anchor='w')
         Button(footer.content,'Zamanlamayı temizle',lambda:(self.enabled.set(False),self.once_enabled.set(False)),palette=self.p,kind='ghost').pack(anchor='w',pady=8)
         Button(footer.content,'Kuyruğu kaldır',self.remove,palette=self.p,kind='danger_ghost').pack(anchor='w')

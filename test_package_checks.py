@@ -4,9 +4,42 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 import tempfile
+from contextlib import nullcontext
 from tools.check_package import compare_code,normalized
 from tools import check_package
 import prepare_ci_tools
+
+
+class VendorCacheTests(unittest.TestCase):
+    def test_verified_runner_cache_survives_a_fresh_checkout_without_network(self):
+        payload=b'verified vendor fixture';digest=hashlib.sha256(payload).hexdigest()
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);cache=root/'checkout';cache.mkdir();shared=root/'tool-cache'/'sdm-vendor'/digest/'vendor.zip'
+            shared.parent.mkdir(parents=True);shared.write_bytes(payload)
+            with patch.object(prepare_ci_tools,'CACHE',cache),patch.dict('os.environ',RUNNER_TOOL_CACHE=str(root/'tool-cache')),patch.object(prepare_ci_tools.requests,'get') as get:
+                self.assertEqual(prepare_ci_tools.fetch('https://example.invalid/vendor','vendor.zip',digest).read_bytes(),payload)
+                get.assert_not_called()
+
+    def test_bad_runner_cache_is_replaced_only_after_download_hash_passes(self):
+        from unittest.mock import Mock
+        payload=b'verified vendor fixture';digest=hashlib.sha256(payload).hexdigest()
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);cache=root/'checkout';cache.mkdir();shared=root/'tool-cache'/'sdm-vendor'/digest/'vendor.zip'
+            shared.parent.mkdir(parents=True);shared.write_bytes(b'corrupt cache')
+            response=Mock();response.iter_content.return_value=[payload]
+            with patch.object(prepare_ci_tools,'CACHE',cache),patch.dict('os.environ',RUNNER_TOOL_CACHE=str(root/'tool-cache')),patch.object(prepare_ci_tools.requests,'get',return_value=nullcontext(response)) as get:
+                self.assertEqual(prepare_ci_tools.fetch('https://example.invalid/vendor','vendor.zip',digest).read_bytes(),payload)
+                get.assert_called_once();response.raise_for_status.assert_called_once()
+                self.assertEqual(shared.read_bytes(),payload)
+
+    def test_bad_download_is_not_promoted_to_runner_cache(self):
+        from unittest.mock import Mock
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);cache=root/'checkout';cache.mkdir();digest=hashlib.sha256(b'expected').hexdigest()
+            response=Mock();response.iter_content.return_value=[b'wrong download']
+            with patch.object(prepare_ci_tools,'CACHE',cache),patch.dict('os.environ',RUNNER_TOOL_CACHE=str(root/'tool-cache')),patch.object(prepare_ci_tools.requests,'get',return_value=nullcontext(response)):
+                with self.assertRaisesRegex(RuntimeError,'SHA-256 mismatch'):prepare_ci_tools.fetch('https://example.invalid/vendor','vendor.zip',digest)
+            self.assertFalse((root/'tool-cache'/'sdm-vendor'/digest/'vendor.zip').exists())
 
 
 class FrozenSourceTests(unittest.TestCase):
