@@ -71,23 +71,28 @@ class AppActions:
         from pathlib import Path
         from urllib.parse import parse_qs,urlparse
         folder=Path(self.settings['download_dir']);bitrate=request['bitrate']
-        def add(url,track=None):
-            self.add_download_from_dialog(url,'YouTube Music.mp3',str(folder/'YouTube Music.mp3'),is_video=True,
-                video_quality='Yalnızca Ses (MP3)',audio=dict(bitrate=bitrate,album=True,track=track))
         if not request['list']:
-            add(request['url']);return self.notify('Müzik eklendi',f'MP3 · {bitrate} kb/sn')
+            self.add_download_from_dialog(request['url'],'YouTube Music.mp3',str(folder/'YouTube Music.mp3'),is_video=True,
+                video_quality='Yalnızca Ses (MP3)',audio=dict(bitrate=bitrate,album=True,track=None))
+            return self.notify('Müzik eklendi',f'MP3 · {bitrate} kb/sn')
         # Only album lists ("OLAK5uy_…") number the files; a mixed playlist keeps each song's own data.
         album=parse_qs(urlparse(request['url']).query).get('list',[''])[0].startswith('OLAK5uy_')
         def work():
             from dialog_inspection import inspect_url
+            from music_album import ALBUM_LIMIT
             try:
                 result=inspect_url(request['url'],force_video=True)
-                entries=[url for url,_ in result['entries']] if result['kind']=='playlist' else [request['url']]
+                entries=[url for url,_ in result['entries']][:ALBUM_LIMIT] if result['kind']=='playlist' else [request['url']]
+                title=result.get('title') or 'YouTube Music'
             except Exception as error:
                 return self.post_ui(lambda e=str(error):self.notify('Liste alınamadı',e,tone='error'))
             def apply():
-                for index,url in enumerate(entries,1):add(url,index if album else None)
-                self.notify('Müzik eklendi',f'{len(entries)} parça · MP3 · {bitrate} kb/sn')
+                # The whole list is one row: its songs download one after another.
+                from utils import clean_filename
+                name=f'{clean_filename(title)} · {len(entries)} parça'
+                self.add_download_from_dialog(request['url'],name,str(folder/name),is_video=True,video_quality='Yalnızca Ses (MP3)',
+                    audio=dict(bitrate=bitrate,album=True,track=None,entries=entries,numbered=album,folder=str(folder)))
+                self.notify('Müzik eklendi',f'{len(entries)} parça tek indirmede · MP3 · {bitrate} kb/sn')
             self.post_ui(apply)
         threading.Thread(target=work,daemon=True).start()
 

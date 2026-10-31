@@ -17,5 +17,5 @@ def inspect_url(url,force_video=False):
             link=entry.get('webpage_url') or entry.get('url')
             if link and not link.startswith('http') and entry.get('id'):link='https://www.youtube.com/watch?v='+entry['id']
             if link:links.append((link,entry.get('title','Video')))
-        return dict(kind='playlist',entries=links)
+        return dict(kind='playlist',entries=links,title=info.get('title') or '')
     return dict(kind='video',duration=info.get('duration'),thumbnail=info.get('thumbnail'),**format_options(info))

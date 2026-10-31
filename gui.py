@@ -44,6 +44,7 @@ from utils import (
     save_settings,
 )
 from video_downloader import VideoDownloadTask, fetch_video_info, is_video_site
+from music_album import video_task
 from download_window import DownloadDetailDialog
 from list_display import COLUMNS, row_values
 from modern_ui import ModernUI
@@ -284,7 +285,7 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         options=json.loads(record.get('options_json') or '{}')
         if not task:
             if record['download_type']=='video':
-                task=VideoDownloadTask(did,record['url'],Path(record['filepath']).parent,
+                task=video_task(did,record['url'],Path(record['filepath']).parent,
                     quality=options.get('quality','Yalnızca Ses (MP3)' if record['filepath'].endswith('.mp3') else 'En İyi'),
                     selected_height=options.get('height'),connections=record['num_connections'],
                     output_name=options.get('output_name'),
@@ -402,7 +403,7 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         self._session_baselines[did]=0
         self._session_received[did]=0
         if is_video:
-            vtask = VideoDownloadTask(
+            vtask = video_task(
                 download_id=did,
                 url=url,
                 dest_folder=Path(dest_path).parent,

@@ -307,7 +307,8 @@ class VideoDownloadTask:
             h = int(self.selected_height)
             fmt = f'bestvideo[height={h}]+bestaudio/best[height={h}]'
         self.dest_folder.mkdir(parents=True, exist_ok=True)
-        staging = self.dest_folder / f'.sdm-video-{self.download_id}'
+        from download_cleanup import video_staging, remove_staging
+        staging = video_staging(self.dest_folder, self.download_id)
         staging.mkdir(parents=True, exist_ok=True)
         outtmpl = str(staging / "%(title)s [%(id)s].%(ext)s")
 
@@ -363,6 +364,8 @@ class VideoDownloadTask:
                 exact_total=sum(f.get('filesize') or 0 for f in formats) if all(f.get('filesize') for f in formats) else 0
                 if self.section:exact_total=0
                 ensure_space(staging/'output',exact_total,3 if self.is_audio_only else 2,existing)
+                if Path(staging.resolve().anchor)!=Path(self.dest_folder.resolve().anchor):
+                    ensure_space(self.dest_folder/'output',exact_total,1)
                 if self.metadata_callback:
                     preview=Path(ydl.prepare_filename(info))
                     name=(Path(self.output_name).stem if self.output_name else preview.stem)+('.mp3' if self.is_audio_only else '.mkv' if len(formats)>1 else preview.suffix)
@@ -392,7 +395,8 @@ class VideoDownloadTask:
                         destination=get_unique_filepath(target.parent,target.name)
                     else:destination = get_unique_filepath(self.dest_folder,
                         (Path(self.output_name).stem + final_path.suffix) if self.output_name else final_path.name)
-                    final_path.replace(destination)
+                    import shutil
+                    shutil.move(str(final_path),str(destination))  # the work folder may be on another drive
                     final_path = destination
                     if self.is_audio_only:self._tag_audio(final_path,info)
                     self.target_filepath=str(final_path)
@@ -407,6 +411,8 @@ class VideoDownloadTask:
                         )
 
             if not self._cancel_flag.is_set():
+                try:remove_staging(staging,self.dest_folder,self.download_id)
+                except (OSError,RuntimeError) as error:logger.warning('Video work folder was not removed: %s',error)
                 self.total_bytes = final_path.stat().st_size
                 self.downloaded_bytes = self.total_bytes
                 self.status = "Tamamlandı"

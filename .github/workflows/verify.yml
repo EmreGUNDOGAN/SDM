@@ -81,6 +81,8 @@ jobs:
         run: |
           node test_extension_scan.cjs
           if ($LASTEXITCODE -ne 0) { throw 'Page scanner failed' }
+          node test_extension_music.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'YouTube Music choice failed' }
           node test_extension.cjs
           if ($LASTEXITCODE -ne 0) { throw 'Extension UI failed' }
           node test_capture.cjs
