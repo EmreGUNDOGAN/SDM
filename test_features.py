@@ -46,6 +46,19 @@ class FeatureTests(unittest.TestCase):
             delete_download_files({'id':8,'filepath':str(target),'download_type':'direct'})
             self.assertTrue(all(not (Path(folder)/name).exists() for name in names));self.assertTrue(other.exists())
 
+    def test_video_work_folders_both_locations_only_this_download(self):
+        from unittest.mock import patch
+        from download_cleanup import video_staging
+        with tempfile.TemporaryDirectory() as folder,patch('utils.CONFIG_DIR',Path(folder)/'profile'):
+            out=Path(folder)/'out';out.mkdir();target=out/'clip.mkv'
+            fresh=video_staging(out,8);self.assertEqual(fresh,Path(folder)/'profile'/'staging'/'video-8')
+            legacy=out/'.sdm-video-8';legacy.mkdir();(legacy/'x.part').write_bytes(b'p')
+            self.assertEqual(video_staging(out,8),legacy)  # a download paused before 1.0.1 resumes in place
+            fresh.mkdir(parents=True);(fresh/'y.part').write_bytes(b'p')
+            other=fresh.parent/'video-9';other.mkdir();(other/'z.part').write_bytes(b'o')
+            delete_download_files({'id':8,'filepath':str(target),'download_type':'video'})
+            self.assertFalse(legacy.exists() or fresh.exists());self.assertTrue((other/'z.part').exists())
+
     def test_settings_backup_never_exports_credentials(self):
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'settings.json'

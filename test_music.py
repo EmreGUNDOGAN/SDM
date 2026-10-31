@@ -100,16 +100,62 @@ class MusicFileTest(unittest.TestCase):
         out = self.folder / 'out';done = []
         task = VideoDownloadTask(1, base + 'tone.wav', out, quality='Yalnızca Ses (MP3)', audio=dict(bitrate=128, album=True, track=2),
                                  status_callback=lambda did, status, message: done.append((status, message)))
-        with patch.object(yt_dlp.YoutubeDL, 'extract_info', extract):
+        profile = self.folder / 'profile'
+        with patch.object(yt_dlp.YoutubeDL, 'extract_info', extract), patch('utils.CONFIG_DIR', profile):
             task._run()
         target = out / 'Artist One' / 'Album_ Live' / '02 - Song.mp3'
         self.assertTrue(target.is_file(), (done, sorted(p.relative_to(out) for p in out.rglob('*'))))
+        # The work folder lives in SDM's data folder and is removed after success.
+        self.assertEqual(sorted(p.relative_to(out) for p in out.rglob('*') if p.is_file()), [target.relative_to(out)])
+        self.assertTrue((profile / 'staging').is_dir() and not any((profile / 'staging').iterdir()))
         probe = subprocess.run([tool_path('ffprobe'), '-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=bit_rate',
                                 '-of', 'csv=p=0', str(target)], capture_output=True, text=True, creationflags=NO_WINDOW)
         self.assertEqual(probe.stdout.strip(), '128000')
         values, covers = self.read_tags(target)
         self.assertEqual((values['TPE1'], values['TALB'], values['TRCK']), ('Artist One', 'Album: Live', '2'))
         self.assertEqual(Image.open(BytesIO(covers[0].data)).size, (360, 360))
+
+    def test_album_is_one_row_songs_in_order_and_resumes(self):
+        import json
+        from music_album import video_task, AlbumDownloadTask
+        server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), partial(QuietHandler, directory=str(self.source.parent)))
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close);self.addCleanup(server.shutdown)
+        base = f'http://127.0.0.1:{server.server_port}/'
+        import yt_dlp
+        real = yt_dlp.YoutubeDL.extract_info
+        def extract(ydl, url, *args, **kwargs):
+            info = real(ydl, url, *args, **kwargs)
+            return dict(info, **YTM, thumbnail=base + 'cover.webp') if kwargs.get('download') is False else info
+        out = self.folder / 'out';profile = self.folder / 'profile';entries = [base + 'tone.wav?1', base + 'tone.wav?2', base + 'tone.wav?3']
+        events = [];metadata = []
+        audio = dict(bitrate=128, album=True, track=None, entries=entries, numbered=True, folder=str(out))
+        def task():
+            # The stored row path is the album folder after the first song; the songs still use `folder`.
+            return video_task(7, base + 'list', out / 'Artist One' / 'Album_ Live', quality='Yalnızca Ses (MP3)', audio=audio,
+                              status_callback=lambda did, status, message: events.append(status),
+                              metadata_callback=lambda did, name, path, size, cat: metadata.append((name, path, cat)))
+        album = out / 'Artist One' / 'Album_ Live'
+        with patch.object(yt_dlp.YoutubeDL, 'extract_info', extract), patch('utils.CONFIG_DIR', profile):
+            first = task();self.assertIsInstance(first, AlbumDownloadTask)
+            # Pause after the first song: the row stays paused and remembers one finished song.
+            original = first._save_done
+            def pause_after(done, finished):
+                original(done, finished)
+                if done == 1:first.pause()
+            first._save_done = pause_after;first._run()
+            self.assertEqual(first.status, 'Duraklatıldı')
+            self.assertEqual(json.loads((profile / 'staging' / 'album-7.json').read_text(encoding='utf-8'))['done'], 1)
+            self.assertEqual(sorted(p.name for p in album.iterdir()), ['01 - Song.mp3'])
+            events.clear();second = task();second._run()
+        self.assertEqual(second.status, 'Tamamlandı')
+        self.assertEqual(sorted(p.name for p in album.iterdir()), ['01 - Song.mp3', '02 - Song.mp3', '03 - Song.mp3'])
+        self.assertEqual(events.count('Tamamlandı'), 1)   # one completion for the whole list, not one per song
+        self.assertEqual(metadata[-1], ('Artist One – Album_ Live · 3 parça', str(album), 'Müzik'))
+        self.assertEqual(self.read_tags(album / '03 - Song.mp3')[0]['TRCK'], '3')
+        self.assertFalse((profile / 'staging' / 'album-7.json').exists())
+        self.assertEqual(list((profile / 'staging').iterdir()), [])
+        with self.assertRaises(ValueError):video_task(8, base, out, quality='Yalnızca Ses (MP3)', audio=dict(audio, entries=['file:///C:/x']))
 
 
 if __name__ == '__main__':

@@ -64,17 +64,21 @@ def main():
                 assert isinstance(scan,BatchDialog) and scan.links.get().split()==links
                 wait(lambda:len(scan.items)==2 and not scan.inspecting);assert len(app.db.get_all_downloads())==before+2
                 scan.close()
-                # YouTube Music button: no dialog; album tracks numbered in list order with the chosen bitrate.
+                # YouTube Music button: no dialog; the album is one row whose songs are numbered in list order.
                 album='https://music.youtube.com/playlist?list=OLAK5uy_synthetic'
                 tracks=[f'https://music.youtube.com/watch?v=t{i}' for i in (1,2,3)]
                 count=len(app.db.get_all_downloads());last=max([r['id'] for r in app.db.get_all_downloads()],default=0)
                 # Real tasks are created but never reach the network in this fixture.
                 started=patch('video_downloader.VideoDownloadTask.start');started.start()
-                with patch('dialog_inspection.inspect_url',return_value=dict(kind='playlist',entries=[(u,'Track') for u in tracks])):
+                with patch('dialog_inspection.inspect_url',return_value=dict(kind='playlist',title='Synthetic Album',entries=[(u,'Track') for u in tracks])):
                     app.browser_request(dict(kind='music',url=album,bitrate=320,list=True,ticket='music-ticket'),lambda *args:None)
-                    wait(lambda:len(app.db.get_all_downloads())==count+3)
-                music=sorted((r for r in app.db.get_all_downloads() if r['url'] in tracks and r['id']>last),key=lambda r:r['url'])
-                assert [json.loads(r['options_json'])['audio'] for r in music]==[dict(bitrate=320,album=True,track=i) for i in (1,2,3)]
+                    wait(lambda:len(app.db.get_all_downloads())==count+1)
+                music=[r for r in app.db.get_all_downloads() if r['id']>last]
+                # The same fixture runs once per colour mode; the second album row is "… (1)".
+                assert len(music)==1 and music[0]['url']==album and music[0]['filename'].startswith('Synthetic Album · 3 parça'),music
+                assert json.loads(music[0]['options_json'])['audio']==dict(bitrate=320,album=True,track=None,entries=tracks,numbered=True,
+                    folder=app.settings['download_dir'])
+                assert type(app.video_tasks[music[0]['id']]).__name__=='AlbumDownloadTask'
                 app.browser_request(dict(kind='music',url='https://music.youtube.com/watch?v=single',bitrate=128,list=False,ticket='song'),lambda *args:None)
                 single=next(r for r in app.db.get_all_downloads() if r['url'].endswith('v=single') and r['id']>last)
                 assert json.loads(single['options_json'])['audio']==dict(bitrate=128,album=True,track=None) and single['download_type']=='video'

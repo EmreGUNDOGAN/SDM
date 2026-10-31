@@ -100,33 +100,38 @@
   function musicChoices() {
     const page = musicPage();
     root.getElementById('title').textContent = document.title.replace(/ - YouTube Music$/, '') || 'YouTube Music';
-    let whole = null;
-    if (page.list) {
-      const row = document.createElement('label');whole = document.createElement('input');
-      whole.type = 'checkbox';whole.checked = page.albumPage || !page.song;whole.disabled = !page.song;
-      row.append(whole, ' Albümün / listenin tamamı');row.style.cssText = 'display:flex;gap:8px;align-items:center;margin:4px 0 6px';
-      choices.append(row);
-    }
+    // Two explicit choices: this song or the whole album/list. The video/audio
+    // tabs are reused; an album page carries no song id until a song plays.
+    const tabs = root.getElementById('tabs'), songTab = root.getElementById('video-tab'), listTab = root.getElementById('audio-tab');
+    let list = Boolean(page.list && !page.song);
+    tabs.hidden = !page.list;
+    songTab.textContent = 'Bu şarkı';songTab.disabled = !page.song;
+    listTab.textContent = page.albumPage || String(page.list).startsWith('OLAK5uy_') ? 'Albümün tamamı' : 'Listenin tamamı';
+    const pick = value => {
+      list = value;songTab.setAttribute('aria-selected', String(!value));listTab.setAttribute('aria-selected', String(value));
+      status.textContent = page.song ? 'Ses kalitesini seç.' : 'Tek şarkı için önce şarkıyı çal. Ses kalitesini seç.';
+    };
+    songTab.onclick = event => { if (event.isTrusted && page.song) pick(false); };
+    listTab.onclick = event => { if (event.isTrusted) pick(true); };
     for (const bitrate of MUSIC_BITRATES) {
       const button = document.createElement('button');
       button.textContent = `MP3 · ${bitrate} kb/sn` + (bitrate === MUSIC_DEFAULT ? ' · önerilen' : '');
       if (bitrate === MUSIC_DEFAULT) button.className = 'recommended';
       button.onclick = async (event) => {
         if (!event.isTrusted || busy) return;
-        const list = Boolean(whole && whole.checked);
         const url = list ? `https://music.youtube.com/playlist?list=${encodeURIComponent(page.list)}`
           : `https://music.youtube.com/watch?v=${encodeURIComponent(page.song)}`;
         busy = true; button.disabled = true; status.textContent = 'SDM’ye gönderiliyor…';
         try {
           await send({type: 'music', url, bitrate, list});
-          status.textContent = list ? 'Liste SDM’de açılıyor; parçalar sırayla eklenecek.' : 'SDM indirmeye ekledi.';
+          status.textContent = list ? 'Liste SDM’de tek indirme olarak ekleniyor; parçalar sırayla iner.' : 'SDM indirmeye ekledi.';
         } catch(error) { status.textContent = error.message; }
         finally { busy = false; button.disabled = false; }
       };
       choices.append(button);
     }
     root.getElementById('foot').textContent = 'Sanatçı / Albüm klasörüne, etiket ve kapakla kaydedilir.';
-    status.textContent = 'Ses kalitesini seç.';
+    pick(list);
   }
   async function openPicker() {
     if (!panel.hidden) { panel.hidden = true; return; }

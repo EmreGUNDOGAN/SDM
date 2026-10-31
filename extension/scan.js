@@ -20,10 +20,27 @@ function scanType(url) {
 
 // Injected into the page: links, media elements and media the page already
 // loaded (resource timing catches audio/HLS that has no <a> or <audio src>).
+// Self-contained: executeScript sends only this function's source.
+// Media elements are typed by their tag: most players use blob: or
+// extensionless stream addresses, so the page itself is offered instead.
 function collectPageLinks() {
   const urls = [];
   for (const a of document.querySelectorAll('a[href]')) urls.push(a.href);
-  for (const el of document.querySelectorAll('video, audio, source, img')) urls.push(el.currentSrc || el.src);
+  for (const img of document.querySelectorAll('img')) urls.push(img.currentSrc || img.src);
+  for (const el of document.querySelectorAll('video, audio')) {
+    const type = el.tagName === 'AUDIO' ? 'Ses' : 'Video';
+    const sources = [el.currentSrc, el.src, ...[...el.querySelectorAll('source')].map(s => s.src)].filter(Boolean);
+    const direct = sources.filter(src => /^https?:/.test(src));
+    for (const src of direct) urls.push([src, type]);
+    if (!direct.length) urls.push([location.href, type]);
+  }
+  // Embedded players SDM's video engine can open as pages.
+  const players = [
+    /^https:\/\/(www\.)?youtube(-nocookie)?\.com\/embed\//, /^https:\/\/player\.vimeo\.com\/video\//,
+    /^https:\/\/(www\.)?dailymotion\.com\/embed\//, /^https:\/\/geo\.dailymotion\.com\/player/,
+  ];
+  for (const frame of document.querySelectorAll('iframe[src]'))
+    if (players.some(pattern => pattern.test(frame.src))) urls.push([frame.src, 'Video']);
   for (const entry of performance.getEntriesByType('resource')) urls.push(entry.name);
   return urls;
 }
@@ -31,14 +48,16 @@ function collectPageLinks() {
 function groupLinks(urls, pageUrl) {
   const groups = {};
   const seen = new Set();
-  for (const raw of urls) {
+  for (const item of urls) {
+    // A [url, type] pair comes from a media element or player; it may be the page itself.
+    const [raw, given] = Array.isArray(item) ? item : [item, null];
     let url;
     try { url = new URL(raw, pageUrl); } catch { continue; }
     if (!['http:', 'https:'].includes(url.protocol)) continue;
     url.hash = '';
     const key = url.href;
-    const type = scanType(key);
-    if (!type || seen.has(key) || key === pageUrl) continue;
+    const type = given || scanType(key);
+    if (!type || seen.has(key) || (key === pageUrl && !given)) continue;
     seen.add(key);
     (groups[type] ||= []).push(key);
   }
