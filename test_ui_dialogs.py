@@ -62,6 +62,9 @@ def main():
                 links=['https://example.invalid/file','https://example.invalid/video']
                 scan=app.browser_request(dict(kind='batch',urls=links,ticket='scan-ticket'),lambda *args:None)
                 assert isinstance(scan,BatchDialog) and scan.links.get().split()==links
+                # Opened from the browser: in front of every window and kept above it until answered.
+                import ctypes;app.update()
+                assert scan.attributes('-topmost') and ctypes.windll.user32.GetForegroundWindow()==int(scan.wm_frame(),16)
                 wait(lambda:len(scan.items)==2 and not scan.inspecting);assert len(app.db.get_all_downloads())==before+2
                 scan.close()
                 # YouTube Music button: no dialog; the album is one row whose songs are numbered in list order.
@@ -130,6 +133,12 @@ def main():
             app.settings['hud_text_size']='normal'
             try:validate_settings(dict(app.settings,hud_text_size='huge'));raise AssertionError('invalid HUD size accepted')
             except ValueError:pass
+            # A finished download's window comes to the front and stays above other windows.
+            app._completed_notified.discard(did);app.settings['completion_popup']=True;app.completed_popup(did);app.update()
+            popup=next(w for w in app.winfo_children() if isinstance(w,CompletionDialog))
+            import ctypes
+            assert popup.attributes('-topmost') and ctypes.windll.user32.GetForegroundWindow()==int(popup.wm_frame(),16)
+            popup.close();app.update()
             completion=CompletionDialog(app,dict(app.db.get_download(did),status='Tamamlandı'))
             snapshot(completion,'completion',mode)
             # The real two-sentence clean verdict once ran under the scan button.
