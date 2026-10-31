@@ -1,4 +1,4 @@
-"""A YouTube Music album or list as one download: its songs run one after another."""
+"""A YouTube Music album or playlist as one download: its songs run one after another."""
 import json
 import logging
 from pathlib import Path
@@ -39,6 +39,7 @@ class AlbumDownloadTask(VideoDownloadTask):
         super().__init__(download_id, url, audio.get('folder') or dest_folder, audio=audio, **kwargs)
         self.entries = validate_entries(audio['entries'])
         self.numbered = bool(audio.get('numbered'))
+        self.collection = str(audio.get('title') or '').strip() or 'YouTube Music'
         self.album_folder = None
         self._song = None
 
@@ -68,9 +69,8 @@ class AlbumDownloadTask(VideoDownloadTask):
         if self._song:self._song._cancel_flag.set()
 
     def _name(self):
-        # Artist/Album/ folder from the music engine: "Artist – Album · 12 parça".
-        folder = Path(self.album_folder) if self.album_folder else None
-        title = f'{folder.parent.name} – {folder.name}' if folder else 'YouTube Music'
+        # The album or playlist folder from the music engine: "Karma · 12 parça".
+        title = Path(self.album_folder).name if self.album_folder else self.collection
         return f'{title} · {len(self.entries)} parça'
 
     def _run(self):
@@ -82,7 +82,8 @@ class AlbumDownloadTask(VideoDownloadTask):
                 return
             song = VideoDownloadTask(self.download_id, self.entries[index], self.dest_folder, quality=self.quality,
                                      connections=self.connections,
-                                     audio=dict(bitrate=self.audio['bitrate'], album=True, track=index + 1 if self.numbered else None),
+                                     audio=dict(bitrate=self.audio['bitrate'], album=True, track=index + 1 if self.numbered else None,
+                                                collection=self.collection),
                                      progress_callback=lambda did, got, total, speed, eta, status, i=index, f=finished:
                                          self._song_progress(i, f, got, total, speed, eta),
                                      status_callback=self._song_status, metadata_callback=self._song_metadata)

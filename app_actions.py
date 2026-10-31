@@ -57,11 +57,13 @@ class AppActions:
 
     def browser_request(self,request,decision):
         self.deiconify()
+        # A window opened from the browser comes to the front and stays above it until answered.
         if request['kind']=='batch':
             from batch_dialog import BatchDialog
-            return BatchDialog(self,'\n'.join(request['urls']))
+            window=BatchDialog(self,'\n'.join(request['urls']));foreground(window,keep_on_top=True)
+            return window
         if request['kind']=='music':return self.music_request(request)
-        prompt=CapturePrompt(self,request,decision)
+        prompt=CapturePrompt(self,request,decision);foreground(prompt,keep_on_top=True)
         if getattr(self,'integration_test',False):self.after(150,lambda:prompt.choose('start'))
         return prompt
 
@@ -91,7 +93,7 @@ class AppActions:
                 from utils import clean_filename
                 name=f'{clean_filename(title)} · {len(entries)} parça'
                 self.add_download_from_dialog(request['url'],name,str(folder/name),is_video=True,video_quality='Yalnızca Ses (MP3)',
-                    audio=dict(bitrate=bitrate,album=True,track=None,entries=entries,numbered=album,folder=str(folder)))
+                    audio=dict(bitrate=bitrate,album=True,track=None,entries=entries,numbered=album,folder=str(folder),title=title))
                 self.notify('Müzik eklendi',f'{len(entries)} parça tek indirmede · MP3 · {bitrate} kb/sn')
             self.post_ui(apply)
         threading.Thread(target=work,daemon=True).start()
@@ -203,7 +205,9 @@ class AppActions:
         if did in self._completed_notified:return
         self._completed_notified.add(did)
         record=self.db.get_download(did)
-        if record and self.settings.get('completion_popup',True):CompletionDialog(self,record)
+        if record and self.settings.get('completion_popup',True):
+            # Like a window opened from the browser: in front and above other windows until closed.
+            foreground(CompletionDialog(self,record),keep_on_top=True)
 
     def show_download_error(self,did,error):
         from error_messages import explain_error

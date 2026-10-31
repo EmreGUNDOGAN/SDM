@@ -11,7 +11,9 @@ def run():
     from app_dialogs import CapturePrompt,CompletionDialog
     from feature_ui import ToolsDialog,SpeedGraph,SpeedHistory
     app=MainWindow();app.engine.stop_engine();errors=[]
-    app.report_callback_exception=lambda *args:(errors.append(str(args)),app.destroy())
+    # Print the callback traceback before closing, so a failure names its cause.
+    import traceback
+    app.report_callback_exception=lambda *args:(traceback.print_exception(*args),errors.append(str(args)),app.destroy())
     app.settings.update(clipboard_monitoring=False,notifications_enabled=False,update_check_on_start=False,duplicate_warning=False,completion_popup=False,auto_open_details=False)
     folder=ensure_config_dir()/'downloads';folder.mkdir(exist_ok=True);app.settings['download_dir']=str(folder)
     did=app.add_download_from_dialog('https://example.invalid/fixture','synthetic.bin',str(folder/'synthetic.bin'),auto_start=False)

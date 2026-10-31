@@ -42,10 +42,28 @@
     :host([data-design=yorunge]) #choices button.recommended{background:#38e1ff14;color:#38e1ff;box-shadow:inset 2px 0 0 #38e1ff}
     :host([data-design=yorunge]) #status{color:#7d93a8}
     :host([data-design=yorunge]) #foot{background:transparent;border-top:1px solid #173040;border-radius:0;color:#7d93a8;text-transform:uppercase;letter-spacing:1px;font-size:10px}
+    /* YouTube Music (user-approved board): a red round button in the player bar, menus in the site's own colours. */
+    :host([data-music]){font-family:Roboto,Arial,sans-serif;align-items:flex-end}
+    :host([data-music]) #toggle{width:40px;height:40px;padding:0;border-radius:50%;justify-content:center;background:#ff0033;color:#fff;box-shadow:none}
+    :host([data-music]) #toggle:hover{background:#ff1f4b}:host([data-music]) #toggle svg{width:22px;height:22px}
+    :host([data-music]) #panel{width:320px;margin:0 0 10px;padding:12px 0 8px;border:0;border-radius:10px;background:#212121;color:#fff;box-shadow:0 8px 24px #0009}
+    :host([data-music]) #title{display:flex;align-items:center;gap:12px;margin:0;padding:2px 16px 12px;-webkit-line-clamp:unset}
+    :host([data-music]) #title img{width:40px;height:40px;border-radius:4px;object-fit:cover;flex:none}
+    :host([data-music]) #title b{display:block;font-size:15px;font-weight:500}:host([data-music]) #title small{display:block;font-size:13px;color:#aaa;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:230px}
+    :host([data-music]) #tabs{background:transparent;padding:0 16px 12px;gap:8px;border-bottom:1px solid #ffffff1a;border-radius:0}
+    :host([data-music]) #tabs button{flex:0 0 auto;height:32px;padding:0 14px;border-radius:8px;background:#ffffff1a;color:#fff;font:400 14px Roboto,Arial,sans-serif;box-shadow:none}
+    :host([data-music]) #tabs button[aria-selected=true]{background:#fff;color:#030303;font-weight:500}
+    :host([data-music]) #status{color:#aaa;font-size:12px;margin:10px 16px 2px}
+    :host([data-music]) #choices{margin:0}
+    :host([data-music]) #choices button{margin:0;min-height:44px;border-radius:0;background:transparent;color:#fff;padding:0 16px;font:400 15px Roboto,Arial,sans-serif;justify-content:flex-start;gap:16px}
+    :host([data-music]) #choices button:hover,:host([data-music]) #choices button.recommended{background:#ffffff1a;color:#fff}
+    :host([data-music]) #choices button small{margin-left:auto;font-size:12px;color:#aaa}
+    :host([data-music]) #foot{margin:6px 0 0;padding:10px 16px 2px;border-top:1px solid #ffffff1a;border-radius:0;background:transparent;color:#aaa;font-size:12px}
   </style><button id="toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v13m-5-5 5 5 5-5M4 17v4h16v-4"/></svg>SDM ile indir</button><div id="panel" hidden><p id="title">Video kalitesi</p><div id="tabs" role="tablist"><button id="video-tab" role="tab" aria-selected="true">Video</button><button id="audio-tab" role="tab" aria-selected="false">Yalnız ses (MP3)</button></div><div id="status" aria-live="polite"></div><div id="choices"></div><div id="foot">Boyutlar tahminidir. Ses ve görüntü MKV olarak birleştirilir.</div></div>`;
   document.documentElement.append(host);
   // SDM's design as last stored by the extension; nothing here contacts SDM.
   function applyDesign(design) {
+    if (location.hostname === 'music.youtube.com') return;  // YouTube Music keeps its own look
     if (['pano', 'yorunge'].includes(design)) host.dataset.design = design; else delete host.dataset.design;
   }
   chrome.storage.local.get('sdmDesign').then(value => applyDesign(value.sdmDesign)).catch(() => {});
@@ -70,10 +88,20 @@
     return {song: query.get('v'), list: query.get('list'), albumPage: location.pathname === '/playlist'};
   }
   if (MUSIC) {
-    toggle.lastChild.textContent = 'SDM ile MP3';
+    host.dataset.music = '';
+    toggle.lastChild.textContent = '';toggle.title = 'SDM ile indir';toggle.setAttribute('aria-label', 'SDM ile indir');
     root.getElementById('tabs').hidden = true;
     host.style.flexDirection = 'column-reverse';  // the menu opens upwards, above the player bar
   }
+  // The player bar's own song, artist and cover, when YouTube Music shows them.
+  function playing() {
+    const bar = document.querySelector('ytmusic-player-bar');
+    const text = selector => (bar?.querySelector(selector)?.textContent || '').trim();
+    const artist = text('.byline').split('•')[0].trim();
+    return {title: text('.title') || document.title.replace(/ - YouTube Music$/, ''), artist, cover: bar?.querySelector('img.image')?.src || ''};
+  }
+  const NOTE = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>';
+  const BITRATE_NOTES = {320: 'en yüksek', 192: 'önerilen', 128: 'küçük dosya'};
   async function send(message) {
     const reply = await chrome.runtime.sendMessage(message);
     if (!reply || reply.error) throw new Error(reply?.error || 'SDM eklentisi yanıt vermedi');
@@ -99,14 +127,18 @@
   }
   function musicChoices() {
     const page = musicPage();
-    root.getElementById('title').textContent = document.title.replace(/ - YouTube Music$/, '') || 'YouTube Music';
+    const song = playing(), head = root.getElementById('title'), name = document.createElement('b'), sub = document.createElement('small');
+    name.textContent = 'SDM ile indir';sub.textContent = [song.title, song.artist].filter(Boolean).join(' · ') || 'YouTube Music';
+    const cover = document.createElement('img');cover.alt = '';cover.onerror = () => { cover.hidden = true; };cover.hidden = !/^https:/.test(song.cover);if (!cover.hidden) cover.src = song.cover;
+    const words = document.createElement('div');words.append(name, sub);head.replaceChildren(cover, words);
     // Two explicit choices: this song or the whole album/list. The video/audio
     // tabs are reused; an album page carries no song id until a song plays.
     const tabs = root.getElementById('tabs'), songTab = root.getElementById('video-tab'), listTab = root.getElementById('audio-tab');
     let list = Boolean(page.list && !page.song);
     tabs.hidden = !page.list;
     songTab.textContent = 'Bu şarkı';songTab.disabled = !page.song;
-    listTab.textContent = page.albumPage || String(page.list).startsWith('OLAK5uy_') ? 'Albümün tamamı' : 'Listenin tamamı';
+    // YouTube Music album lists are 'OLAK5uy_…'; any other list (PL…, RDCLAK…, LM) is a playlist.
+    listTab.textContent = String(page.list).startsWith('OLAK5uy_') ? 'Albümün tamamı' : 'Playlistin tamamı';
     const pick = value => {
       list = value;songTab.setAttribute('aria-selected', String(!value));listTab.setAttribute('aria-selected', String(value));
       status.textContent = page.song ? 'Ses kalitesini seç.' : 'Tek şarkı için önce şarkıyı çal. Ses kalitesini seç.';
@@ -115,7 +147,8 @@
     listTab.onclick = event => { if (event.isTrusted) pick(true); };
     for (const bitrate of MUSIC_BITRATES) {
       const button = document.createElement('button');
-      button.textContent = `MP3 · ${bitrate} kb/sn` + (bitrate === MUSIC_DEFAULT ? ' · önerilen' : '');
+      button.innerHTML = NOTE;button.append(`${bitrate} kb/sn`);
+      if (BITRATE_NOTES[bitrate]) { const note = document.createElement('small');note.textContent = BITRATE_NOTES[bitrate];button.append(note); }
       if (bitrate === MUSIC_DEFAULT) button.className = 'recommended';
       button.onclick = async (event) => {
         if (!event.isTrusted || busy) return;
@@ -130,7 +163,7 @@
       };
       choices.append(button);
     }
-    root.getElementById('foot').textContent = 'Sanatçı / Albüm klasörüne, etiket ve kapakla kaydedilir.';
+    root.getElementById('foot').textContent = 'Şarkı “Sanatçı - Şarkı” adıyla; albüm ve playlist kendi adındaki tek klasöre, etiket ve kapakla kaydedilir.';
     pick(list);
   }
   async function openPicker() {
@@ -164,7 +197,15 @@
       // Songs often play behind cover art with no visible <video>; anchor above the player bar.
       const page = musicPage();
       host.style.display = page.song || (page.albumPage && page.list) ? 'flex' : 'none';
-      host.style.top = 'auto';host.style.bottom = '96px';host.style.right = '24px';
+      // In the player bar, just left of its volume/repeat/shuffle buttons; bottom right if the bar changes.
+      const bar = document.querySelector('ytmusic-player-bar');
+      const controls = bar && bar.querySelector('.right-controls-buttons, .right-controls, #right-controls');
+      const barBox = bar && bar.getBoundingClientRect(), box = controls && controls.getBoundingClientRect();
+      host.style.top = 'auto';
+      if (barBox && barBox.height && box && box.width) {
+        host.style.bottom = Math.max(0, innerHeight - (barBox.top + barBox.height / 2) - 20) + 'px';
+        host.style.right = Math.max(8, innerWidth - box.left + 8) + 'px';
+      } else { host.style.bottom = '96px';host.style.right = '24px'; }
       panel.style.maxWidth = Math.min(380, innerWidth - 24) + 'px';
       return;
     }

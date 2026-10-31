@@ -391,7 +391,7 @@ class VideoDownloadTask:
                     from utils import get_unique_filepath
                     if self.is_audio_only and self.audio['album']:
                         from music import album_path
-                        target=album_path(self.dest_folder,info,self.audio['track']);target.parent.mkdir(parents=True,exist_ok=True)
+                        target=album_path(self.dest_folder,info,self.audio['track'],self.audio['collection']);target.parent.mkdir(parents=True,exist_ok=True)
                         destination=get_unique_filepath(target.parent,target.name)
                     else:destination = get_unique_filepath(self.dest_folder,
                         (Path(self.output_name).stem + final_path.suffix) if self.output_name else final_path.name)

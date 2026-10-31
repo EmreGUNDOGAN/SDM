@@ -34,8 +34,8 @@ class Response:
 
 class MusicOptionsTest(unittest.TestCase):
     def test_validate_audio_defaults_and_limits(self):
-        self.assertEqual(music.validate_audio(None), dict(bitrate=192, album=False, track=None))
-        self.assertEqual(music.validate_audio(dict(bitrate='320', album=1, track='7')), dict(bitrate=320, album=True, track=7))
+        self.assertEqual(music.validate_audio(None), dict(bitrate=192, album=False, track=None, collection=None))
+        self.assertEqual(music.validate_audio(dict(bitrate='320', album=1, track='7', collection=' Mix ')), dict(bitrate=320, album=True, track=7, collection='Mix'))
         for bad in (dict(bitrate=64), dict(bitrate=999), dict(track=0), dict(track=10000)):
             with self.assertRaises(ValueError):music.validate_audio(bad)
 
@@ -48,9 +48,14 @@ class MusicOptionsTest(unittest.TestCase):
 
     def test_album_path_layout_and_fallback(self):
         root = Path('C:/Music')
-        self.assertEqual(music.album_path(root, YTM), root / 'Artist One' / 'Album_ Live' / '04 - Song.mp3')
-        self.assertEqual(music.album_path(root, dict(YTM, track_number=None)), root / 'Artist One' / 'Album_ Live' / 'Song.mp3')
-        self.assertEqual(music.album_path(root, dict(title='A/B?')), root / 'A_B_.mp3')  # no album: stay flat
+        # A song: "Artist - Title.mp3" directly in the folder, no Artist/Album folders.
+        self.assertEqual(music.album_path(root, YTM), root / 'Artist One - Song.mp3')
+        self.assertEqual(music.album_path(root, dict(title='A/B?')), root / 'A_B_.mp3')  # no artist: title only
+        # An album: one folder named after the album, numbered songs.
+        self.assertEqual(music.album_path(root, YTM, 4, 'Album - Live'), root / 'Album_ Live' / '04 - Song.mp3')
+        self.assertEqual(music.album_path(root, dict(YTM, album=None), 4, 'List'), root / 'List' / '04 - Song.mp3')
+        # A playlist: one folder named after the playlist, "Artist - Title.mp3".
+        self.assertEqual(music.album_path(root, YTM, None, 'Road / Mix'), root / 'Road _ Mix' / 'Artist One - Song.mp3')
 
     def test_cover_is_square_jpeg_from_webp(self):
         data = music.cover_jpeg(image_bytes('WEBP', (1280, 720)))
@@ -103,7 +108,7 @@ class MusicFileTest(unittest.TestCase):
         profile = self.folder / 'profile'
         with patch.object(yt_dlp.YoutubeDL, 'extract_info', extract), patch('utils.CONFIG_DIR', profile):
             task._run()
-        target = out / 'Artist One' / 'Album_ Live' / '02 - Song.mp3'
+        target = out / 'Album_ Live' / '02 - Song.mp3'
         self.assertTrue(target.is_file(), (done, sorted(p.relative_to(out) for p in out.rglob('*'))))
         # The work folder lives in SDM's data folder and is removed after success.
         self.assertEqual(sorted(p.relative_to(out) for p in out.rglob('*') if p.is_file()), [target.relative_to(out)])
@@ -132,10 +137,10 @@ class MusicFileTest(unittest.TestCase):
         audio = dict(bitrate=128, album=True, track=None, entries=entries, numbered=True, folder=str(out))
         def task():
             # The stored row path is the album folder after the first song; the songs still use `folder`.
-            return video_task(7, base + 'list', out / 'Artist One' / 'Album_ Live', quality='Yalnızca Ses (MP3)', audio=audio,
+            return video_task(7, base + 'list', out / 'Album_ Live', quality='Yalnızca Ses (MP3)', audio=audio,
                               status_callback=lambda did, status, message: events.append(status),
                               metadata_callback=lambda did, name, path, size, cat: metadata.append((name, path, cat)))
-        album = out / 'Artist One' / 'Album_ Live'
+        album = out / 'Album_ Live'
         with patch.object(yt_dlp.YoutubeDL, 'extract_info', extract), patch('utils.CONFIG_DIR', profile):
             first = task();self.assertIsInstance(first, AlbumDownloadTask)
             # Pause after the first song: the row stays paused and remembers one finished song.
@@ -151,11 +156,20 @@ class MusicFileTest(unittest.TestCase):
         self.assertEqual(second.status, 'Tamamlandı')
         self.assertEqual(sorted(p.name for p in album.iterdir()), ['01 - Song.mp3', '02 - Song.mp3', '03 - Song.mp3'])
         self.assertEqual(events.count('Tamamlandı'), 1)   # one completion for the whole list, not one per song
-        self.assertEqual(metadata[-1], ('Artist One – Album_ Live · 3 parça', str(album), 'Müzik'))
+        self.assertEqual(metadata[-1], ('Album_ Live · 3 parça', str(album), 'Müzik'))
         self.assertEqual(self.read_tags(album / '03 - Song.mp3')[0]['TRCK'], '3')
         self.assertFalse((profile / 'staging' / 'album-7.json').exists())
         self.assertEqual(list((profile / 'staging').iterdir()), [])
         with self.assertRaises(ValueError):video_task(8, base, out, quality='Yalnızca Ses (MP3)', audio=dict(audio, entries=['file:///C:/x']))
+        # A playlist: one folder named after the playlist, songs as "Artist - Title.mp3", no numbers.
+        metadata.clear()
+        playlist = dict(audio, entries=entries[:2], numbered=False, title='Road Mix')
+        with patch.object(yt_dlp.YoutubeDL, 'extract_info', extract), patch('utils.CONFIG_DIR', profile):
+            mix = video_task(9, base + 'mix', out, quality='Yalnızca Ses (MP3)', audio=playlist,
+                             metadata_callback=lambda did, name, path, size, cat: metadata.append((name, path, cat)));mix._run()
+        self.assertEqual(sorted(p.name for p in (out / 'Road Mix').iterdir()), ['Artist One - Song (1).mp3', 'Artist One - Song.mp3'])
+        self.assertEqual(metadata[-1], ('Road Mix · 2 parça', str(out / 'Road Mix'), 'Müzik'))
+        self.assertEqual(sorted(p.name for p in out.iterdir()), ['Album_ Live', 'Road Mix'])  # no Artist folders
 
 
 if __name__ == '__main__':
