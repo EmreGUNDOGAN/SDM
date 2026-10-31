@@ -30,6 +30,10 @@ def foreground(window,keep_on_top=False):
     """Show `window` in front; a decision window can stay on top until it closes."""
     window.deiconify();window.lift()
     window.attributes('-topmost',True)
-    activate(window);window.focus_force()
+    # Joining another thread's input is kept to the windows the browser or a
+    # finished download asks for; with it, Tk once fired a <Leave> binding
+    # without its event (package self-test, another app in front).
+    if keep_on_top:activate(window)
+    window.focus_force()
     if not keep_on_top:
         window.after(500,lambda:window.attributes('-topmost',False) if window.winfo_exists() else None)
