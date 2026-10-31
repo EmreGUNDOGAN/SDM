@@ -3,19 +3,20 @@
   <h1>SDM</h1>
   <p><strong>Windows için kişisel indirme yöneticisi.</strong></p>
   <p>Dosyaları düzenle. Videoda kaliteyi seç. İndirmeleri tek yerden takip et.</p>
-  <p>Windows 10 / 11 · Chrome ve Opera · Sürüm 0.5.0</p>
-  <p><a href="https://github.com/EmreGUNDOGAN/SDM-Updates/releases/tag/v0.5.0">Kurulum paketini indir</a> · <a href="SECURITY-REVIEW.md">Doğrulama bilgileri</a></p>
+  <p>Windows 10 / 11 · Chrome ve Opera · Sürüm 1.0.0</p>
+  <p><a href="https://github.com/EmreGUNDOGAN/SDM-Updates/releases/tag/v1.0.0">Kurulum paketini indir</a> · <a href="SECURITY-REVIEW.md">Doğrulama bilgileri</a></p>
 </div>
 
 ---
 
-0.5.1 kaynak dalı bölüm indirme düzeltmelerini ve daha büyük yazıları içerir.
-Yukarıdaki 0.5.0 bağlantısı mevcut yayımlanmış kurulumdur; 0.5.1 kurulumu
-yayımlanana kadar bu bağlantı yeni sürüm olarak sunulmaz.
-[0.5.1 değişiklikleri](RELEASE-NOTES-0.5.1.md) · [0.5.0 değişiklikleri](RELEASE-NOTES-0.5.0.md).
+1.0.0; Pano ve Yörünge görünümlerini, müzik modunu, sayfa tarayıcıyı ve
+İstatistik penceresini ekler.
+[1.0.0 değişiklikleri](RELEASE-NOTES-1.0.0.md) · [0.5.1 değişiklikleri](RELEASE-NOTES-0.5.1.md) · [0.5.0 değişiklikleri](RELEASE-NOTES-0.5.0.md).
 
 Görünüm ve renk modu Ayarlar → Genel'de bağımsız seçilir. Atlas tablo ve
-seçim paneli, Odak kartlar ve ayrıntı çekmecesi kullanır. Odak'ta Ayarlar ana
+seçim paneli, Odak kartlar ve ayrıntı çekmecesi kullanır. Pano açık renkli
+panolar, Yörünge koyu ve köşe çizgili paneller kullanır; Yörünge yalnız koyu
+modda açılır. Odak'ta Ayarlar ana
 alana açılır; kaydedilmemiş değişiklikte Kaydet/Kaydetme/Vazgeç seçimi sunulur.
 Yedekten geri yükleme Kaydet'e basmadan uygulanmaz. Sayı biçimi tercihi korunur.
 
@@ -48,11 +49,15 @@ geliştirilen sürümün kaynak kodunu ve kurulum tarifini içerir.
 | Yeni araçlar | Adlandırılmış kuyruklar, tekrarlayan takvim, öncelik, rahatlat modu ve masaüstü HUD’u. |
 | Dosya işlemleri | Otomatik ZIP/RAR çıkarma; altyazı seçimi; kesme/dönüştürme; klasör önizlemesi ve bağlantı kontrolü. |
 | Kaspersky | Tamamlandı penceresinde Virüs tarat; tarama yalnızca düğmeyle başlar. |
+| Dört görünüm | Atlas, Odak, Pano ve Yörünge; pencereler, ayarlar ve HUD seçilen görünümle açılır. |
+| Müzik modu | YouTube Music'te SDM ile MP3; 128–320 kb/sn, Sanatçı/Albüm klasörü, ID3 etiketi ve kapak. |
+| Sayfa tarayıcı | Eklentiden etkin sayfadaki bağlantı ve medyayı listele; seçtiklerini toplu indirmeye gönder. |
+| İstatistik | Bugün, 7 gün, 30 gün ve tüm zaman için yerel indirme listesinden özet. |
 | Sistem tepsisi | Pencere kapatılsa da uygulama arka planda çalışabilir. |
 
 ## Kurulum
 
-1. **SDM-Setup-0.4.3.exe** dosyasını çalıştır.
+1. **SDM-Setup-1.0.0.exe** dosyasını çalıştır.
 2. Kullanacağın **Chrome / Opera eklentisi** seçeneğini işaretle.
 3. Açılan yönergeden tarayıcıda **Geliştirici modu → Paketlenmemiş yükle** adımını tamamla.
 4. Kurulum klasöründeki `extension` klasörünü seç.
@@ -71,7 +76,7 @@ Mağaza dışı eklentinin son yükleme onayı tarayıcıda bir kez verilmelidir
 - **Yakalama:** Ayarlar → Tarayıcı bölümünden site/uzantı tercihlerini düzenle; eklentiden geçici durdur.
 - **Güncelleme:** Ayarlar → Güncelleme bölümünden kontrol et. Token gerekmez; kurulum onayınla başlar.
 - **Tema:** Ayarlar → Genel bölümünden light / dark / system seç.
-- **Yeni sürüm:** [0.4.3 değişiklikleri](RELEASE-NOTES-0.4.3.md).
+- **Yeni sürüm:** [1.0.0 değişiklikleri](RELEASE-NOTES-1.0.0.md).
 
 Hız, kısa aralıklı anlık değerler yerine zaman ağırlıklı ortalamayla gösterilir.
 Kalan süre bir tahmindir; ağ ve sunucu koşulları değiştikçe güncellenir.
@@ -95,7 +100,7 @@ olarak kapalıdır.
 - Kaynak incelemesinde gizli veri toplama veya uzaktan komut alma davranışı bulunmadı.
 - 41 motor/güvenlik regresyon testi ve yerel Windows arayüz kontrolleri geçti.
 - Chromium'da normal dosya yakalama ve başarısız aktarımda tarayıcıya dönüş test edildi.
-- Önceki paketli sürümde gerçek YouTube video/MP3 ve kurulum/kaldırma testleri geçti. 0.4.3 setup GitHub Actions üzerinde üretilecektir.
+- Önceki paketli sürümde gerçek YouTube video/MP3 ve kurulum/kaldırma testleri geçti. 1.0.0 setup GitHub Actions üzerinde üretilir.
 
 Bu kontroller bir güvenlik sertifikası değildir. Uygulama ve setup dijital
 olarak imzalanmamıştır. İndirme geçmişi ve adresler yerel `.sdm` klasöründe
