@@ -60,7 +60,7 @@ class CapturePrompt(AppWindow):
             label(self.audio_row,'Ses kalitesi',palette=self.p,muted=True).pack(side='left',padx=(0,10))
             Select(self.audio_row,{str(rate):f'{rate} kb/sn' for rate in AUDIO_BITRATES},self.bitrate,palette=self.p,width=150,height=SIZES['input']).pack(side='left')
             Switch(self.audio_row,self.album,palette=self.p).pack(side='right')
-            label(self.audio_row,'Sanatçı / Albüm klasörü',palette=self.p).pack(side='right',padx=(0,8))
+            label(self.audio_row,'Sanatçı - Şarkı adı ve etiket',palette=self.p).pack(side='right',padx=(0,8))
             if self.quality.get()=='audio':self.audio_row.pack(fill='x',pady=(12,0))
             section=AutoCard(self.body,self.p)
             if pano:section.radius=22

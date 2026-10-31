@@ -87,7 +87,7 @@ class BatchDialog(AppWindow):
         label(audio_row,'MP3 kalitesi',palette=self.p,muted=True).pack(side='left',padx=(0,10))
         Select(audio_row,{str(rate):f'{rate} kb/sn' for rate in AUDIO_BITRATES},self.bitrate,palette=self.p,width=150).pack(side='left')
         Switch(audio_row,self.album,palette=self.p).pack(side='right')
-        label(audio_row,'Sanatçı / Albüm klasörü',palette=self.p).pack(side='right',padx=(0,8))
+        label(audio_row,'Sanatçı - Şarkı adı ve etiket',palette=self.p).pack(side='right',padx=(0,8))
         self.total=tk.StringVar(self,'0 öğe seçili')
         self.scanning=tk.StringVar(self,'')
         if self.orbit:

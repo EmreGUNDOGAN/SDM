@@ -43,11 +43,18 @@ async function open(browser, url) {
     assert.match(await page.locator('#status').textContent(), /önce şarkıyı çal/);
     await page.close();
 
+    // Any other list is a playlist; it is offered as one too.
+    page = await open(browser, 'https://music.youtube.com/playlist?list=PLmix');
+    assert.equal(await page.locator('#audio-tab').textContent(), 'Playlistin tamamı');
+    await page.getByRole('button', {name: /MP3 · 256/}).click();
+    assert.deepEqual(await page.evaluate('window.sent'), [{type: 'music', url: 'https://music.youtube.com/playlist?list=PLmix', bitrate: 256, list: true}]);
+    await page.close();
+
     // A single song without a list: no choice row.
     page = await open(browser, 'https://music.youtube.com/watch?v=S2');
     assert.equal(await page.locator('#tabs').isHidden(), true);
     await page.getByRole('button', {name: /MP3 · 128/}).click();
     assert.deepEqual(await page.evaluate('window.sent'), [{type: 'music', url: 'https://music.youtube.com/watch?v=S2', bitrate: 128, list: false}]);
-    console.log('YouTube Music: song/album choice, album page without a song, single song: OK');
+    console.log('YouTube Music: song/album choice, album page without a song, playlist, single song: OK');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exit(1); });

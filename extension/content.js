@@ -106,7 +106,8 @@
     let list = Boolean(page.list && !page.song);
     tabs.hidden = !page.list;
     songTab.textContent = 'Bu şarkı';songTab.disabled = !page.song;
-    listTab.textContent = page.albumPage || String(page.list).startsWith('OLAK5uy_') ? 'Albümün tamamı' : 'Listenin tamamı';
+    // YouTube Music album lists are 'OLAK5uy_…'; any other list (PL…, RDCLAK…, LM) is a playlist.
+    listTab.textContent = String(page.list).startsWith('OLAK5uy_') ? 'Albümün tamamı' : 'Playlistin tamamı';
     const pick = value => {
       list = value;songTab.setAttribute('aria-selected', String(!value));listTab.setAttribute('aria-selected', String(value));
       status.textContent = page.song ? 'Ses kalitesini seç.' : 'Tek şarkı için önce şarkıyı çal. Ses kalitesini seç.';
@@ -130,7 +131,7 @@
       };
       choices.append(button);
     }
-    root.getElementById('foot').textContent = 'Sanatçı / Albüm klasörüne, etiket ve kapakla kaydedilir.';
+    root.getElementById('foot').textContent = 'Şarkı “Sanatçı - Şarkı” adıyla; albüm ve playlist kendi adındaki tek klasöre, etiket ve kapakla kaydedilir.';
     pick(list);
   }
   async function openPicker() {

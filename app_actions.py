@@ -91,7 +91,7 @@ class AppActions:
                 from utils import clean_filename
                 name=f'{clean_filename(title)} · {len(entries)} parça'
                 self.add_download_from_dialog(request['url'],name,str(folder/name),is_video=True,video_quality='Yalnızca Ses (MP3)',
-                    audio=dict(bitrate=bitrate,album=True,track=None,entries=entries,numbered=album,folder=str(folder)))
+                    audio=dict(bitrate=bitrate,album=True,track=None,entries=entries,numbered=album,folder=str(folder),title=title))
                 self.notify('Müzik eklendi',f'{len(entries)} parça tek indirmede · MP3 · {bitrate} kb/sn')
             self.post_ui(apply)
         threading.Thread(target=work,daemon=True).start()

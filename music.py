@@ -1,4 +1,4 @@
-"""Music mode: audio quality, Artist/Album layout and ID3 tags with cover art.
+"""Music mode: audio quality, song/album/playlist file layout and ID3 tags with cover art.
 
 Tags are written by SDM after the MP3 exists (not by yt-dlp postprocessors) so
 whole and section downloads get the same result. A failed tag or cover never
@@ -14,14 +14,15 @@ DEFAULT_BITRATE = 192
 
 
 def validate_audio(audio):
-    """Normalise the stored audio options: bitrate, album layout, track number."""
+    """Normalise the stored audio options: bitrate, music layout, track number, list folder."""
     audio = dict(audio or {})
     bitrate = int(audio.get('bitrate') or DEFAULT_BITRATE)
     if bitrate not in AUDIO_BITRATES:raise ValueError('Desteklenmeyen ses kalitesi.')
     track = audio.get('track')
     track = int(track) if track not in (None, '') else None
     if track is not None and not 1 <= track <= 9999:raise ValueError('Geçersiz parça numarası.')
-    return dict(bitrate=bitrate, album=bool(audio.get('album')), track=track)
+    collection = str(audio.get('collection') or '').strip()[:200] or None
+    return dict(bitrate=bitrate, album=bool(audio.get('album')), track=track, collection=collection)
 
 
 def tags(info, track=None):
@@ -34,13 +35,21 @@ def tags(info, track=None):
                 track=int(number) if number else None, year=str(info.get('release_year') or '')[:4])
 
 
-def album_path(folder, info, track=None):
-    """Artist/Album/NN - Title.mp3 under `folder`; flat when artist or album is unknown."""
+def album_path(folder, info, track=None, collection=None):
+    """Where a music download goes under `folder` (user decision, 1.0.2):
+
+    - a song: `Artist - Title.mp3` directly in the folder;
+    - an album (numbered `track`): one `Album/NN - Title.mp3` folder;
+    - a playlist (`collection`, no number): one `Playlist/Artist - Title.mp3` folder.
+    """
     facts = tags(info, track);folder = Path(folder)
-    title = clean_filename(facts['title'] or 'Ses')
-    if not (facts['artist'] and facts['album']):return folder / f'{title}.mp3'
-    name = f"{facts['track']:02d} - {title}.mp3" if facts['track'] else f'{title}.mp3'
-    return folder / clean_filename(facts['artist']) / clean_filename(facts['album']) / name
+    title = facts['title'] or 'Ses'
+    song = clean_filename(f"{facts['artist']} - {title}" if facts['artist'] else title)
+    if track:
+        name = clean_filename(f'{int(track):02d} - {title}')
+        return folder / clean_filename(facts['album'] or collection or 'Albüm') / f'{name}.mp3'
+    if collection:return folder / clean_filename(collection) / f'{song}.mp3'
+    return folder / f'{song}.mp3'
 
 
 def cover_jpeg(data):
