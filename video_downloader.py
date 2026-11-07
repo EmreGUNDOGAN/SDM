@@ -226,9 +226,10 @@ class VideoDownloadTask:
     def _tag_audio(self, path: Path, info: Dict[str, Any]) -> None:
         """ID3 tags and cover; the MP3 is complete, so a failure here is only logged."""
         from music import fetch_cover, write_tags
-        try:cover=fetch_cover(info)
-        except Exception as error:
-            logger.warning("Kapak resmi alınamadı: %s", error);cover=None
+        cover=None
+        if self.stream is None:
+            try:cover=fetch_cover(info)
+            except Exception as error:logger.warning("Kapak resmi alınamadı: %s", error)
         try:write_tags(path,info,self.audio['track'],cover)
         except Exception as error:logger.warning("Ses etiketleri yazılamadı: %s", error)
 

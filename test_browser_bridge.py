@@ -195,6 +195,16 @@ class BridgeTests(unittest.TestCase):
 
 
 class StreamTransportTests(unittest.TestCase):
+    def test_stream_audio_does_not_fetch_untrusted_cover_outside_guard(self):
+        from video_downloader import VideoDownloadTask
+        with tempfile.TemporaryDirectory() as folder:
+            spec,headers=stream_spec('https://cdn.example/a.mp4','https://site.example/watch','file')
+            task=VideoDownloadTask(8,'https://cdn.example/a.mp4',folder,is_audio_only=True,stream=spec,http_headers=headers)
+            with patch('music.fetch_cover') as cover,patch('music.write_tags') as tags:
+                task._tag_audio(Path(folder)/'fixture.mp3',{'thumbnail':'http://169.254.169.254/untrusted'})
+                cover.assert_not_called()
+                self.assertIsNone(tags.call_args.args[3])
+
     def test_no_formats_stays_empty(self):
         from stream_media import fetch_stream_formats
         for kind in ('file','hls','dash'):
