@@ -175,7 +175,8 @@ class AppActions:
                 options=json.loads(record.get('options_json') or '{}')
                 dest=get_unique_filepath(Path(record['filepath']).parent,record['filename'])
                 self.add_download_from_dialog(record['url'],dest.name,str(dest),is_video=record['download_type']=='video',
-                    video_quality=options.get('quality','En İyi'),selected_height=options.get('height'),connections=record['num_connections'],audio=options.get('audio'))
+                    video_quality=options.get('quality','En İyi'),selected_height=options.get('height'),connections=record['num_connections'],audio=options.get('audio'),
+                    **({'stream':options['stream'], 'headers':json.loads(record['headers'] or '{}')} if options.get('stream') else {}))
 
     def verify_selected(self):
         ids=self._get_selected_ids()
@@ -223,7 +224,8 @@ class AppActions:
                 if not folder:return
                 options=json.loads(record.get('options_json') or '{}')
                 dest=get_unique_filepath(folder,record['filename'])
-                self.add_download_from_dialog(record['url'],dest.name,str(dest),is_video=record['download_type']=='video',video_quality=options.get('quality','En İyi'),selected_height=options.get('height'),audio=options.get('audio'))
+                self.add_download_from_dialog(record['url'],dest.name,str(dest),is_video=record['download_type']=='video',video_quality=options.get('quality','En İyi'),selected_height=options.get('height'),audio=options.get('audio'),
+                    **({'stream':options['stream'], 'headers':json.loads(record['headers'] or '{}')} if options.get('stream') else {}))
             elif action=='Klasörü göster':os.startfile(str(Path(record['filepath']).parent))
             elif action=='Sıfırdan indir':
                 dest=get_unique_filepath(Path(record['filepath']).parent,record['filename'])

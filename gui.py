@@ -290,6 +290,7 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
                     selected_height=options.get('height'),connections=record['num_connections'],
                     output_name=options.get('output_name'),
                     section=options.get('section'),audio=options.get('audio'),
+                    **({'stream':options['stream'], 'http_headers':json.loads(record['headers'] or '{}')} if options.get('stream') else {}),
                     progress_callback=self._on_download_progress,status_callback=self._on_download_status_change,
                     metadata_callback=self._on_metadata_updated)
                 self.video_tasks[did]=task
@@ -362,7 +363,13 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
         expected_size: int = 0,
         section=None,
         audio=None,
+        stream=None,
     ) -> None:
+        if stream is not None:
+            from stream_media import stream_spec
+            stream, expected_headers = stream_spec(url, stream.get('page_url'), stream.get('kind'))
+            if headers != expected_headers:raise ValueError('Geçersiz medya başlıkları')
+            if section:raise ValueError('Genel akışta bölüm indirme desteklenmiyor.')
         if self.check_duplicate(url,is_video,video_quality,selected_height,section):return None
         if self.settings.get('disk_check',True):
             from file_tools import ensure_space
@@ -398,7 +405,9 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
             status=status,
         )
 
-        self.db.set_options(did, {'quality':video_quality,'height':selected_height,'output_name':candidate.name if from_browser else None,'section':section,'audio':audio})
+        options = {'quality':video_quality,'height':selected_height,'output_name':candidate.name if from_browser else None,'section':section,'audio':audio}
+        if stream is not None:options['stream'] = stream
+        self.db.set_options(did, options)
         self.db.set_queue(did,self.settings['queues'][0]['name'])
         self._session_baselines[did]=0
         self._session_received[did]=0
@@ -411,6 +420,7 @@ class MainWindow(ModernUI, AdvancedActions, AppActions, tb.Window):
                 selected_height=selected_height,
                 section=section,
                 audio=audio,
+                **({'stream':stream, 'http_headers':headers} if stream is not None else {}),
                 connections=connections,
                 output_name=candidate.name if from_browser else None,
                 progress_callback=self._on_download_progress,
