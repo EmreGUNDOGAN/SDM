@@ -37,6 +37,12 @@ def native_http(downloader,filename,info_dict,reason):
     return fallback.real_download(filename,info_dict)
 
 
+class StreamDownloadTask(DownloadTask):
+    def _create_session(self):
+        from stream_media import StreamSession
+        return StreamSession(self.headers)
+
+
 class SDMHttpFD(HttpFD):
     def real_download(self, filename, info_dict):
         owner = self.params.get('sdm_task')
@@ -45,8 +51,10 @@ class SDMHttpFD(HttpFD):
         target = Path(self.temp_name(filename))
         # Stable identity across pause/resume; the containing video folder is per-download.
         identity = int(hashlib.sha256(str(target).encode()).hexdigest()[:8], 16)
-        task = DownloadTask(identity, info_dict['url'], target,
-                            num_connections=owner.connections, headers=info_dict.get('http_headers'))
+        stream = getattr(owner, 'stream', None)
+        task_type = StreamDownloadTask if stream is not None else DownloadTask
+        task = task_type(identity, info_dict['url'], target,
+                            num_connections=owner.connections, headers=owner.http_headers if stream is not None else info_dict.get('http_headers'))
         task.request_chunk_size=max(0,int(info_dict.get('downloader_options',{}).get('http_chunk_size') or 0))
         if not task.inspect_remote_file():return native_http(self,filename,info_dict,'Paralel aktarım ön kontrolü tamamlanamadı.')
         if not task.supports_ranges:return native_http(self,filename,info_dict,'Sunucu HTTP Range desteği vermiyor.')

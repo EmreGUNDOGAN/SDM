@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 from utils import ensure_config_dir, load_settings, save_settings
 from capture_policy import should_capture, capture_enabled, normalize_domain
 from app_version import VERSION
+from stream_media import StreamDRMError, stream_spec, fetch_stream_formats
 
 PORT = int(os.environ.get('SDM_BRIDGE_PORT', '49282'))
 BATCH_LIMIT = 200  # page-scan links per request; the batch window inspects each one
@@ -159,6 +160,31 @@ class BrowserBridge:
                         ticket = bridge.enqueue({'kind':'batch','urls':urls})
                         bridge.decide(ticket,'start')
                         return self.send_json(202, {'ok': True, 'count': len(urls)})
+                    if self.path in ('/stream-formats', '/stream-download'):
+                        media_url, page_url = data.get('media_url'), data.get('page_url')
+                        stream, headers = stream_spec(media_url, page_url, data.get('kind'))
+                        title = data.get('title', '')
+                        if not isinstance(title, str) or len(title) > 240 or any(ord(c) < 32 or ord(c) == 127 for c in title):
+                            raise ValueError('Geçersiz video başlığı')
+                        if not should_capture(media_url, page_url, load_settings(),
+                                'video.mp3' if data.get('audio') else 'video.mp4'):
+                            return self.send_json(409, {'error':'Bu sitede SDM yakalaması kapalı'})
+                        if self.path == '/stream-download':
+                            height, audio, filesize = data.get('height'), data.get('audio', False), data.get('filesize', 0)
+                            if (type(audio) is not bool or (not audio or height is not None)
+                                    and (type(height) is not int or not 0 <= height <= 16384)
+                                    or type(filesize) is not int or not 0 <= filesize < 2**63):
+                                raise ValueError('Geçersiz kalite seçimi')
+                        # Re-inspect on download too: the browser cannot assert
+                        # that a source is clear, public or still accessible.
+                        formats = fetch_stream_formats(media_url, page_url, stream['kind'], title)
+                        if self.path == '/stream-formats':
+                            return self.send_json(200, formats)
+                        from utils import clean_filename
+                        ticket = bridge.enqueue({'kind':'video', 'url':media_url, 'stream':stream,
+                            'headers':headers, 'height':height, 'audio':audio,
+                            'filename':clean_filename(title or formats['title']), 'filesize':filesize})
+                        return self.send_json(202, {'ok':True, 'ticket':ticket})
                     url = validate_url(data.get('url'))
                     if self.path == '/formats':
                         from video_downloader import fetch_video_formats
@@ -188,6 +214,8 @@ class BrowserBridge:
                             'filename':str(data.get('title','Video'))[:240],'filesize':data.get('filesize',0)})
                         return self.send_json(202, {'ok': True,'ticket':ticket})
                     self.send_json(404, {'error': 'Bilinmeyen işlem'})
+                except StreamDRMError:
+                    self.send_json(400, {'error': 'Bu video korumalı (DRM); indirilemez.'})
                 except (ValueError, TypeError, queue.Full):
                     self.send_json(400, {'error': 'Geçersiz veya desteklenmeyen istek'})
                 except Exception:

@@ -138,6 +138,8 @@ class VideoDownloadTask:
         output_name: Optional[str] = None,
         section=None,
         audio=None,
+        http_headers=None,
+        stream=None,
     ):
         self.download_id = download_id
         self.url = url
@@ -151,6 +153,14 @@ class VideoDownloadTask:
         self.is_audio_only = is_audio_only or ("Ses" in quality)
         from music import validate_audio
         self.audio=validate_audio(audio)
+        self.stream = stream
+        self.http_headers = http_headers
+        if stream is not None:
+            from stream_media import stream_spec
+            self.stream, expected = stream_spec(url, stream.get('page_url'), stream.get('kind'))
+            if http_headers != expected:raise ValueError('Geçersiz medya başlıkları')
+            self.http_headers = expected
+            if section:raise ValueError('Genel akışta bölüm indirme desteklenmiyor.')
 
         self.progress_callback = progress_callback
         self.status_callback = status_callback
@@ -216,9 +226,10 @@ class VideoDownloadTask:
     def _tag_audio(self, path: Path, info: Dict[str, Any]) -> None:
         """ID3 tags and cover; the MP3 is complete, so a failure here is only logged."""
         from music import fetch_cover, write_tags
-        try:cover=fetch_cover(info)
-        except Exception as error:
-            logger.warning("Kapak resmi alınamadı: %s", error);cover=None
+        cover=None
+        if self.stream is None:
+            try:cover=fetch_cover(info)
+            except Exception as error:logger.warning("Kapak resmi alınamadı: %s", error)
         try:write_tags(path,info,self.audio['track'],cover)
         except Exception as error:logger.warning("Ses etiketleri yazılamadı: %s", error)
 
@@ -348,8 +359,15 @@ class VideoDownloadTask:
         try:
             from video_http import install_video_http_downloader
             install_video_http_downloader()
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(self.url, download=False)
+            if self.stream is not None:
+                from stream_media import StreamYoutubeDL
+                factory = lambda options: StreamYoutubeDL(options, self.http_headers)
+            else:factory = yt_dlp.YoutubeDL
+            with factory(ydl_opts) as ydl:
+                if self.stream is not None:
+                    from stream_media import extract_stream
+                    info = extract_stream(ydl, self.url, self.stream['kind'])
+                else:info = ydl.extract_info(self.url, download=False)
                 formats = info.get('requested_formats') or info.get('requested_downloads') or [info]
                 self._expected_total = sum(f.get('filesize') or f.get('filesize_approx') or 0 for f in formats)
                 if self.section:

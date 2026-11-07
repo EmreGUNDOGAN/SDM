@@ -29,6 +29,8 @@ class CapturePrompt(AppWindow):
         if video:self.name.set(self.name.get()+('.mp3' if request.get('audio') else '.mkv'))
         self.folder=tk.StringVar(self,parent.settings['download_dir'])
         self.quality=tk.StringVar(self,'audio' if request.get('audio') else str(request.get('height') or 'best'))
+        if request.get('stream') and request.get('height') == 0 and not request.get('audio'):
+            self.quality.set('0')
         self.formats=[];self.duration=request.get('duration');self.estimate=tk.StringVar(self,'')
         summary=AutoCard(self.body,self.p);self.summary_card=summary;row=summary.content
         if orbit:summary.pack_configure(pady=(20,16))
@@ -86,16 +88,21 @@ class CapturePrompt(AppWindow):
             def inspect():
                 try:
                     from dialog_inspection import inspect_url
-                    result=inspect_url(request['url'],True)
+                    if request.get('stream'):
+                        from stream_media import fetch_stream_formats
+                        spec=request['stream']
+                        result=dict(fetch_stream_formats(request['url'],spec['page_url'],spec['kind'],request.get('filename','')),kind='video')
+                    else:result=inspect_url(request['url'],True)
                     parent.post_ui(lambda:self.got_formats(result) if self.winfo_exists() else None)
                 except Exception:pass # The captured quality remains a valid fallback.
             threading.Thread(target=inspect,daemon=True).start()
 
     def render_qualities(self):
         for child in self.quality_host.winfo_children():child.destroy()
-        values=[(str(q['height']),str(q['height'])+'p',q.get('filesize',0)) for q in self.formats]
+        values=[(str(q['height']),q.get('label') or str(q['height'])+'p',q.get('filesize',0)) for q in self.formats]
         current=str(self.request.get('height') or 'best')
-        if not values:values=[(current,'En iyi' if current=='best' else current+'p',self.request.get('filesize',0))]
+        if self.request.get('stream') and self.request.get('height') == 0:current='0'
+        if not values:values=[(current,'Orijinal' if current=='0' else 'En iyi' if current=='best' else current+'p',self.request.get('filesize',0))]
         values.append(('audio','MP3',self.request.get('audio_filesize',0)))
         self.quality_cards=[]
         for index,(key,text,size) in enumerate(values):
@@ -136,6 +143,8 @@ class CapturePrompt(AppWindow):
         try:
             if not self.name.get().strip():raise ValueError('Dosya adı gerekli.')
             if self.section_fields:self.section_fields.collect()
+            if self.request.get('stream') and self.section_fields and self.section_fields.enabled.get():
+                raise ValueError('Genel akışta bölüm indirme desteklenmiyor.')
             self.error.set('');valid=True
         except ValueError as error:self.error.set(str(error));valid=False
         for key in ('start','queue'):
@@ -158,8 +167,9 @@ class CapturePrompt(AppWindow):
                 audio=self.quality.get()=='audio';height=int(self.quality.get()) if self.quality.get().isdigit() else self.request.get('height')
                 did=self.parent.add_download_from_dialog(self.request['url'],filename,str(dest),
                     is_video=self.request['kind']=='video',auto_start=action=='start',video_quality='Yalnızca Ses (MP3)' if audio else 'En İyi',selected_height=height,
-                    from_browser=action=='start',expected_size=0 if self.section_fields and self.section_fields.enabled.get() else self.selected_size,section=self.section_fields.collect() if self.section_fields else None,
-                    audio=dict(bitrate=int(self.bitrate.get()),album=self.album.get()) if audio else None)
+                    from_browser=action=='start' or bool(self.request.get('stream')),expected_size=0 if self.section_fields and self.section_fields.enabled.get() else self.selected_size,section=self.section_fields.collect() if self.section_fields else None,
+                    audio=dict(bitrate=int(self.bitrate.get()),album=self.album.get()) if audio else None,
+                    **({'stream':self.request['stream'], 'headers':self.request['headers']} if self.request.get('stream') else {}))
                 if did is None:action='cancel'
             except Exception as error:self.error.set(str(error));return
         self._done=True;self.decision(self.request['ticket'],action);self.destroy()
